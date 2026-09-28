@@ -1,20 +1,25 @@
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
+import axios from 'axios'
 
-export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api',
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  },
+})
+
+api.interceptors.request.use((config) => {
   const token = localStorage.getItem('clcarhub_token')
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  })
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 
-  if (!response.ok) {
-    throw new Error((await response.json().catch(() => null))?.message ?? 'Request failed')
-  }
+api.interceptors.response.use(
+  response => response,
+  error => {
+    const message = error.response?.data?.message ?? error.message ?? 'Request failed'
+    return Promise.reject(new Error(message))
+  },
+)
 
-  return response.status === 204 ? (undefined as T) : response.json()
-}
+export default api

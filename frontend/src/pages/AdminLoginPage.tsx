@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { apiRequest } from '../lib/api'
+import api from '../lib/api'
 import { Button, Eyebrow } from '../components/Ui'
 
 export default function AdminLoginPage() {
@@ -11,7 +11,7 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false)
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(''); setLoading(true)
-    try { const result = await apiRequest<{ token: string }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); localStorage.setItem('clcarhub_token', result.token); navigate('/admin') }
+    try { const { data } = await api.post<{ token: string }>('/auth/login', { email, password }); localStorage.setItem('clcarhub_token', data.token); navigate('/admin') }
     catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to sign in') }
     finally { setLoading(false) }
   }
