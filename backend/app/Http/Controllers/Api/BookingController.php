@@ -12,7 +12,7 @@ class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        return Booking::with(['customer', 'vehicle'])->when($request->status, fn ($q, $v) => $q->where('status', $v))->latest()->paginate(15);
+        return Booking::with(['customer', 'vehicle.images'])->when($request->status, fn ($q, $v) => $q->where('status', $v))->latest()->paginate(15);
     }
 
     public function store(Request $request)

@@ -5,32 +5,44 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Vehicle;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class VehicleController extends Controller
 {
     public function index(Request $request)
     {
-        return Vehicle::with('images')->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q->where('brand', 'like', "%$s%")->orWhere('model', 'like', "%$s%")->orWhere('plate_number', 'like', "%$s%")))->when($request->type, fn ($q, $v) => $q->where('type', $v))->when($request->status, fn ($q, $v) => $q->where('status', $v))->latest()->paginate(15);
+        return Vehicle::with(['images', 'partner'])->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('brand', 'like', "%$s%")->orWhere('model', 'like', "%$s%")->orWhere('plate_number', 'like', "%$s%")))->when($request->type, fn ($q, $v) => $q->where('type', $v))->when($request->partner_id === 'none', fn ($q) => $q->whereNull('partner_id'))->when($request->partner_id && $request->partner_id !== 'none', fn ($q) => $q->where('partner_id', $request->partner_id))->when($request->status, fn ($q, $v) => $q->where('status', $v))->orderByRaw("status = 'archived' asc")->latest()->paginate(15);
     }
 
     public function store(Request $request)
     {
-        return response()->json(Vehicle::create($request->validate($this->rules())), 201);
+        $data = $request->validate($this->rules());
+        $image = $data['image'] ?? null;
+        unset($data['image']);
+        $vehicle = Vehicle::create($data);
+        $this->storeImage($vehicle, $image);
+
+        return response()->json($vehicle->load(['images', 'partner']), 201);
     }
 
     public function show(Vehicle $vehicle)
     {
-        return $vehicle->load('images');
+        return $vehicle->load(['images', 'partner']);
     }
 
     public function update(Request $request, Vehicle $vehicle)
     {
         $rules = $this->rules();
         $rules['plate_number'] = ['required', 'string', Rule::unique('vehicles')->ignore($vehicle)];
-        $vehicle->update($request->validate($rules));
+        $data = $request->validate($rules);
+        $image = $data['image'] ?? null;
+        unset($data['image']);
+        $vehicle->update($data);
+        $this->storeImage($vehicle, $image);
 
-        return $vehicle->fresh('images');
+        return $vehicle->fresh(['images', 'partner']);
     }
 
     public function destroy(Vehicle $vehicle)
@@ -38,6 +50,13 @@ class VehicleController extends Controller
         $vehicle->update(['status' => 'archived']);
 
         return response()->noContent();
+    }
+
+    public function restore(Vehicle $vehicle)
+    {
+        $vehicle->update(['status' => 'available']);
+
+        return $vehicle->fresh(['images', 'partner']);
     }
 
     public function availability(Request $request, Vehicle $vehicle)
@@ -49,6 +68,16 @@ class VehicleController extends Controller
 
     private function rules(): array
     {
-        return ['brand' => ['required', 'string', 'max:100'], 'model' => ['required', 'string', 'max:100'], 'variant' => ['nullable', 'string'], 'year' => ['nullable', 'integer'], 'type' => ['required', 'string'], 'plate_number' => ['required', 'string', 'unique:vehicles,plate_number'], 'transmission' => ['nullable', 'string'], 'fuel_type' => ['nullable', 'string'], 'seats' => ['nullable', 'integer'], 'color' => ['nullable', 'string'], 'daily_rate' => ['required', 'numeric', 'min:0'], 'weekly_rate' => ['nullable', 'numeric', 'min:0'], 'monthly_rate' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'description' => ['nullable', 'string'], 'status' => ['nullable', 'in:available,reserved,rented,maintenance,unavailable,archived']];
+        return ['name' => ['nullable', 'string', 'max:100'], 'brand' => ['required', 'string', 'max:100'], 'model' => ['required', 'string', 'max:100'], 'variant' => ['nullable', 'string'], 'year' => ['required', 'integer', 'min:1900', 'max:'.(now()->year + 1)], 'type' => ['required', 'in:car,motorcycle'], 'plate_number' => ['required', 'string', 'unique:vehicles,plate_number'], 'transmission' => ['required', 'in:manual,automatic'], 'fuel_type' => ['required', 'in:regular_unleaded,premium_95,premium_98,diesel,ev_phev'], 'seats' => ['required', 'integer', 'min:1'], 'color' => ['required', 'string', 'max:50'], 'daily_rate' => ['required', 'numeric', 'min:0'], 'reservation_fee' => ['nullable', 'numeric', 'min:0'], 'security_deposit_fee' => ['nullable', 'numeric', 'min:0'], 'ownership' => ['nullable', 'string', 'max:150'], 'partner_id' => ['nullable', 'exists:partners,id'], 'description' => ['nullable', 'string'], 'status' => ['required', 'in:available,maintenance,reserved,rented,unavailable,archived'], 'image' => ['nullable', 'image', 'max:5120']];
+    }
+
+    private function storeImage(Vehicle $vehicle, ?UploadedFile $image): void
+    {
+        if (! $image) {
+            return;
+        }
+
+        $path = $image->store('vehicles', 'public');
+        $vehicle->images()->create(['path' => $path, 'is_primary' => true]);
     }
 }
