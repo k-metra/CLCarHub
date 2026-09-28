@@ -7,41 +7,58 @@ use App\Models\Booking;
 use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 
 class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        return Booking::with(['customer', 'vehicle.images'])->when($request->status, fn ($q, $v) => $q->where('status', $v))->latest()->paginate(15);
+        return Booking::with(['customer', 'vehicle.images', 'payments'])->when($request->status, fn ($q, $v) => $q->where('status', $v))->latest()->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate(['customer_id' => ['required', 'exists:customers,id'], 'vehicle_id' => ['required', 'exists:vehicles,id'], 'pickup_at' => ['required', 'date', 'after_or_equal:now'], 'return_at' => ['required', 'date', 'after:pickup_at'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'notes' => ['nullable', 'string']]);
+        $data = $request->validate($this->rules());
+        $payments = $data['payments'] ?? [];
+        unset($data['payments']);
 
-        return DB::transaction(function () use ($data, $request) {
+        return DB::transaction(function () use ($data, $payments, $request) {
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
             abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', ['pending', 'confirmed', 'awaiting_payment', 'paid', 'active'])->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
-            $days = max(1, now()->parse($data['pickup_at'])->diffInDays(now()->parse($data['return_at'])));
+            $days = $this->rentalDays($data['pickup_at'], $data['return_at']);
             $rental = $days * (float) $vehicle->daily_rate;
-            $deposit = (float) ($data['deposit'] ?? $vehicle->deposit);
-            $total = $rental + (float) ($data['additional_charges'] ?? 0) + $deposit - (float) ($data['discount'] ?? 0);
+            $reservationFee = (float) ($vehicle->reservation_fee ?? 0);
+            $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0);
+            $deposit = (float) ($data['deposit'] ?? $securityDeposit);
+            $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees', 'extension_fees'])->sum(fn ($fee) => (float) ($data[$fee] ?? 0));
+            $total = $rental + (float) ($data['additional_charges'] ?? 0) + $fees + $reservationFee + $securityDeposit - (float) ($data['discount'] ?? 0);
             $booking = Booking::create([...$data, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
+            $this->syncPayments($booking, $payments);
 
-            return response()->json($booking->load(['customer', 'vehicle']), 201);
+            return response()->json($booking->load(['customer', 'vehicle.images', 'payments']), 201);
         });
     }
 
     public function show(Booking $booking)
     {
-        return $booking->load(['customer', 'vehicle', 'creator']);
+        return $booking->load(['customer', 'vehicle.images', 'creator', 'payments']);
     }
 
     public function update(Request $request, Booking $booking)
     {
-        $booking->update($request->validate(['status' => ['sometimes', 'in:pending,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'notes' => ['nullable', 'string']]));
+        $data = $request->validate($this->rules(true));
+        $payments = $data['payments'] ?? null;
+        unset($data['payments']);
+        $booking->update($data);
+        $booking->refresh();
+        $vehicle = Vehicle::findOrFail($booking->vehicle_id);
+        $booking->rental_amount = $this->rentalDays($booking->pickup_at, $booking->return_at) * (float) $vehicle->daily_rate;
+        $booking->deposit = (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0);
+        $booking->save();
+        $this->recalculateTotal($booking);
+        if ($payments !== null) $this->syncPayments($booking, $payments);
 
-        return $booking->fresh(['customer', 'vehicle']);
+        return $booking->fresh(['customer', 'vehicle.images', 'payments']);
     }
 
     public function destroy(Booking $booking)
@@ -49,5 +66,37 @@ class BookingController extends Controller
         $booking->update(['status' => 'cancelled']);
 
         return response()->noContent();
+    }
+
+    private function rules(bool $updating = false): array
+    {
+        $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
+        $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'return_address' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+    }
+
+    private function syncPayments(Booking $booking, array $payments): void
+    {
+        $booking->payments()->delete();
+        foreach ($payments as $payment) {
+            $booking->payments()->create(['amount' => $payment['amount'], 'notes' => $payment['notes'] ?? null, 'paid_at' => $payment['paid_at'], 'payment_method' => null, 'status' => 'paid']);
+        }
+    }
+
+    private function recalculateTotal(Booking $booking): void
+    {
+        $vehicle = $booking->vehicle()->firstOrFail();
+        $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees', 'extension_fees'])->sum(fn ($fee) => (float) $booking->{$fee});
+        $reservationFee = (float) ($vehicle->reservation_fee ?? 0);
+        $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $booking->deposit ?? $vehicle->deposit ?? 0);
+        $booking->update(['total_amount' => max(0, (float) $booking->rental_amount + (float) $booking->additional_charges + $fees + $reservationFee + $securityDeposit - (float) $booking->discount)]);
+    }
+
+    private function rentalDays(Carbon|string $pickupAt, Carbon|string $returnAt): int
+    {
+        $pickupAt = $pickupAt instanceof Carbon ? $pickupAt : Carbon::parse($pickupAt);
+        $returnAt = $returnAt instanceof Carbon ? $returnAt : Carbon::parse($returnAt);
+
+        return max(1, $pickupAt->startOfDay()->diffInDays($returnAt->startOfDay()) + 1);
     }
 }
