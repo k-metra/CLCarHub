@@ -36,6 +36,12 @@ export default function AdminDashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
+  const [availabilityType, setAvailabilityType] = useState<"car" | "motorcycle">("car");
+  const [availabilityDate, setAvailabilityDate] = useState(() => new Date().toISOString().slice(0, 16));
+  const [availableVehicles, setAvailableVehicles] = useState<VehicleRecord[]>([]);
+  const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
   const loading = !data && !error;
 
   useEffect(() => {
@@ -44,6 +50,28 @@ export default function AdminDashboardPage() {
 
   const maxRevenue = useMemo(() => Math.max(1, ...(data?.monthly.map(item => item.revenue) ?? [1])), [data]);
   const maxBookings = useMemo(() => Math.max(1, ...(data?.monthly.map(item => item.bookings) ?? [1])), [data]);
+
+  const checkAvailability = async () => {
+    setAvailabilityError("");
+    setAvailabilityLoading(true);
+    const pickup = new Date(availabilityDate);
+    const returnAt = new Date(pickup.getTime() + 24 * 60 * 60 * 1000);
+    try {
+      const response = await api.get<VehicleRecord[]>("/vehicles/availability", {
+        params: {
+          type: availabilityType,
+          pickup_at: pickup.toISOString(),
+          return_at: returnAt.toISOString(),
+        },
+      });
+      setAvailableVehicles(response.data);
+      setAvailabilityOpen(true);
+    } catch (e) {
+      setAvailabilityError(e instanceof Error ? e.message : "Unable to check vehicle availability");
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
 
   return <AdminShell title="Dashboard">
     <div className="mt-8 space-y-8">
@@ -63,10 +91,11 @@ export default function AdminDashboardPage() {
       <Card>
         <h3 className="font-semibold">Car availability</h3>
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
-          <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm"><option>Car</option><option>Motorcycle</option></select></label>
-          <label className="flex-1 text-xs font-semibold text-[#555]">Date & time<input type="datetime-local" className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" defaultValue={new Date().toISOString().slice(0, 16)} /></label>
-          <Link className="bg-[#ff641f] px-5 py-3 text-center text-sm font-bold text-white" to="/admin/vehicles">Check availability</Link>
+          <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select value={availabilityType} onChange={event => setAvailabilityType(event.target.value as "car" | "motorcycle")} className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm"><option value="car">Car</option><option value="motorcycle">Motorcycle</option></select></label>
+          <label className="flex-1 text-xs font-semibold text-[#555]">Date & time<input type="datetime-local" value={availabilityDate} onChange={event => setAvailabilityDate(event.target.value)} className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" /></label>
+          <button type="button" onClick={checkAvailability} disabled={availabilityLoading} className="bg-[#ff641f] px-5 py-3 text-center text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{availabilityLoading ? "Checking..." : "Check availability"}</button>
         </div>
+        {availabilityError && <p className="mt-3 text-sm text-red-600">{availabilityError}</p>}
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
@@ -94,7 +123,35 @@ export default function AdminDashboardPage() {
         <Card><h3 className="font-semibold">Top vehicles by total revenue</h3><div className="mt-5 space-y-4">{loading ? <>{[1, 2, 3, 4].map(item => <Skeleton className="h-8 w-full" key={item} />)}</> : data?.top_vehicles.length ? data.top_vehicles.map(vehicle => <div key={vehicle.id}><div className="mb-1 flex justify-between text-sm"><span>{vehicle.name || `${vehicle.brand} ${vehicle.model}`} ({vehicle.year})</span><strong>{money.format(vehicle.revenue)}</strong></div><div className="h-2 bg-black/5"><div className="h-2 bg-[#ff641f]" style={{ width: `${Math.max(4, vehicle.revenue / Math.max(1, data.top_vehicles[0].revenue) * 100)}%` }} /></div></div>) : <p className="py-8 text-sm text-[#777]">No completed revenue records yet.</p>}</div></Card>
       </div>
     </div>
+    {availabilityOpen && <AvailabilityModal vehicles={availableVehicles} type={availabilityType} date={availabilityDate} onClose={() => setAvailabilityOpen(false)} />}
   </AdminShell>;
+}
+
+function AvailabilityModal({ vehicles, type, date, onClose }: { vehicles: VehicleRecord[]; type: "car" | "motorcycle"; date: string; onClose: () => void }) {
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="availability-title">
+    <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded bg-[#1f2a3a] text-white shadow-2xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+        <div><h2 id="availability-title" className="font-['Space_Grotesk'] text-xl font-semibold">Available {type === "car" ? "Car" : "Motorcycle"}{vehicles.length ? "" : "s"}</h2><p className="mt-1 text-sm text-slate-300">on {new Date(date).toLocaleString([], { dateStyle: "long", timeStyle: "short" })}</p></div>
+        <button type="button" onClick={onClose} className="text-2xl text-slate-300 hover:text-white" aria-label="Close availability results">×</button>
+      </div>
+      <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
+        {vehicles.length ? vehicles.map(vehicle => <AvailabilityVehicleCard vehicle={vehicle} key={vehicle.id} />) : <p className="col-span-full py-12 text-center text-slate-300">No vehicles are available for this date.</p>}
+      </div>
+      <div className="flex justify-end border-t border-white/10 px-6 py-4"><button type="button" onClick={onClose} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white">Close</button></div>
+    </div>
+  </div>;
+}
+
+function AvailabilityVehicleCard({ vehicle }: { vehicle: VehicleRecord }) {
+  const image = vehicle.images?.[0]?.url;
+  const resolvedImage = image ? (image.startsWith("http") ? image : `${apiOrigin}/storage/${image.replace(/^\/+/, "").replace(/^storage\//, "")}`) : null;
+  const title = vehicle.name || `${vehicle.brand} ${vehicle.model}`;
+  return <article className="rounded border border-white/10 bg-[#202c3c] p-4">
+    <div className="flex h-36 items-center justify-center">{resolvedImage ? <img className="h-full w-full object-contain" src={resolvedImage} alt={title} /> : <span className="text-sm text-slate-400">No image</span>}</div>
+    <p className="mt-3 inline-block rounded border border-[#ff8a3d]/50 bg-[#ff641f]/10 px-2 py-1 text-xs font-bold uppercase text-[#ff9a56]">{title}</p>
+    <h3 className="mt-2 text-lg font-semibold text-slate-300">{vehicle.brand} {vehicle.model} {vehicle.year}</h3>
+    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300"><span>♟ {vehicle.seats}-seaters</span><span>◉ {vehicle.coding_day ? `Coding every ${vehicle.coding_day}` : "No Coding"}</span><span>⚙ {vehicle.transmission}</span><span>⛽ {vehicle.fuel_type.replace("_", " ")}</span></div>
+  </article>;
 }
 
 function MetricCard({ label, value, amount, color, loading }: { label: string; value?: number; amount?: number; color: string; loading: boolean }) {
