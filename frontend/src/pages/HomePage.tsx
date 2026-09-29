@@ -115,14 +115,23 @@ export default function HomePage() {
                 <em className="not-italic text-[#ff641f]">Your way.</em>
               </h1>
               <p className="max-w-[385px] text-[16px] leading-[1.65] text-[#a9a7a4]">
-                Skip the counter and get moving. Reliable cars and motorcycles,
-                ready when you are.
+                A reliable car and big bike rental company for every local and
+                balikbayan.
               </p>
               <div className="mt-[35px] flex gap-[25px]">
                 <Button onClick={scrollToFleet}>Browse vehicles →</Button>
                 <a className="text-[13px]" href="#how-it-works">
                   See how it works ↓
                 </a>
+              </div>
+
+              <div className="mt-[35px] flex flex-wrap gap-x-[25px] gap-y-[12px] text-[11px] font-medium text-[#c8c5c1">
+                <span>✓ DTI Registered</span>
+                <span>✓ BIR Registered</span>
+                <span>
+                  ✦ FREE Loyalty Card{" "}
+                  <span className="text-[#ff641f]">(12-Hour FREE Rental)</span>
+                </span>
               </div>
               <p className="mt-[65px] text-[11px] text-[#777]">
                 ✦ Trusted by 2,000+ riders in the Philippines
