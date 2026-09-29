@@ -97,6 +97,6 @@ class BookingController extends Controller
         $pickupAt = $pickupAt instanceof Carbon ? $pickupAt : Carbon::parse($pickupAt);
         $returnAt = $returnAt instanceof Carbon ? $returnAt : Carbon::parse($returnAt);
 
-        return max(1, $pickupAt->startOfDay()->diffInDays($returnAt->startOfDay()) + 1);
+        return max(1, (int) ceil($pickupAt->diffInMinutes($returnAt) / (24 * 60)));
     }
 }
