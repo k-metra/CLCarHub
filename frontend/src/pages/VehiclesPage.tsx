@@ -175,6 +175,7 @@ export default function VehiclesPage() {
     setError("");
     const payload = new FormData();
     Object.entries(form).forEach(([key, value]) => {
+      if (editing && key === "image") return;
       if (key === "partner_id") {
         payload.append(key, value || "");
       } else if (value !== null && value !== "") {
@@ -187,6 +188,13 @@ export default function VehiclesPage() {
         await api.post(`/vehicles/${editing}`, payload, {
           headers: { "Content-Type": "multipart/form-data" },
         });
+        if (form.image) {
+          const imagePayload = new FormData();
+          imagePayload.append("image", form.image);
+          await api.post(`/vehicles/${editing}/image`, imagePayload, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        }
       } else {
         await api.post("/vehicles", payload, {
           headers: { "Content-Type": "multipart/form-data" },
