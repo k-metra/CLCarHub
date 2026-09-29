@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '../components/AdminShell'
 import api from '../lib/api'
 import type { BookingRecord, Paginated, VehicleRecord } from '../types'
-import { useToast } from '../components/Ui'
+import { ConfirmDialog, useToast } from '../components/Ui'
 
 type Customer = { id: number; name: string; email?: string; phone: string; address?: string }
 type Payment = { amount: string; notes: string; paid_at: string }
@@ -16,6 +16,16 @@ type BookingForm = {
 const emptyPayment = (): Payment => ({ amount: '', notes: '', paid_at: new Date().toISOString().slice(0, 10) })
 const emptyForm: BookingForm = { vehicle_id: '', customer_id: '', pickup_at: '', return_at: '', destination: '', delivery_address: '', return_address: '', notes: '', fuel_charge: '', rfid_charge: '', damage_fees: '', car_wash_fees: '', extension_fees: '', payments: [] }
 const feeFields: Array<[keyof BookingForm, string]> = [['fuel_charge', 'Fuel charge'], ['rfid_charge', 'RFID charge'], ['damage_fees', 'Damage fees'], ['car_wash_fees', 'Car wash fees'], ['extension_fees', 'Extension fees']]
+const statusTransitions: Record<string, string[]> = {
+  pending: ['confirmed', 'cancelled', 'rejected'],
+  confirmed: ['awaiting_payment', 'paid', 'active', 'cancelled', 'rejected'],
+  awaiting_payment: ['paid', 'cancelled', 'rejected'],
+  paid: ['active', 'cancelled'],
+  active: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+  rejected: [],
+}
 
 function dateTimeLocalValue(value: string): string {
   const date = new Date(value)
@@ -48,6 +58,7 @@ export default function BookingsPage() {
   const [addCustomer, setAddCustomer] = useState(false)
   const [newCustomer, setNewCustomer] = useState({ name: '', email: '', phone: '', address: '' })
   const [searchParams, setSearchParams] = useSearchParams()
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ booking: BookingRecord; nextStatus: string } | null>(null)
 
   const loadBookings = useCallback(() => {
     setLoading(true)
@@ -96,7 +107,14 @@ export default function BookingsPage() {
     } catch (e) { showToast(e instanceof Error ? e.message : 'Unable to save booking', 'error') }
   }
 
-  const updateStatus = async (booking: BookingRecord, nextStatus: string) => { try { await api.patch(`/bookings/${booking.id}`, { status: nextStatus }); loadBookings(); showToast('Booking status updated.', 'success') } catch (e) { showToast(e instanceof Error ? e.message : 'Unable to update booking', 'error') } }
+  const updateStatus = async (booking: BookingRecord, nextStatus: string, reason?: string) => { try { await api.patch(`/bookings/${booking.id}`, { status: nextStatus, ...(reason ? { status_reason: reason } : {}) }); loadBookings(); showToast('Booking status updated.', 'success') } catch (e) { showToast(e instanceof Error ? e.message : 'Unable to update booking', 'error') } }
+  const requestStatusChange = (booking: BookingRecord, nextStatus: string) => {
+    if (nextStatus === 'cancelled' || nextStatus === 'rejected') {
+      setPendingStatusChange({ booking, nextStatus })
+      return
+    }
+    void updateStatus(booking, nextStatus)
+  }
   const selectedVehicle = vehicles.find(vehicle => String(vehicle.id) === form.vehicle_id)
   const rentalDays = form.pickup_at && form.return_at ? calendarDays(form.pickup_at, form.return_at) : 0
   const subtotal = rentalDays * Number(selectedVehicle?.daily_rate ?? 0)
@@ -106,10 +124,10 @@ export default function BookingsPage() {
   const formTotal = subtotal + optionalFees + reservationFee + securityDeposit
   const formPaid = form.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
   const formBalance = Math.max(0, formTotal - formPaid)
-  const bookingSortRank = (booking: BookingRecord) => booking.status === 'pending' ? 0 : ['cancelled', 'rejected'].includes(booking.status) ? 2 : 1
+  const bookingSortRank = (booking: BookingRecord) => booking.status === 'pending' ? 0 : booking.status === 'completed' ? 2 : booking.status === 'rejected' ? 3 : booking.status === 'cancelled' ? 4 : 1
   const sortedBookings = [...bookings].sort((left, right) => bookingSortRank(left) - bookingSortRank(right))
 
-  return <AdminShell title="Booking management"><div className="mt-8 border border-black/10 bg-white p-4 md:p-6">
+  return <><ConfirmDialog open={pendingStatusChange !== null} title={`${pendingStatusChange?.nextStatus === 'rejected' ? 'Reject' : 'Cancel'} booking?`} message={`This action is permanent. The booking cannot be restored after it is ${pendingStatusChange?.nextStatus ?? 'cancelled'}.`} confirmLabel={pendingStatusChange?.nextStatus === 'rejected' ? 'Reject booking' : 'Cancel booking'} onCancel={() => setPendingStatusChange(null)} onConfirm={reason => { if (pendingStatusChange) void updateStatus(pendingStatusChange.booking, pendingStatusChange.nextStatus, reason); setPendingStatusChange(null) }} /><AdminShell title="Booking management"><div className="mt-8 border border-black/10 bg-white p-4 md:p-6">
     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><p className="text-sm text-[#777]">Create, update, and track rental bookings and balances.</p><div className="flex gap-3"><select className="border border-black/10 bg-[#f8f7f5] px-4 py-3 text-sm" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{['pending', 'confirmed', 'active', 'completed', 'cancelled', 'rejected'].map(value => <option key={value}>{value}</option>)}</select><button className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white" onClick={openCreate}>+ Add booking</button></div></div>
     {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"><form className="max-h-[85vh] w-full max-w-[64rem] overflow-y-auto bg-white p-6 shadow-2xl" onSubmit={saveBooking}><div className="flex items-center justify-between"><h2 className="font-['Space_Grotesk'] text-2xl font-semibold">{editing ? 'Edit booking' : 'Add booking'}</h2><button type="button" className="text-2xl text-[#777]" onClick={() => setShowForm(false)}>×</button></div>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -122,11 +140,12 @@ export default function BookingsPage() {
         <label className="text-xs text-[#777] md:col-span-2">Remarks<textarea className="mt-2 min-h-24 w-full border border-black/10 px-3 py-2.5 text-sm" value={form.notes} onChange={e => setField('notes', e.target.value)} /></label>
       </div>
       {editing && <div className="mt-6 border-t border-black/10 pt-5"><h3 className="font-semibold">Additional charges</h3><div className="mt-3 grid gap-3 md:grid-cols-3">{feeFields.map(([key, label]) => <label className="text-xs text-[#777]" key={key}>{label}<input className="mt-1 w-full border border-black/10 px-3 py-2 text-sm" type="number" min="0" step="0.01" value={form[key] as string} onChange={e => setField(key, e.target.value)} /></label>)}</div></div>}
+      {editing && <div className="mt-6 border-t border-black/10 pt-5"><h3 className="font-semibold">Status history</h3><div className="mt-3 space-y-3">{(bookings.find(booking => booking.id === editing)?.statusHistory ?? []).length === 0 ? <p className="text-sm text-[#777]">No status changes recorded.</p> : bookings.find(booking => booking.id === editing)?.statusHistory?.map(history => <div className="border-l-2 border-black/10 pl-3 text-sm" key={history.id}><p className="font-medium">{history.from_status ?? 'Created'} → {history.to_status}</p><p className="text-xs text-[#777]">{new Date(history.created_at).toLocaleString()} · {history.user?.name ?? 'System'}</p>{history.reason && <p className="mt-1 text-xs text-[#555]">Reason: {history.reason}</p>}</div>)}</div></div>}
       <div className="mt-6 border-t border-black/10 pt-5"><div className="flex items-center justify-between"><h3 className="font-semibold">Booking payments</h3><button type="button" className="text-sm text-[#ff641f]" onClick={() => setForm(current => ({ ...current, payments: [...current.payments, emptyPayment()] }))}>+ Add payment</button></div>{form.payments.map((payment, index) => <div className="mt-3 grid gap-3 border border-black/10 p-3 md:grid-cols-[1fr_2fr_1fr_auto]" key={index}><input className="border border-black/10 px-3 py-2 text-sm" type="number" min="0" step="0.01" placeholder="Amount" value={payment.amount} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, amount: e.target.value } : item) }))} /><input className="border border-black/10 px-3 py-2 text-sm" placeholder="Payment note" value={payment.notes} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, notes: e.target.value } : item) }))} /><input className="border border-black/10 px-3 py-2 text-sm" type="date" value={payment.paid_at} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, paid_at: e.target.value } : item) }))} /><button type="button" className="text-red-600" onClick={() => setForm(current => ({ ...current, payments: current.payments.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</button></div>)}</div>
       <div className="mt-6 border-t border-black/10 pt-5"><h3 className="font-semibold">Receipt summary</h3><div className="mt-3 max-w-md space-y-2 text-sm"><div className="flex justify-between"><span className="text-[#777]">Subtotal ({rentalDays} day{rentalDays === 1 ? '' : 's'})</span><span>₱{subtotal.toLocaleString()}</span></div>{feeFields.map(([key, label]) => Number(form[key] || 0) > 0 && <div className="flex justify-between" key={key}><span className="text-[#777]">{label}</span><span>₱{Number(form[key]).toLocaleString()}</span></div>)}{reservationFee > 0 && <div className="flex justify-between"><span className="text-[#777]">Reservation fee</span><span>₱{reservationFee.toLocaleString()}</span></div>}{securityDeposit > 0 && <div className="flex justify-between"><span className="text-[#777]">Security deposit</span><span>₱{securityDeposit.toLocaleString()}</span></div>}<div className="flex justify-between border-t border-black/10 pt-2 font-semibold"><span>Total</span><span>₱{formTotal.toLocaleString()}</span></div><div className="flex justify-between"><span className="text-[#777]">Payments</span><span>- ₱{formPaid.toLocaleString()}</span></div><div className="flex justify-between border-t border-black/10 pt-2 text-base font-bold text-[#ff641f]"><span>Remaining balance</span><span>₱{formBalance.toLocaleString()}</span></div></div></div>
       <div className="mt-6 flex justify-end gap-3"><button type="button" className="border border-black/10 px-4 py-2 text-sm" onClick={() => setShowForm(false)}>Cancel</button><button className="bg-[#151515] px-5 py-2 text-sm font-bold text-white">Save booking</button></div>
     </form></div>}
     {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-    <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="border-b border-black/10 text-[10px] uppercase tracking-widest text-[#888]"><tr><th className="pb-3">Reference</th><th className="pb-3">Customer</th><th className="pb-3">Vehicle</th><th className="pb-3">Dates</th><th className="pb-3">Balance</th><th className="pb-3">Status</th><th /></tr></thead><tbody>{loading ? <tr><td className="py-8 text-[#888]" colSpan={7}>Loading bookings...</td></tr> : sortedBookings.map(booking => { const isPending = booking.status === 'pending'; const isCancelled = booking.status === 'cancelled'; const isRejected = booking.status === 'rejected'; const rowClass = isPending ? 'border-b border-black/[.06] bg-yellow-100/70' : isRejected ? 'border-b border-red-200 bg-red-100/60 text-red-900 opacity-75' : isCancelled ? 'border-b border-black/[.06] bg-gray-100 text-gray-500 opacity-75' : 'border-b border-black/[.06]'; return <tr className={rowClass} key={booking.id}><td className="py-4 font-semibold text-[#ff641f]">{booking.reference}</td><td className="py-4">{booking.customer?.name ?? '—'}</td><td className="py-4 text-[#777]">{booking.vehicle ? (booking.vehicle.name || `${booking.vehicle.brand} ${booking.vehicle.model}`) : '—'}</td><td className="py-4 text-xs text-[#777]">{bookingDate(booking.pickup_at)} → {bookingDate(booking.return_at)}</td><td className="py-4">₱{Number(booking.balance ?? 0).toLocaleString()}</td><td className="py-4"><select className="border border-black/10 bg-[#f8f7f5] px-2 py-1 text-xs capitalize" value={booking.status} onChange={e => updateStatus(booking, e.target.value)}>{['pending', 'confirmed', 'active', 'completed', 'cancelled', 'rejected'].map(value => <option key={value}>{value}</option>)}</select></td><td className="py-4 text-right"><button className="text-[#ff641f]" onClick={() => openEdit(booking)}>Edit</button></td></tr> })}</tbody></table></div>
-  </div></AdminShell>
+    <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="border-b border-black/10 text-[10px] uppercase tracking-widest text-[#888]"><tr><th className="pb-3">Reference</th><th className="pb-3">Customer</th><th className="pb-3">Vehicle</th><th className="pb-3">Dates</th><th className="pb-3">Balance</th><th className="pb-3">Status</th><th /></tr></thead><tbody>{loading ? <tr><td className="py-8 text-[#888]" colSpan={7}>Loading bookings...</td></tr> : sortedBookings.map(booking => { const isPending = booking.status === 'pending'; const isCancelled = booking.status === 'cancelled'; const isRejected = booking.status === 'rejected'; const rowClass = isPending ? 'border-b border-black/[.06] bg-yellow-100/70' : isRejected ? 'border-b border-red-200 bg-red-100/60 text-red-900 opacity-75' : isCancelled ? 'border-b border-black/[.06] bg-gray-100 text-gray-500 opacity-75' : 'border-b border-black/[.06]'; const nextStatuses = statusTransitions[booking.status] ?? []; return <tr className={rowClass} key={booking.id}><td className="py-4 font-semibold text-[#ff641f]">{booking.reference}</td><td className="py-4">{booking.customer?.name ?? '—'}</td><td className="py-4 text-[#777]">{booking.vehicle ? (booking.vehicle.name || `${booking.vehicle.brand} ${booking.vehicle.model}`) : '—'}</td><td className="py-4 text-xs text-[#777]">{bookingDate(booking.pickup_at)} → {bookingDate(booking.return_at)}</td><td className="py-4">₱{Number(booking.balance ?? 0).toLocaleString()}</td><td className="py-4"><select className="border border-black/10 bg-[#f8f7f5] px-2 py-1 text-xs capitalize disabled:cursor-not-allowed disabled:opacity-60" value={booking.status} disabled={nextStatuses.length === 0} onChange={e => requestStatusChange(booking, e.target.value)}><option value={booking.status}>{booking.status}</option>{nextStatuses.map(value => <option key={value}>{value}</option>)}</select></td><td className="py-4 text-right"><button className="text-[#ff641f]" onClick={() => openEdit(booking)}>Edit</button></td></tr> })}</tbody></table></div>
+  </div></AdminShell></>
 }

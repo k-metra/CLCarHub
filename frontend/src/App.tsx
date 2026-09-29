@@ -8,6 +8,7 @@ import AdminPlaceholderPage from "./pages/AdminPlaceholderPage";
 import CustomerAccountPage from "./pages/CustomerAccountPage";
 import PartnersPage from "./pages/PartnersPage";
 import CalendarPage from "./pages/CalendarPage";
+import CustomersPage from "./pages/CustomersPage";
 import { AuthProvider } from "./lib/AuthContext";
 import { ToastProvider } from "./components/Ui";
 
@@ -36,10 +37,7 @@ export default function App() {
             path="/admin/funds"
             element={<AdminPlaceholderPage title="Funds" />}
           />
-          <Route
-            path="/admin/customers"
-            element={<AdminPlaceholderPage title="Customers" />}
-          />
+          <Route path="/admin/customers" element={<CustomersPage />} />
           <Route path="/admin/partners" element={<PartnersPage />} />
           <Route
             path="/admin/reports/utilization"

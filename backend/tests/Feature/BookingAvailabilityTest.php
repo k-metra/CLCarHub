@@ -84,4 +84,60 @@ class BookingAvailabilityTest extends TestCase
         $this->assertEquals(1500.0, $response->json('balance'));
         $this->assertSame(1500.0, Booking::firstOrFail()->balance);
     }
+
+    public function test_status_transitions_follow_the_booking_lifecycle(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'confirmed'])->assertOk();
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'active'])->assertOk();
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'completed'])->assertOk();
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'pending'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'A completed booking cannot be changed to pending.');
+    }
+
+    public function test_pending_booking_cannot_become_active_directly(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'active'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'A pending booking cannot be changed to active.');
+    }
+
+    public function test_terminal_status_change_requires_a_reason_and_records_history(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'cancelled'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'A reason is required when cancelling or rejecting a booking.');
+
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'cancelled', 'status_reason' => 'Customer cancelled the reservation.'])
+            ->assertOk()
+            ->assertJsonPath('status_history.0.to_status', 'cancelled')
+            ->assertJsonPath('status_history.0.reason', 'Customer cancelled the reservation.');
+    }
 }

@@ -25,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('partners', PartnerController::class);
     });
     Route::apiResource('customers', CustomerController::class);
+    Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
     Route::apiResource('bookings', BookingController::class);
     Route::apiResource('appointments', AppointmentController::class);
     Route::middleware(EnsureRole::class.':owner,it_management')->prefix('reports')->group(function () {

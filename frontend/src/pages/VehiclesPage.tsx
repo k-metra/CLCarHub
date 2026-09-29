@@ -8,6 +8,7 @@ import {
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
 import type { Paginated, PartnerRecord, VehicleRecord } from "../types";
+import { ImageLightbox } from "../components/Ui";
 
 const apiOrigin = (
   import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"
@@ -134,8 +135,8 @@ export default function VehiclesPage() {
 
   const updateField = (key: keyof VehicleForm, value: string | File | null) => {
     setForm((current) => ({ ...current, [key]: value }));
-    if (key === "image" && value instanceof File) {
-      setCurrentImageUrl(URL.createObjectURL(value));
+    if (key === "image") {
+      setCurrentImageUrl(value instanceof File ? URL.createObjectURL(value) : null);
     }
   };
   const imageUrl = resolveImageUrl(currentImageUrl);
@@ -385,11 +386,9 @@ export default function VehiclesPage() {
                 >
                   Vehicle image (optional)
                   {imageUrl && (
-                    <img
-                      className="mt-2 h-36 w-full border border-black/10 bg-[#f8f7f5] object-contain p-2"
-                      src={imageUrl}
-                      alt="Vehicle preview"
-                    />
+                    <div className="mt-2">
+                      <ImageLightbox src={imageUrl} alt="Vehicle preview" onRemove={() => updateField("image", null)} />
+                    </div>
                   )}
                   <input
                     className="mt-2 block w-full cursor-pointer border border-dashed border-black/20 px-3 py-5 text-sm"

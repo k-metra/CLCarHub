@@ -29,6 +29,53 @@ export function useToast() {
   return context;
 }
 
+export function ImageLightbox({ src, alt, onRemove }: { src: string; alt: string; onRemove?: () => void }) {
+  const [open, setOpen] = useState(false);
+  return <>
+    <button type="button" className="block overflow-hidden rounded border border-black/10" onClick={() => setOpen(true)} aria-label={`Expand ${alt}`}>
+      <img className="h-20 w-full object-cover" src={src} alt={alt} />
+    </button>
+    {onRemove && <button type="button" className="mt-1 text-xs text-red-600" onClick={onRemove}>Remove</button>}
+    {open && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" onClick={() => setOpen(false)}>
+      <div className="relative max-h-full max-w-5xl" onClick={event => event.stopPropagation()}>
+        <img className="max-h-[85vh] max-w-full rounded object-contain" src={src} alt={alt} />
+        <button type="button" className="absolute right-2 top-2 rounded bg-black/70 px-3 py-1 text-2xl text-white" onClick={() => setOpen(false)} aria-label="Close image preview">×</button>
+      </div>
+    </div>}
+  </>;
+}
+
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = "Confirm",
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: (reason: string) => void;
+  onCancel: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  if (!open) return null;
+
+  return <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="confirmation-title">
+    <div className="w-full max-w-md rounded bg-white p-6 shadow-2xl">
+      <h2 id="confirmation-title" className="font-['Space_Grotesk'] text-xl font-semibold">{title}</h2>
+      <p className="mt-3 text-sm leading-6 text-[#666]">{message}</p>
+      <div className="mt-6 flex justify-end gap-3">
+        <button type="button" className="border border-black/10 px-4 py-2 text-sm" onClick={onCancel}>Keep booking</button>
+        <textarea className="mb-3 w-full border border-black/10 px-3 py-2 text-sm" placeholder="Reason (required)" value={reason} onChange={event => setReason(event.target.value)} />
+        <button type="button" className="bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!reason.trim()} onClick={() => { onConfirm(reason.trim()); setReason("") }}>{confirmLabel}</button>
+      </div>
+    </div>
+  </div>;
+}
+
 export function Eyebrow({ children }: { children: string }) {
   return (
     <div className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff6a23]">
