@@ -7,8 +7,8 @@ import { accountPath, useAuth } from "../lib/AuthContext";
 export default function AdminLoginPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading, setSession } = useAuth();
-  const [email, setEmail] = useState("owner@clcarhub.com");
-  const [password, setPassword] = useState("password");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
@@ -67,7 +67,11 @@ export default function AdminLoginPage() {
           CL<span className="text-[#ff641f]">CarHub</span>
         </Link>
         <div className="mt-10">
-          {verified && <p className="mb-6 border border-emerald-300/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">Your email has been verified. You can now sign in.</p>}
+          {verified && (
+            <p className="mb-6 border border-emerald-300/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+              Your email has been verified. You can now sign in.
+            </p>
+          )}
           <div className="mb-8 flex border-b border-white/[.1]">
             <button
               className={`flex-1 pb-3 text-sm ${!registering ? "border-b-2 border-[#ff641f] text-white" : "text-[#777]"}`}
