@@ -5,3 +5,5 @@
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; }
 button, input, select { font: inherit; }
+button:not(:disabled), a, select, summary, [role="button"] { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
