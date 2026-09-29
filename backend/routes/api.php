@@ -24,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
         Route::apiResource('vehicles', VehicleController::class)->except(['index', 'show']);
+        Route::post('/vehicles/{vehicle}/image', [VehicleController::class, 'uploadImage']);
         Route::post('/vehicles/{vehicle}/restore', [VehicleController::class, 'restore']);
         Route::apiResource('partners', PartnerController::class);
     });
