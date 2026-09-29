@@ -13,7 +13,7 @@ class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        return Booking::with(['customer', 'vehicle.images', 'payments'])->when($request->status, fn ($q, $v) => $q->where('status', $v))->latest()->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
+        return Booking::with(['customer', 'vehicle.images', 'payments', 'statusHistory.user'])->when($request->status, fn ($q, $v) => $q->where('status', $v))->latest()->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
     }
 
     public function store(Request $request)
@@ -35,21 +35,33 @@ class BookingController extends Controller
             $booking = Booking::create([...$data, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
             $this->syncPayments($booking, $payments);
 
-            return response()->json($booking->load(['customer', 'vehicle.images', 'payments']), 201);
+            return response()->json($booking->load(['customer', 'vehicle.images', 'payments', 'statusHistory.user']), 201);
         });
     }
 
     public function show(Booking $booking)
     {
-        return $booking->load(['customer', 'vehicle.images', 'creator', 'payments']);
+        return $booking->load(['customer', 'vehicle.images', 'creator', 'payments', 'statusHistory.user']);
     }
 
     public function update(Request $request, Booking $booking)
     {
         $data = $request->validate($this->rules(true));
+        $oldStatus = $booking->status;
+        $reason = $data['status_reason'] ?? null;
+        if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
+            abort_unless(in_array($data['status'], $this->allowedStatusTransitions()[$booking->status] ?? [], true), 422, "A {$booking->status} booking cannot be changed to {$data['status']}.");
+            if (in_array($data['status'], ['cancelled', 'rejected'], true)) {
+                abort_if(blank($reason), 422, 'A reason is required when cancelling or rejecting a booking.');
+            }
+        }
+        unset($data['status_reason']);
         $payments = $data['payments'] ?? null;
         unset($data['payments']);
         $booking->update($data);
+        if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
+            $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $booking->status, 'reason' => $reason, 'changed_by' => $request->user()?->id]);
+        }
         $booking->refresh();
         $vehicle = Vehicle::findOrFail($booking->vehicle_id);
         $booking->rental_amount = $this->rentalDays($booking->pickup_at, $booking->return_at) * (float) $vehicle->daily_rate;
@@ -58,7 +70,7 @@ class BookingController extends Controller
         $this->recalculateTotal($booking);
         if ($payments !== null) $this->syncPayments($booking, $payments);
 
-        return $booking->fresh(['customer', 'vehicle.images', 'payments']);
+        return $booking->fresh(['customer', 'vehicle.images', 'payments', 'statusHistory.user']);
     }
 
     public function destroy(Booking $booking)
@@ -72,7 +84,21 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'return_address' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'return_address' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+    }
+
+    private function allowedStatusTransitions(): array
+    {
+        return [
+            'pending' => ['confirmed', 'cancelled', 'rejected'],
+            'confirmed' => ['awaiting_payment', 'paid', 'active', 'cancelled', 'rejected'],
+            'awaiting_payment' => ['paid', 'cancelled', 'rejected'],
+            'paid' => ['active', 'cancelled'],
+            'active' => ['completed', 'cancelled'],
+            'completed' => [],
+            'cancelled' => [],
+            'rejected' => [],
+        ];
     }
 
     private function syncPayments(Booking $booking, array $payments): void
