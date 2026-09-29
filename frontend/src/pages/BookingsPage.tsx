@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '../components/AdminShell'
 import api from '../lib/api'
@@ -46,6 +46,80 @@ function bookingDate(value: string): string {
 
 function bookingDateTime(value: string): string {
   return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+const apiOrigin = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api').replace(/\/api\/?$/, '')
+
+function vehicleImageUrl(vehicle: VehicleRecord): string | null {
+  const value = vehicle.images?.[0]?.url
+  if (!value) return null
+  return value.startsWith('http') ? value : `${apiOrigin}/storage/${value.replace(/^\/+/, '').replace(/^storage\//, '')}`
+}
+
+function vehicleLabel(vehicle: VehicleRecord): string {
+  const name = vehicle.name ? `${vehicle.name} - ` : ''
+  return `${name}${vehicle.brand} ${vehicle.model} (${vehicle.year})`
+}
+
+function SearchableSelect<T extends { id: number }>({
+  value,
+  options,
+  placeholder,
+  onChange,
+  renderLabel,
+  renderOption,
+}: {
+  value: string
+  options: T[]
+  placeholder: string
+  onChange: (value: string) => void
+  renderLabel: (option: T) => string
+  renderOption?: (option: T, selected: boolean) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const selected = options.find(option => String(option.id) === value)
+  const filtered = options.filter(option => renderLabel(option).toLowerCase().includes(query.toLowerCase()))
+
+  useEffect(() => {
+    if (!open) return
+    const handleOutsidePointer = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+        setQuery('')
+        const activeElement = document.activeElement as HTMLElement | null
+        activeElement?.blur()
+      }
+    }
+    document.addEventListener('pointerdown', handleOutsidePointer)
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer)
+  }, [open])
+
+  return <div className="relative" ref={containerRef}>
+    <button type="button" className={`flex min-h-[43px] w-full items-center gap-3 border bg-white px-3 py-2.5 text-left text-sm ${open ? 'border-[#ff641f] ring-1 ring-[#ff641f]' : 'border-black/10'}`} onClick={() => setOpen(current => !current)}>
+      {selected && renderOption ? <span className="min-w-0 flex-1">{renderOption(selected, true)}</span> : <span className={selected ? 'text-[#222]' : 'text-[#999]'}>{selected ? renderLabel(selected) : placeholder}</span>}
+      <span className="text-[#777]">⌄</span>
+    </button>
+    {open && <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden border border-black/10 bg-white shadow-xl">
+      <input autoFocus className="w-full border-b border-black/10 px-3 py-3 text-sm outline-none" placeholder="Start typing to search..." value={query} onChange={event => setQuery(event.target.value)} />
+      <div className="max-h-64 overflow-y-auto p-1">
+        {filtered.length === 0 ? <p className="px-3 py-5 text-sm text-[#777]">No matches found.</p> : filtered.map(option => <button type="button" className="flex w-full items-center rounded px-2 py-2 text-left hover:bg-[#f8f7f5]" key={option.id} onClick={() => { onChange(String(option.id)); setOpen(false); setQuery('') }}>{renderOption ? renderOption(option, String(option.id) === value) : renderLabel(option)}</button>)}
+      </div>
+    </div>}
+  </div>
+}
+
+function VehicleOption({ vehicle, selected }: { vehicle: VehicleRecord; selected: boolean }) {
+  const image = vehicleImageUrl(vehicle)
+  return <span className="flex min-w-0 items-center gap-3">
+    {image ? <img className="h-10 w-14 shrink-0 rounded object-contain" src={image} alt="" /> : <span className="h-10 w-14 shrink-0 rounded bg-black/5" />}
+    <span className="min-w-0"><span className={`block truncate font-medium ${selected ? 'text-[#ff641f]' : 'text-[#222]'}`}>{vehicleLabel(vehicle)}</span><span className="block truncate text-xs text-[#888]">{vehicle.plate_number}</span></span>
+  </span>
+}
+
+function CustomerOption({ customer, selected }: { customer: Customer; selected: boolean }) {
+  return <span className={`block truncate ${selected ? 'text-[#ff641f]' : 'text-[#222]'}`}><span className="block truncate font-medium">{customer.name}</span>{(customer.email || customer.phone) && <span className="block truncate text-xs text-[#888]">{customer.email || customer.phone}</span>}</span>
 }
 
 export default function BookingsPage() {
@@ -158,8 +232,8 @@ export default function BookingsPage() {
     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><p className="text-sm text-[#777]">Create, update, and track rental bookings and balances.</p><div className="flex gap-3"><select className="border border-black/10 bg-[#f8f7f5] px-4 py-3 text-sm" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{['pending', 'confirmed', 'active', 'completed', 'cancelled', 'rejected'].map(value => <option key={value}>{value}</option>)}</select><button className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white" onClick={openCreate}>+ Add booking</button></div></div>
     {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"><form className="max-h-[85vh] w-full max-w-[64rem] overflow-y-auto bg-white p-6 shadow-2xl" onSubmit={saveBooking}><div className="flex items-center justify-between"><h2 className="font-['Space_Grotesk'] text-2xl font-semibold">{editing ? 'Edit booking' : 'Add booking'}</h2><button type="button" className="text-2xl text-[#777]" onClick={() => setShowForm(false)}>×</button></div>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <label className="text-xs text-[#777]">Vehicle<select required className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" value={form.vehicle_id} onChange={e => setField('vehicle_id', e.target.value)}><option value="">Select vehicle</option>{vehicles.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{vehicle.name || `${vehicle.brand} ${vehicle.model}`}</option>)}</select></label>
-        <label className="text-xs text-[#777]">Customer<div className="mt-2 flex gap-2"><select required className="min-w-0 flex-1 border border-black/10 px-3 py-2.5 text-sm" value={form.customer_id} onChange={e => setField('customer_id', e.target.value)}><option value="">Select customer</option>{customers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select><button type="button" className="border border-[#ff641f] px-3 text-[#ff641f]" onClick={() => setAddCustomer(value => !value)}>+ Add</button></div></label>
+        <label className="text-xs text-[#777]">Vehicle<span className="mt-2 block"><SearchableSelect value={form.vehicle_id} options={vehicles} placeholder="Select vehicle" onChange={value => setField('vehicle_id', value)} renderLabel={vehicleLabel} renderOption={(vehicle, selected) => <VehicleOption vehicle={vehicle} selected={selected} />} /></span></label>
+        <label className="text-xs text-[#777]">Customer<div className="mt-2 flex gap-2"><span className="min-w-0 flex-1"><SearchableSelect value={form.customer_id} options={customers} placeholder="Select customer" onChange={value => setField('customer_id', value)} renderLabel={customer => customer.name} renderOption={(customer, selected) => <CustomerOption customer={customer} selected={selected} />} /></span><button type="button" className="border border-[#ff641f] px-3 text-[#ff641f]" onClick={() => setAddCustomer(value => !value)}>+ Add</button></div></label>
         {addCustomer && <div className="border border-orange-200 bg-orange-50 p-4 md:col-span-2"><p className="text-sm font-semibold">New customer</p><div className="mt-3 grid gap-3 md:grid-cols-2">{[['name', 'Name', true], ['email', 'Email', false], ['phone', 'Phone', true], ['address', 'Address', false]].map(([key, label, required]) => <label className="text-xs text-[#777]" key={key as string}>{label as string}<input className="mt-1 w-full border border-black/10 bg-white px-3 py-2 text-sm" type={key === 'email' ? 'email' : 'text'} required={required as boolean} value={newCustomer[key as keyof typeof newCustomer]} onChange={e => setNewCustomer({ ...newCustomer, [key as keyof typeof newCustomer]: e.target.value })} /></label>)}</div><button type="button" className="mt-3 bg-[#151515] px-4 py-2 text-xs font-bold text-white" onClick={() => saveCustomer().then(() => showToast('Customer added successfully.', 'success')).catch(e => showToast(e instanceof Error ? e.message : 'Unable to add customer', 'error'))}>Save customer</button></div>}
         <label className="text-xs text-[#777]">Start date & time<input required className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" type="datetime-local" value={form.pickup_at} onChange={e => setField('pickup_at', e.target.value)} /></label>
         <label className="text-xs text-[#777]">End date & time<input required className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" type="datetime-local" value={form.return_at} onChange={e => setField('return_at', e.target.value)} /></label>
