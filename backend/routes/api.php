@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::get('/vehicles', [VehicleController::class, 'index']);
+Route::get('/vehicles/availability', [VehicleController::class, 'available']);
 Route::get('/vehicles/{vehicle}', [VehicleController::class, 'show']);
 Route::get('/vehicles/{vehicle}/availability', [VehicleController::class, 'availability']);
 
