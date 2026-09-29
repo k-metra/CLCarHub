@@ -63,6 +63,22 @@ Vehicle and customer images are stored under
 `backend/public/storage` symlink at `/storage/*`; it must not send those
 requests to the React `index.html` fallback.
 
+Uploaded files are not stored in Git and are not recreated by
+`php artisan migrate` or a code deployment. Never delete or replace
+`backend/storage/app/public` when deploying a new backend release. Copy code
+files separately, or exclude the persistent storage directory:
+
+```bash
+rsync -a --delete \
+  --exclude='.env' \
+  --exclude='storage/app/public/' \
+  /path/to/new/backend/ /var/www/clcarhub/backend/
+```
+
+Back up `backend/storage/app/public` before every deployment. This directory
+contains vehicle and customer uploads and must be restored separately if it
+was removed.
+
 After deployment, verify the link and file access:
 
 ```bash
@@ -78,6 +94,19 @@ frontend HTML document. If `storage` is missing, recreate the link:
 php artisan storage:link
 ```
 
+If the API still returns image records but the image URLs return `404`, check
+whether the stored file exists:
+
+```bash
+find /var/www/clcarhub/backend/storage/app/public/vehicles -type f | head
+find /var/www/clcarhub/backend/storage/app/public/customers -type f | head
+```
+
+If those directories are empty, restore them from the VPS backup. Recreating
+the symlink alone cannot recover deleted uploads. The database rows contain
+the stored paths, so once the original files are restored at those paths, the
+existing image URLs work again.
+
 For an Nginx setup serving the frontend from the main domain, add a specific
 `/storage/` location before the SPA fallback. Point it at the Laravel public
 storage directory:
@@ -85,8 +114,39 @@ storage directory:
 ```nginx
 location ^~ /storage/ {
     alias /var/www/clcarhub/backend/storage/app/public/;
-    try_files $uri =404;
 }
+```
+
+With `alias`, do not append `try_files $uri` in this location; it can resolve
+the URI against the wrong filesystem path. Confirm that the Nginx worker can
+traverse and read the files:
+
+```bash
+namei -l /var/www/clcarhub/backend/storage/app/public/vehicles
+sudo -u www-data test -r /var/www/clcarhub/backend/storage/app/public/vehicles/<file>.png
+readlink -f /var/www/clcarhub/backend/public/storage
+```
+
+The final command must output:
+
+```text
+/var/www/clcarhub/backend/storage/app/public
+```
+
+After uploading a test image, compare the API path with the filesystem:
+
+```bash
+curl -s https://clcarhub.my.to/api/vehicles?per_page=1
+ls -l /var/www/clcarhub/backend/storage/app/public/vehicles
+curl -I https://clcarhub.my.to/storage/vehicles/<path-from-api>.png
+```
+
+If the file exists locally but the last command returns `404`, the Nginx
+configuration is wrong or has not been reloaded:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
 Email verification links are Laravel web routes, not frontend routes. Route
