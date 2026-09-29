@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { Button, Eyebrow } from "../components/Ui";
@@ -15,6 +15,14 @@ export default function AdminLoginPage() {
   const [phone, setPhone] = useState("");
   const [username, setUsername] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [verified, setVerified] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("verified") === "1") {
+      setVerified(true);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -59,6 +67,7 @@ export default function AdminLoginPage() {
           CL<span className="text-[#ff641f]">CarHub</span>
         </Link>
         <div className="mt-10">
+          {verified && <p className="mb-6 border border-emerald-300/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">Your email has been verified. You can now sign in.</p>}
           <div className="mb-8 flex border-b border-white/[.1]">
             <button
               className={`flex-1 pb-3 text-sm ${!registering ? "border-b-2 border-[#ff641f] text-white" : "text-[#777]"}`}
