@@ -9,12 +9,14 @@ import CustomerAccountPage from "./pages/CustomerAccountPage";
 import PartnersPage from "./pages/PartnersPage";
 import CalendarPage from "./pages/CalendarPage";
 import { AuthProvider } from "./lib/AuthContext";
+import { ToastProvider } from "./components/Ui";
 
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
+      <ToastProvider>
+        <AuthProvider>
+          <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
@@ -52,8 +54,9 @@ export default function App() {
             element={<AdminPlaceholderPage title="Vehicle revenue" />}
           />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AuthProvider>
+          </Routes>
+        </AuthProvider>
+      </ToastProvider>
     </BrowserRouter>
   );
 }
