@@ -37,6 +37,11 @@ class Booking extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function statusHistory(): HasMany
+    {
+        return $this->hasMany(BookingStatusHistory::class)->latest();
+    }
+
     public function getBalanceAttribute(): float
     {
         $paid = $this->relationLoaded('payments')
