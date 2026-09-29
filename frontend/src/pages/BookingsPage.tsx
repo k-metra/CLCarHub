@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '../components/AdminShell'
 import api from '../lib/api'
 import type { BookingRecord, Paginated, VehicleRecord } from '../types'
+import { useToast } from '../components/Ui'
 
 type Customer = { id: number; name: string; email?: string; phone: string; address?: string }
 type Payment = { amount: string; notes: string; paid_at: string }
@@ -23,9 +24,9 @@ function dateTimeLocalValue(value: string): string {
 }
 
 function calendarDays(start: string, end: string): number {
-  const startDate = new Date(`${start.slice(0, 10)}T00:00:00`)
-  const endDate = new Date(`${end.slice(0, 10)}T00:00:00`)
-  return Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1)
+  const startDate = new Date(start)
+  const endDate = new Date(end)
+  return Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000))
 }
 
 function bookingDate(value: string): string {
@@ -34,6 +35,7 @@ function bookingDate(value: string): string {
 }
 
 export default function BookingsPage() {
+  const { showToast } = useToast()
   const [bookings, setBookings] = useState<BookingRecord[]>([])
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -90,11 +92,11 @@ export default function BookingsPage() {
     try {
       if (editing) await api.patch(`/bookings/${editing}`, payload)
       else await api.post('/bookings', payload)
-      setShowForm(false); loadBookings()
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to save booking') }
+      setShowForm(false); loadBookings(); showToast(editing ? 'Booking updated successfully.' : 'Booking created successfully.', 'success')
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Unable to save booking', 'error') }
   }
 
-  const updateStatus = async (booking: BookingRecord, nextStatus: string) => { try { await api.patch(`/bookings/${booking.id}`, { status: nextStatus }); loadBookings() } catch (e) { setError(e instanceof Error ? e.message : 'Unable to update booking') } }
+  const updateStatus = async (booking: BookingRecord, nextStatus: string) => { try { await api.patch(`/bookings/${booking.id}`, { status: nextStatus }); loadBookings(); showToast('Booking status updated.', 'success') } catch (e) { showToast(e instanceof Error ? e.message : 'Unable to update booking', 'error') } }
   const selectedVehicle = vehicles.find(vehicle => String(vehicle.id) === form.vehicle_id)
   const rentalDays = form.pickup_at && form.return_at ? calendarDays(form.pickup_at, form.return_at) : 0
   const subtotal = rentalDays * Number(selectedVehicle?.daily_rate ?? 0)
@@ -113,7 +115,7 @@ export default function BookingsPage() {
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <label className="text-xs text-[#777]">Vehicle<select required className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" value={form.vehicle_id} onChange={e => setField('vehicle_id', e.target.value)}><option value="">Select vehicle</option>{vehicles.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{vehicle.name || `${vehicle.brand} ${vehicle.model}`}</option>)}</select></label>
         <label className="text-xs text-[#777]">Customer<div className="mt-2 flex gap-2"><select required className="min-w-0 flex-1 border border-black/10 px-3 py-2.5 text-sm" value={form.customer_id} onChange={e => setField('customer_id', e.target.value)}><option value="">Select customer</option>{customers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select><button type="button" className="border border-[#ff641f] px-3 text-[#ff641f]" onClick={() => setAddCustomer(value => !value)}>+ Add</button></div></label>
-        {addCustomer && <div className="border border-orange-200 bg-orange-50 p-4 md:col-span-2"><p className="text-sm font-semibold">New customer</p><div className="mt-3 grid gap-3 md:grid-cols-2">{[['name', 'Name', true], ['email', 'Email', false], ['phone', 'Phone', true], ['address', 'Address', false]].map(([key, label, required]) => <label className="text-xs text-[#777]" key={key as string}>{label as string}<input className="mt-1 w-full border border-black/10 bg-white px-3 py-2 text-sm" type={key === 'email' ? 'email' : 'text'} required={required as boolean} value={newCustomer[key as keyof typeof newCustomer]} onChange={e => setNewCustomer({ ...newCustomer, [key as keyof typeof newCustomer]: e.target.value })} /></label>)}</div><button type="button" className="mt-3 bg-[#151515] px-4 py-2 text-xs font-bold text-white" onClick={() => saveCustomer().catch(e => setError(e instanceof Error ? e.message : 'Unable to add customer'))}>Save customer</button></div>}
+        {addCustomer && <div className="border border-orange-200 bg-orange-50 p-4 md:col-span-2"><p className="text-sm font-semibold">New customer</p><div className="mt-3 grid gap-3 md:grid-cols-2">{[['name', 'Name', true], ['email', 'Email', false], ['phone', 'Phone', true], ['address', 'Address', false]].map(([key, label, required]) => <label className="text-xs text-[#777]" key={key as string}>{label as string}<input className="mt-1 w-full border border-black/10 bg-white px-3 py-2 text-sm" type={key === 'email' ? 'email' : 'text'} required={required as boolean} value={newCustomer[key as keyof typeof newCustomer]} onChange={e => setNewCustomer({ ...newCustomer, [key as keyof typeof newCustomer]: e.target.value })} /></label>)}</div><button type="button" className="mt-3 bg-[#151515] px-4 py-2 text-xs font-bold text-white" onClick={() => saveCustomer().then(() => showToast('Customer added successfully.', 'success')).catch(e => showToast(e instanceof Error ? e.message : 'Unable to add customer', 'error'))}>Save customer</button></div>}
         <label className="text-xs text-[#777]">Start date & time<input required className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" type="datetime-local" value={form.pickup_at} onChange={e => setField('pickup_at', e.target.value)} /></label>
         <label className="text-xs text-[#777]">End date & time<input required className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" type="datetime-local" value={form.return_at} onChange={e => setField('return_at', e.target.value)} /></label>
         {([['destination', 'Destination', true], ['delivery_address', 'Delivery address (optional)', false], ['return_address', 'Return address (optional)', false]] as const).map(([key, label, required]) => <label className="text-xs text-[#777]" key={key}>{label}<input className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" required={required} value={form[key]} onChange={e => setField(key, e.target.value)} /></label>)}
