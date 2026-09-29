@@ -20,7 +20,7 @@ class Vehicle extends Model
 
     public function images(): HasMany
     {
-        return $this->hasMany(VehicleImage::class);
+        return $this->hasMany(VehicleImage::class)->orderByDesc('is_primary')->orderByDesc('id');
     }
 
     public function bookings(): HasMany
