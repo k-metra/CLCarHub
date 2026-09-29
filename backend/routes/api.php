@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\PartnerController;
@@ -18,6 +19,7 @@ Route::get('/vehicles/{vehicle}/availability', [VehicleController::class, 'avail
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/user', [AuthController::class, 'user']);
+    Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
         Route::apiResource('vehicles', VehicleController::class)->except(['index', 'show']);

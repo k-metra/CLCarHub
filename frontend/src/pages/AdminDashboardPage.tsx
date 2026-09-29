@@ -1,91 +1,110 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import api from "../lib/api";
 import { AdminShell } from "../components/AdminShell";
+import { Skeleton } from "../components/Ui";
 import { useAuth } from "../lib/AuthContext";
+import type { BookingRecord, VehicleRecord } from "../types";
+
+type DashboardData = {
+  year: number;
+  summary: Record<"upcoming" | "ongoing" | "finished", { count: number; receivables: number }>;
+  financial: { total_bookings: number; total_revenue: number; total_expenses: number; total_profit: number };
+  monthly: { month: number; revenue: number; bookings: number }[];
+  top_vehicles: (Pick<VehicleRecord, "id" | "name" | "brand" | "model" | "year"> & { revenue: number })[];
+  upcoming_bookings: BookingRecord[];
+};
+
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 });
+const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
+
+function imageUrl(booking: BookingRecord) {
+  const value = booking.vehicle?.images?.[0]?.url;
+  return value ? (value.startsWith("http") ? value : `${apiOrigin}/storage/${value.replace(/^\/+/, "").replace(/^storage\//, "")}`) : null;
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <section className={`rounded border border-black/10 bg-white p-5 ${className}`}>{children}</section>;
+}
 
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState({
-    vehicles: 0,
-    bookings: 0,
-    customers: 0,
-  });
-  const [error, setError] = useState("");
   const { user } = useAuth();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState("");
+  const loading = !data && !error;
+
   useEffect(() => {
-    Promise.all([
-      api.get<{ total: number }>("/vehicles?per_page=1"),
-      api.get<{ total: number }>("/bookings?per_page=1"),
-      api.get<{ total: number }>("/customers?per_page=1"),
-    ])
-      .then(([vehicles, bookings, customers]) =>
-        setStats({
-          vehicles: vehicles.data.total,
-          bookings: bookings.data.total,
-          customers: customers.data.total,
-        }),
-      )
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : "Unable to load dashboard"),
-      );
+    api.get<DashboardData>("/dashboard").then(response => setData(response.data)).catch(e => setError(e instanceof Error ? e.message : "Unable to load dashboard"));
   }, []);
-  return (
-    <AdminShell title="Overview">
-      <div className="mt-8">
-        <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">
-          OVERVIEW
-        </p>
-        <h2 className="mt-2 font-['Space_Grotesk'] text-4xl font-semibold tracking-[-2px]">
-          Good morning, {user?.name ?? "there"}.
-        </h2>
-        <p className="mt-2 text-sm text-[#777]">
-          Signed in as {user?.email}. Here’s what’s happening across your rental
-          operation.
-        </p>
-        {error && <p className="mt-6 text-sm text-red-600">{error}</p>}
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {[
-            ["Total vehicles", stats.vehicles],
-            ["Bookings", stats.bookings],
-            ["Customers", stats.customers],
-          ].map(([label, value]) => (
-            <div
-              className="border border-black/10 bg-white p-6"
-              key={label as string}
-            >
-              <p className="text-xs uppercase tracking-widest text-[#888]">
-                {label}
-              </p>
-              <strong className="mt-4 block font-['Space_Grotesk'] text-4xl">
-                {value}
-              </strong>
-              <p className="mt-2 text-xs text-[#62a477]">
-                Live from Laravel API
-              </p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <Link
-            className="border border-black/10 bg-white p-6 hover:border-[#ff641f]"
-            to="/admin/vehicles"
-          >
-            <p className="text-xs uppercase tracking-widest text-[#ff641f]">
-              Fleet management
-            </p>
-            <h2 className="mt-3 font-['Space_Grotesk'] text-2xl">Vehicles →</h2>
-          </Link>
-          <Link
-            className="border border-black/10 bg-white p-6 hover:border-[#ff641f]"
-            to="/admin/bookings"
-          >
-            <p className="text-xs uppercase tracking-widest text-[#ff641f]">
-              Rental operations
-            </p>
-            <h2 className="mt-3 font-['Space_Grotesk'] text-2xl">Bookings →</h2>
-          </Link>
-        </div>
+
+  const maxRevenue = useMemo(() => Math.max(1, ...(data?.monthly.map(item => item.revenue) ?? [1])), [data]);
+  const maxBookings = useMemo(() => Math.max(1, ...(data?.monthly.map(item => item.bookings) ?? [1])), [data]);
+
+  return <AdminShell title="Dashboard">
+    <div className="mt-8 space-y-8">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">OVERVIEW</p>
+        <h2 className="mt-2 font-['Space_Grotesk'] text-4xl font-semibold tracking-[-2px]">Good morning, {user?.name ?? "there"}.</h2>
+        <p className="mt-2 text-sm text-[#777]">Here’s what’s happening across your rental operation.</p>
       </div>
-    </AdminShell>
-  );
+      {error && <p className="border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard label="Upcoming bookings" value={data?.summary.upcoming.count} amount={data?.summary.upcoming.receivables} color="orange" loading={loading} />
+        <MetricCard label="Ongoing bookings" value={data?.summary.ongoing.count} amount={data?.summary.ongoing.receivables} color="amber" loading={loading} />
+        <MetricCard label="Finished bookings" value={data?.summary.finished.count} amount={data?.summary.finished.receivables} color="green" loading={loading} />
+      </div>
+
+      <Card>
+        <h3 className="font-semibold">Car availability</h3>
+        <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
+          <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm"><option>Car</option><option>Motorcycle</option></select></label>
+          <label className="flex-1 text-xs font-semibold text-[#555]">Date & time<input type="datetime-local" className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" defaultValue={new Date().toISOString().slice(0, 16)} /></label>
+          <Link className="bg-[#ff641f] px-5 py-3 text-center text-sm font-bold text-white" to="/admin/vehicles">Check availability</Link>
+        </div>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div>
+          <h3 className="mb-4 font-semibold">Financial summary</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SummaryCard label="Total bookings" value={data?.financial.total_bookings} color="orange" loading={loading} />
+            <SummaryCard label="Total revenue" value={data?.financial.total_revenue} color="green" moneyValue loading={loading} />
+            <SummaryCard label="Total expenses" value={data?.financial.total_expenses} color="red" moneyValue loading={loading} />
+            <SummaryCard label="Total profit" value={data?.financial.total_profit} color="blue" moneyValue loading={loading} />
+          </div>
+        </div>
+        <Card>
+          <div className="flex items-center justify-between"><h3 className="font-semibold">Yearly financial chart</h3><span className="border border-black/10 px-3 py-2 text-sm">{data?.year ?? new Date().getFullYear()}</span></div>
+          <div className="mt-6 flex h-48 items-end gap-2 border-b border-l border-black/10 px-3 pb-0">
+            {(data?.monthly ?? Array.from({ length: 12 }, (_, month) => ({ month: month + 1, revenue: 0, bookings: 0 }))).map(item => <div className="flex h-full flex-1 items-end justify-center gap-1" key={item.month}><div className="w-2 bg-[#22a95a]" style={{ height: `${Math.max(2, item.revenue / maxRevenue * 100)}%` }} title={`${monthNames[item.month - 1]} revenue`} /><div className="w-2 bg-[#ff641f]" style={{ height: `${Math.max(2, item.bookings / maxBookings * 100)}%` }} title={`${monthNames[item.month - 1]} bookings`} /></div>)}
+          </div>
+          <div className="mt-2 flex justify-between text-[10px] text-[#888]">{monthNames.map(month => <span key={month}>{month}</span>)}</div>
+          <p className="mt-4 text-xs text-[#777]"><span className="mr-3 text-[#22a95a]">■ Revenue</span><span className="text-[#ff641f]">■ Bookings</span></p>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card><h3 className="font-semibold">Upcoming bookings</h3><div className="mt-4 space-y-3">{loading ? <BookingSkeletons /> : data?.upcoming_bookings.length ? data.upcoming_bookings.map(booking => <Link className="flex items-center gap-4 rounded bg-[#f4f3f0] p-3 hover:border-[#ff641f]" to={`/admin/bookings?edit=${booking.id}`} key={booking.id}>{imageUrl(booking) ? <img className="h-14 w-20 rounded object-contain" src={imageUrl(booking)!} alt="" /> : <div className="h-14 w-20 rounded bg-black/10" />}<div className="min-w-0"><p className="font-semibold">{booking.customer?.name ?? "Customer"}</p><p className="text-xs text-[#777]">{formatDate(booking.pickup_at)} → {formatDate(booking.return_at)}</p><p className="mt-1 text-xs font-medium text-[#555]">{booking.vehicle?.name || `${booking.vehicle?.brand ?? ""} ${booking.vehicle?.model ?? ""}`}</p></div></Link>) : <p className="py-8 text-sm text-[#777]">No upcoming bookings.</p>}</div></Card>
+        <Card><h3 className="font-semibold">Top vehicles by total revenue</h3><div className="mt-5 space-y-4">{loading ? <>{[1, 2, 3, 4].map(item => <Skeleton className="h-8 w-full" key={item} />)}</> : data?.top_vehicles.length ? data.top_vehicles.map(vehicle => <div key={vehicle.id}><div className="mb-1 flex justify-between text-sm"><span>{vehicle.name || `${vehicle.brand} ${vehicle.model}`} ({vehicle.year})</span><strong>{money.format(vehicle.revenue)}</strong></div><div className="h-2 bg-black/5"><div className="h-2 bg-[#ff641f]" style={{ width: `${Math.max(4, vehicle.revenue / Math.max(1, data.top_vehicles[0].revenue) * 100)}%` }} /></div></div>) : <p className="py-8 text-sm text-[#777]">No completed revenue records yet.</p>}</div></Card>
+      </div>
+    </div>
+  </AdminShell>;
+}
+
+function MetricCard({ label, value, amount, color, loading }: { label: string; value?: number; amount?: number; color: string; loading: boolean }) {
+  return <Card><p className="text-xs text-[#777]">{label}</p>{loading ? <Skeleton className="mt-3 h-9 w-16" /> : <><strong className={`mt-2 block text-3xl ${color === "green" ? "text-[#22a95a]" : "text-[#ff641f]"}`}>{value}</strong><p className="mt-1 text-xs text-[#777]">{money.format(amount ?? 0)} receivables</p></>}</Card>;
+}
+
+function SummaryCard({ label, value, color, moneyValue = false, loading }: { label: string; value?: number; color: string; moneyValue?: boolean; loading: boolean }) {
+  return <Card><p className="text-xs text-[#777]">{label}</p>{loading ? <Skeleton className="mt-4 h-9 w-28" /> : <strong className={`mt-3 block text-2xl ${color === "green" ? "text-[#22a95a]" : color === "red" ? "text-red-500" : color === "blue" ? "text-blue-500" : "text-[#ff641f]"}`}>{moneyValue ? money.format(value ?? 0) : value}</strong>}</Card>;
+}
+
+function BookingSkeletons() {
+  return <>{[1, 2, 3].map(item => <div className="flex gap-4 rounded bg-[#f4f3f0] p-3" key={item}><Skeleton className="h-14 w-20" /><div className="flex-1"><Skeleton className="h-4 w-32" /><Skeleton className="mt-2 h-3 w-48" /><Skeleton className="mt-2 h-3 w-24" /></div></div>)}</>;
 }

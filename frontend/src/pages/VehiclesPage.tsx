@@ -175,18 +175,23 @@ export default function VehiclesPage() {
     setError("");
     const payload = new FormData();
     Object.entries(form).forEach(([key, value]) => {
-      if (value !== null && value !== "")
+      if (key === "partner_id") {
+        payload.append(key, value || "");
+      } else if (value !== null && value !== "") {
         payload.append(key, value instanceof File ? value : value);
+      }
     });
     try {
-      if (editing)
-        await api.post(`/vehicles/${editing}?_method=PUT`, payload, {
+      if (editing) {
+        payload.append("_method", "PUT");
+        await api.post(`/vehicles/${editing}`, payload, {
           headers: { "Content-Type": "multipart/form-data" },
         });
-      else
+      } else {
         await api.post("/vehicles", payload, {
           headers: { "Content-Type": "multipart/form-data" },
         });
+      }
       setShowForm(false);
       setEditing(null);
       setCurrentImageUrl(null);

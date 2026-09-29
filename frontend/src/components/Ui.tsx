@@ -4,6 +4,21 @@ type Toast = { id: number; message: string; tone: "success" | "error" | "info" }
 type ToastContextValue = { showToast: (message: string, tone?: Toast["tone"]) => void };
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+export function LoadingScreen({ label = "Loading CL CarHub" }: { label?: string }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#f4f3f0] text-[#151515]" role="status" aria-live="polite">
+      <div className="flex flex-col items-center gap-4">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-black/10 border-t-[#ff641f]" />
+        <p className="text-sm text-[#777]">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <span className={`block animate-pulse rounded bg-black/10 ${className}`} aria-hidden="true" />;
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 

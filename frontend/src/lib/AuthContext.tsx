@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from './api'
+import { LoadingScreen } from '../components/Ui'
 
 export type AuthUser = {
   id: number
@@ -50,6 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
     }
   }
+
+  if (loading) return <LoadingScreen label="Loading your workspace" />
 
   return <AuthContext.Provider value={{ user, loading, setSession, logout }}>{children}</AuthContext.Provider>
 }
