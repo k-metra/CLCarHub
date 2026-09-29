@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class CustomerController extends Controller
 {
@@ -71,6 +72,7 @@ class CustomerController extends Controller
             /** @var UploadedFile $file */
             $file = $attachment['file'];
             $path = $file->store('customers', 'public');
+            abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The customer attachment could not be saved. Check storage permissions and disk configuration.');
             $customer->attachments()->create(['category' => $category, 'path' => $path]);
         }
     }
