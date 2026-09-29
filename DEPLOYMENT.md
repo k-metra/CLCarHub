@@ -52,6 +52,92 @@ php artisan migrate --force
 php artisan storage:link
 ```
 
+`FILESYSTEM_DISK` should be `public` in the production `.env`:
+
+```dotenv
+FILESYSTEM_DISK=public
+```
+
+Vehicle and customer images are stored under
+`backend/storage/app/public`. The web server must serve the Laravel
+`backend/public/storage` symlink at `/storage/*`; it must not send those
+requests to the React `index.html` fallback.
+
+After deployment, verify the link and file access:
+
+```bash
+ls -la /var/www/clcarhub/backend/public/storage
+test -f /var/www/clcarhub/backend/storage/app/public/vehicles/example.png
+curl -I https://clcarhub.my.to/storage/vehicles/example.png
+```
+
+The image response should be `200` with an image content type, not the
+frontend HTML document. If `storage` is missing, recreate the link:
+
+```bash
+php artisan storage:link
+```
+
+For an Nginx setup serving the frontend from the main domain, add a specific
+`/storage/` location before the SPA fallback. Point it at the Laravel public
+storage directory:
+
+```nginx
+location ^~ /storage/ {
+    alias /var/www/clcarhub/backend/storage/app/public/;
+    try_files $uri =404;
+}
+```
+
+Email verification links are Laravel web routes, not frontend routes. Route
+`/email/verify/` to Laravel before the React fallback as well:
+
+```nginx
+location ^~ /email/verify/ {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+```
+
+The Laravel PHP location must point to `backend/public/index.php`. Do not route
+email verification links to the React `index.html` fallback. After changing
+Nginx, run `sudo nginx -t && sudo systemctl reload nginx`.
+
+If the API is hosted under the same domain, `/api/` must likewise be routed
+to Laravel rather than the frontend fallback. A separate API subdomain is
+often simpler to configure and maintain.
+
+## Create the first owner account
+
+After configuring the production `.env` and running migrations, create the first
+administrator account with Laravel Tinker:
+
+```bash
+cd /var/www/clcarhub/backend
+php artisan tinker
+```
+
+Then run the following, replacing the values with a unique email and a strong
+password:
+
+```php
+$user = new App\Models\User();
+$user->name = 'CL CarHub Owner';
+$user->username = 'owner';
+$user->email = 'owner@clcarhub.my.to';
+$user->password = 'replace-with-a-long-random-password';
+$user->role = 'owner';
+$user->status = 'active';
+$user->email_verified_at = now();
+$user->save();
+```
+
+The `User` model hashes passwords automatically. Exit Tinker with `exit`.
+The account can then sign in at `/admin/login`.
+
+Do not use the committed development password from `DatabaseSeeder.php` on a
+public server. If you use the seeder for local development, change that
+password afterward and never expose it in production.
+
 ## Deploying the Laravel API
 
 ```bash
