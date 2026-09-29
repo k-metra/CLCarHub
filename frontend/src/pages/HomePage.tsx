@@ -137,8 +137,23 @@ export default function HomePage() {
                 ✦ Trusted by 2,000+ riders in the Philippines
               </p>
             </div>
-            <div className="hidden md:block">
-              <div className="ml-auto h-[250px] w-[660px] -skew-x-[13deg] -rotate-[5deg] rounded-[48%_55%_14%_20%] bg-gradient-to-br from-[#d9d2c6] via-[#29231f] to-[#070707] shadow-[-30px_-30px_50px_#000_inset,0_35px_45px_#000]" />
+            <div className="pointer-events-none absolute inset-y-0 right-[-8%] hidden w-[58%] md:block">
+              <div className="absolute inset-[-12%] bg-[radial-gradient(ellipse_at_center,#ff641f33_0%,#5d1d0818_36%,#0b0b0b00_68%)] blur-3xl" />
+              <div
+                className="relative ml-auto flex h-full max-w-[520px] items-center justify-center overflow-hidden mix-blend-screen"
+                style={{
+                  maskImage: "radial-gradient(ellipse 63% 48% at center, black 35%, rgba(0,0,0,.9) 58%, transparent 100%)",
+                  maskComposite: "intersect",
+                  WebkitMaskImage: "radial-gradient(ellipse 63% 48% at center, black 35%, rgba(0,0,0,.9) 58%, transparent 100%)",
+                }}
+              >
+                <img
+                  src="/herogif.gif"
+                  alt=""
+                  className="h-[92%] w-full object-contain opacity-90 mix-blend-screen drop-shadow-[0_30px_35px_#000]"
+                />
+              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b0b0b66_0%,transparent_24%,transparent_76%,#0b0b0b66_100%),linear-gradient(0deg,#0b0b0b99_0%,transparent_20%,transparent_80%,#0b0b0b99_100%)]" />
             </div>
           </div>
         </section>
