@@ -16,6 +16,25 @@ class VehicleController extends Controller
         return Vehicle::with(['images', 'partner'])->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('brand', 'like', "%$s%")->orWhere('model', 'like', "%$s%")->orWhere('plate_number', 'like', "%$s%")))->when($request->type, fn ($q, $v) => $q->where('type', $v))->when($request->partner_id === 'none', fn ($q) => $q->whereNull('partner_id'))->when($request->partner_id && $request->partner_id !== 'none', fn ($q) => $q->where('partner_id', $request->partner_id))->when($request->status, fn ($q, $v) => $q->where('status', $v))->orderByRaw("status = 'archived' asc")->latest()->paginate(15);
     }
 
+    public function available(Request $request)
+    {
+        $data = $request->validate([
+            'type' => ['required', 'in:car,motorcycle'],
+            'pickup_at' => ['required', 'date'],
+            'return_at' => ['required', 'date', 'after:pickup_at'],
+        ]);
+
+        return Vehicle::with(['images', 'partner'])
+            ->where('type', $data['type'])
+            ->where('status', 'available')
+            ->whereDoesntHave('bookings', fn ($query) => $query
+                ->whereIn('status', ['pending', 'confirmed', 'awaiting_payment', 'paid', 'active'])
+                ->where('pickup_at', '<', $data['return_at'])
+                ->where('return_at', '>', $data['pickup_at']))
+            ->latest()
+            ->get();
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
