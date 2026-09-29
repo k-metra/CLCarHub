@@ -13,7 +13,7 @@ class VehicleController extends Controller
 {
     public function index(Request $request)
     {
-        return Vehicle::with(['images', 'partner'])->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('brand', 'like', "%$s%")->orWhere('model', 'like', "%$s%")->orWhere('plate_number', 'like', "%$s%")))->when($request->type, fn ($q, $v) => $q->where('type', $v))->when($request->partner_id === 'none', fn ($q) => $q->whereNull('partner_id'))->when($request->partner_id && $request->partner_id !== 'none', fn ($q) => $q->where('partner_id', $request->partner_id))->when($request->status, fn ($q, $v) => $q->where('status', $v))->orderByRaw("status = 'archived' asc")->latest()->paginate(15);
+        return Vehicle::with(['images', 'partner'])->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('brand', 'like', "%$s%")->orWhere('model', 'like', "%$s%")->orWhere('plate_number', 'like', "%$s%")))->when($request->type, fn ($q, $v) => $q->where('type', $v))->when($request->partner_id === 'none', fn ($q) => $q->whereNull('partner_id'))->when($request->partner_id && $request->partner_id !== 'none', fn ($q) => $q->where('partner_id', $request->partner_id))->when($request->status, fn ($q, $v) => $q->where('status', $v))->orderByRaw("status = 'archived' asc")->latest()->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
     }
 
     public function available(Request $request)
@@ -64,6 +64,14 @@ class VehicleController extends Controller
         return $vehicle->fresh(['images', 'partner']);
     }
 
+    public function uploadImage(Request $request, Vehicle $vehicle)
+    {
+        $data = $request->validate(['image' => ['required', 'image', 'max:5120']]);
+        $this->storeImage($vehicle, $data['image']);
+
+        return $vehicle->fresh(['images', 'partner']);
+    }
+
     public function destroy(Vehicle $vehicle)
     {
         $vehicle->update(['status' => 'archived']);
@@ -97,6 +105,8 @@ class VehicleController extends Controller
         }
 
         $path = $image->store('vehicles', 'public');
+        abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The vehicle image could not be saved. Check storage permissions and disk configuration.');
+        $vehicle->images()->update(['is_primary' => false]);
         $vehicle->images()->create(['path' => $path, 'is_primary' => true]);
     }
 }
