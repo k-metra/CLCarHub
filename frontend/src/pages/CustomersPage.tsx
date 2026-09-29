@@ -89,7 +89,8 @@ export default function CustomersPage() {
     } catch (e) { showToast(e instanceof Error ? e.message : 'Unable to remove attachment', 'error') }
   }
 
-  const fields: Array<[keyof CustomerForm, string, string]> = [
+  type CustomerTextField = Exclude<keyof CustomerForm, 'attachments'>
+  const fields: Array<[CustomerTextField, string, string]> = [
     ['name', 'Name', 'text'], ['email', 'Email', 'email'], ['phone', 'Phone', 'text'],
     ['date_of_birth', 'Date of birth', 'date'], ['license_number', 'License number', 'text'], ['license_expiry', 'License expiry', 'date'],
   ]
