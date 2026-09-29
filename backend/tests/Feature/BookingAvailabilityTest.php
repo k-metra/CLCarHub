@@ -14,17 +14,74 @@ class BookingAvailabilityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_booking_rejects_an_overlapping_active_period(): void
+    private function authenticate(): array
     {
         $owner = User::factory()->create(['role' => 'owner']);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Corolla', 'type' => 'car', 'plate_number' => 'ABC-123', 'daily_rate' => 2000, 'status' => 'available']);
         $customer = Customer::create(['name' => 'First Customer', 'phone' => '09170000000']);
-        $otherCustomer = Customer::create(['name' => 'Second Customer', 'phone' => '09170000001']);
         Sanctum::actingAs($owner);
+
+        return [$vehicle, $customer];
+    }
+
+    public function test_booking_rejects_an_overlapping_active_period(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $otherCustomer = Customer::create(['name' => 'Second Customer', 'phone' => '09170000001']);
 
         $this->postJson('/api/bookings', ['customer_id' => $customer->id, 'vehicle_id' => $vehicle->id, 'pickup_at' => '2030-01-10 10:00', 'return_at' => '2030-01-12 10:00'])->assertCreated();
 
         $this->postJson('/api/bookings', ['customer_id' => $otherCustomer->id, 'vehicle_id' => $vehicle->id, 'pickup_at' => '2030-01-11 14:00', 'return_at' => '2030-01-13 10:00'])->assertUnprocessable();
         $this->assertCount(1, Booking::all());
+    }
+
+    public function test_exactly_twenty_four_hours_costs_one_rental_day(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $response = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated();
+
+        $this->assertSame('2000.00', $response->json('rental_amount'));
+        $this->assertSame('2000.00', $response->json('total_amount'));
+    }
+
+    public function test_cancelled_and_rejected_bookings_do_not_block_a_vehicle(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        foreach (['cancelled', 'rejected'] as $status) {
+            $this->postJson('/api/bookings', [
+                'customer_id' => $customer->id,
+                'vehicle_id' => $vehicle->id,
+                'pickup_at' => '2030-01-10 10:00',
+                'return_at' => '2030-01-11 10:00',
+                'status' => $status,
+            ])->assertCreated();
+        }
+
+        $this->assertCount(2, Booking::all());
+    }
+
+    public function test_balance_is_derived_from_total_amount_and_payments(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $response = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'payments' => [
+                ['amount' => 500, 'paid_at' => '2030-01-10', 'notes' => 'Deposit'],
+            ],
+        ])->assertCreated();
+
+        $this->assertEquals(1500.0, $response->json('balance'));
+        $this->assertSame(1500.0, Booking::firstOrFail()->balance);
     }
 }
