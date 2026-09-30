@@ -378,8 +378,38 @@ export default function CustomersPage() {
             </form>
           </div>
         )}
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
+        <div className="mt-6 sm:hidden">
+          {loading ? (
+            <p className="py-8 text-sm text-[#888]">Loading customers...</p>
+          ) : customers.length === 0 ? (
+            <p className="py-8 text-sm text-[#888]">No customers found.</p>
+          ) : (
+            <div className="space-y-3">
+              {customers.map((customer) => (
+                <article className="rounded border border-black/[.06] p-4" key={customer.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-words font-semibold">{customer.name}</h3>
+                      <p className="mt-1 break-words text-sm text-[#777]">{customer.email || "—"}</p>
+                      <p className="break-words text-sm text-[#777]">{customer.phone || "—"}</p>
+                    </div>
+                    <span className="shrink-0 text-xs text-[#777]">{customer.bookings_count ?? 0} bookings</span>
+                  </div>
+                  <p className="mt-3 break-words text-sm text-[#777]">
+                    License: {customer.license_number || "—"}
+                    {customer.license_expiry && ` · Expires ${new Date(customer.license_expiry).toLocaleDateString()}`}
+                  </p>
+                  <div className="mt-4 flex gap-4 text-sm">
+                    <button className="text-[#ff641f]" onClick={() => openEdit(customer)}>Edit</button>
+                    <button className="text-red-600" onClick={() => void deleteCustomer(customer)}>Delete</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="mt-6 hidden overflow-x-auto sm:block">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-black/10 text-[10px] uppercase tracking-widest text-[#888]">
               <tr>
                 <th className="pb-3">Name</th>
