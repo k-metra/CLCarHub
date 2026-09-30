@@ -67,7 +67,7 @@ export default function VehicleRevenueReportPage() {
     }
   };
 
-  return <AdminShell title="Vehicle Revenue Report">
+  return <AdminShell title="Vehicle Revenue Report" reportsOnly>
     <div className="mt-8 space-y-6">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <p className="text-sm text-[#777]">Compare booking value, collected payments, and outstanding balances by vehicle.</p>
