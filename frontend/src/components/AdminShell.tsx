@@ -20,8 +20,8 @@ export function AdminShell({
 
   return (
     <div className="min-h-screen bg-[#f4f3f0] text-[#151515]">
-      <header className="relative z-20 flex h-20 items-center justify-between border-b border-black/10 bg-[#111] px-6 text-white md:px-10">
-        <div className="flex items-center gap-4">
+      <header className="relative z-20 flex h-20 min-w-0 items-center justify-between border-b border-black/10 bg-[#111] px-4 text-white sm:px-6 md:px-10">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             className="text-xl text-[#bbb] lg:hidden"
             onClick={() => setMobileSidebarOpen(true)}
@@ -37,20 +37,20 @@ export function AdminShell({
             {sidebarCollapsed ? "→" : "←"}
           </button>
           <Link
-            className="font-['Space_Grotesk'] text-xl font-bold"
+            className="truncate font-['Space_Grotesk'] text-xl font-bold"
             to="/admin"
           >
             CL<span className="text-[#ff641f]">CarHub</span>
           </Link>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex shrink-0 items-center gap-3 sm:gap-5">
           <div className="hidden text-right sm:block">
             <p className="text-sm font-semibold">{user.name}</p>
             <p className="text-[10px] uppercase tracking-widest text-[#888]">
               {user.role}
             </p>
           </div>
-          <Link className="text-sm text-[#bbb] hover:text-white" to="/">
+          <Link className="hidden text-sm text-[#bbb] hover:text-white sm:block" to="/">
             Website ↗
           </Link>
           <button
@@ -64,21 +64,22 @@ export function AdminShell({
       <div className="flex">
         <AdminSidebar collapsed={sidebarCollapsed} />
         <div
-          className={`${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"} fixed inset-y-20 left-0 z-30 block w-[260px] transition-transform lg:hidden`}
+          className={`${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"} fixed bottom-0 left-0 top-20 z-50 block w-[min(84vw,300px)] transition-transform lg:hidden`}
         >
           <AdminSidebar
             collapsed={false}
+            mobile
             onNavigate={() => setMobileSidebarOpen(false)}
           />
         </div>
         {mobileSidebarOpen && (
           <button
-            className="fixed inset-0 top-20 z-20 bg-black/40 lg:hidden"
+            className="fixed inset-0 top-20 z-40 bg-black/40 lg:hidden"
             onClick={() => setMobileSidebarOpen(false)}
             aria-label="Close navigation"
           />
         )}
-        <main className="min-w-0 flex-1 px-6 py-10 md:px-10">
+        <main className="min-w-0 max-w-full flex-1 overflow-hidden px-4 py-8 sm:px-6 md:px-10 md:py-10">
           <Link className="text-xs text-[#ff641f]" to="/admin">
             ← Dashboard
           </Link>
@@ -86,7 +87,7 @@ export function AdminShell({
             <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">
               ADMINISTRATION
             </p>
-            <h1 className="mt-2 font-['Space_Grotesk'] text-4xl font-semibold tracking-[-2px]">
+            <h1 className="mt-2 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-1.5px] sm:text-4xl sm:tracking-[-2px]">
               {title}
             </h1>
           </div>
