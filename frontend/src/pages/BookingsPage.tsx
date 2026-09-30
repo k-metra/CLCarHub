@@ -39,13 +39,22 @@ function calendarDays(start: string, end: string): number {
   return Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000))
 }
 
-function bookingDate(value: string): string {
-  const date = new Date(value)
-  return date.toLocaleDateString()
-}
-
 function bookingDateTime(value: string): string {
   return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+function bookingDatePart(value: string): string {
+  return new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function bookingTimePart(value: string): string {
+  return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+function isToday(value: string): boolean {
+  const date = new Date(value)
+  const today = new Date()
+  return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate()
 }
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api').replace(/\/api\/?$/, '')
@@ -127,7 +136,9 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<BookingRecord[]>([])
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [status, setStatus] = useState('')
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('')
+  const [sort, setSort] = useState<'latest' | 'oldest'>('latest')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -143,9 +154,12 @@ export default function BookingsPage() {
 
   const loadBookings = useCallback(() => {
     setLoading(true)
-    api.get<Paginated<BookingRecord>>(`/bookings?per_page=50${status ? `&status=${status}` : ''}`).then(result => setBookings(result.data.data)).catch(e => setError(e instanceof Error ? e.message : 'Unable to load bookings')).finally(() => setLoading(false))
-  }, [status])
-  useEffect(() => { const timer = window.setTimeout(loadBookings, 0); return () => window.clearTimeout(timer) }, [loadBookings])
+    const params = new URLSearchParams({ per_page: '100', sort })
+    if (search.trim()) params.set('search', search.trim())
+    if (filter) params.set('filter', filter)
+    api.get<Paginated<BookingRecord>>(`/bookings?${params.toString()}`).then(result => setBookings(result.data.data)).catch(e => setError(e instanceof Error ? e.message : 'Unable to load bookings')).finally(() => setLoading(false))
+  }, [filter, search, sort])
+  useEffect(() => { const timer = window.setTimeout(loadBookings, 250); return () => window.clearTimeout(timer) }, [loadBookings])
   useEffect(() => {
     Promise.all([api.get<Paginated<VehicleRecord>>('/vehicles?per_page=100'), api.get<Paginated<Customer>>('/customers?per_page=100')])
       .then(([vehicleResult, customerResult]) => { setVehicles(vehicleResult.data.data); setCustomers(customerResult.data.data) })
@@ -218,9 +232,6 @@ export default function BookingsPage() {
   const formTotal = subtotal + optionalFees + reservationFee + securityDeposit
   const formPaid = form.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
   const formBalance = Math.max(0, formTotal - formPaid)
-  const bookingSortRank = (booking: BookingRecord) => booking.status === 'pending' ? 0 : booking.status === 'completed' ? 2 : booking.status === 'rejected' ? 3 : booking.status === 'cancelled' ? 4 : 1
-  const sortedBookings = [...bookings].sort((left, right) => bookingSortRank(left) - bookingSortRank(right))
-
   return <><ConfirmDialog open={pendingStatusChange !== null} title={`${pendingStatusChange?.nextStatus === 'rejected' ? 'Reject' : 'Cancel'} booking?`} message={`This action is permanent. The booking cannot be restored after it is ${pendingStatusChange?.nextStatus ?? 'cancelled'}.`} confirmLabel={pendingStatusChange?.nextStatus === 'rejected' ? 'Reject booking' : 'Cancel booking'} onCancel={() => setPendingStatusChange(null)} onConfirm={reason => { if (pendingStatusChange) void updateStatus(pendingStatusChange.booking, pendingStatusChange.nextStatus, reason); setPendingStatusChange(null) }} />
   {selectedBooking && <div className="fixed inset-x-0 bottom-0 top-20 z-[105] overflow-y-auto bg-[#f8f7f5] p-4 md:p-10 lg:left-[260px]"><div className="mx-auto max-w-6xl">
     <div className="flex items-start justify-between"><div><button className="text-sm text-[#777]" onClick={() => setSelectedBooking(null)}>← Bookings</button><p className="mt-5 text-xs uppercase tracking-widest text-[#ff641f]">Booking details</p><h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-semibold">{selectedBooking.reference}</h1><p className="mt-1 text-sm text-[#777]">{selectedBooking.status}</p></div><div className="relative"><button className="border border-black/10 bg-white px-5 py-3 text-sm font-semibold" onClick={() => setShowActions(value => !value)}>Actions</button>{showActions && <div className="absolute right-0 z-10 mt-2 w-52 border border-black/10 bg-white p-1 shadow-xl"><button className="block w-full px-3 py-2 text-left text-sm hover:bg-[#f8f7f5]" onClick={openPaymentForm}>Add payment</button><button className="block w-full px-3 py-2 text-left text-sm hover:bg-[#f8f7f5]" onClick={() => { openEdit(selectedBooking); setSelectedBooking(null); setShowActions(false) }}>Edit booking</button><button className="block w-full px-3 py-2 text-left text-sm hover:bg-[#f8f7f5]" onClick={() => { showToast('Contract preview will be available in a future update.', 'info'); setShowActions(false) }}>Contract preview</button>{statusTransitions[selectedBooking.status]?.includes('cancelled') && <button className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50" onClick={() => requestSelectedStatus('cancelled')}>Cancel booking</button>}{selectedBooking.status === 'pending' && <button className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50" onClick={() => requestSelectedStatus('rejected')}>Reject booking</button>}</div>}</div></div>
@@ -229,7 +240,7 @@ export default function BookingsPage() {
     </div>
   </div></div>}
   <AdminShell title="Booking management"><div className="mt-8 border border-black/10 bg-white p-4 md:p-6">
-    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><p className="text-sm text-[#777]">Create, update, and track rental bookings and balances.</p><div className="flex gap-3"><select className="border border-black/10 bg-[#f8f7f5] px-4 py-3 text-sm" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{['pending', 'confirmed', 'active', 'completed', 'cancelled', 'rejected'].map(value => <option key={value}>{value}</option>)}</select><button className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white" onClick={openCreate}>+ Add booking</button></div></div>
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><p className="text-sm text-[#777]">Create, update, and track rental bookings and balances.</p><button className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white" onClick={openCreate}>+ Add booking</button></div>
     {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"><form className="max-h-[85vh] w-full max-w-[64rem] overflow-y-auto bg-white p-6 shadow-2xl" onSubmit={saveBooking}><div className="flex items-center justify-between"><h2 className="font-['Space_Grotesk'] text-2xl font-semibold">{editing ? 'Edit booking' : 'Add booking'}</h2><button type="button" className="text-2xl text-[#777]" onClick={() => setShowForm(false)}>×</button></div>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <label className="text-xs text-[#777]">Vehicle<span className="mt-2 block"><SearchableSelect value={form.vehicle_id} options={vehicles} placeholder="Select vehicle" onChange={value => setField('vehicle_id', value)} renderLabel={vehicleLabel} renderOption={(vehicle, selected) => <VehicleOption vehicle={vehicle} selected={selected} />} /></span></label>
@@ -247,6 +258,13 @@ export default function BookingsPage() {
       <div className="mt-6 flex justify-end gap-3"><button type="button" className="border border-black/10 px-4 py-2 text-sm" onClick={() => setShowForm(false)}>Cancel</button><button className="bg-[#151515] px-5 py-2 text-sm font-bold text-white">Save booking</button></div>
     </form></div>}
     {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-    <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="border-b border-black/10 text-[10px] uppercase tracking-widest text-[#888]"><tr><th className="pb-3">Reference</th><th className="pb-3">Customer</th><th className="pb-3">Vehicle</th><th className="pb-3">Dates</th><th className="pb-3">Balance</th><th className="pb-3">Status</th><th /></tr></thead><tbody>{loading ? <tr><td className="py-8 text-[#888]" colSpan={7}>Loading bookings...</td></tr> : sortedBookings.map(booking => { const isPending = booking.status === 'pending'; const isCancelled = booking.status === 'cancelled'; const isRejected = booking.status === 'rejected'; const isTerminal = isCancelled || isRejected; const rowClass = isPending ? 'border-b border-black/[.06] bg-yellow-100/70' : isRejected ? 'border-b border-red-200 bg-red-100/60 text-red-900 opacity-75' : isCancelled ? 'border-b border-black/[.06] bg-gray-100 text-gray-500 opacity-75' : 'cursor-pointer border-b border-black/[.06] transition hover:bg-orange-50'; const nextStatuses = statusTransitions[booking.status] ?? []; return <tr className={rowClass} key={booking.id} onClick={() => !isTerminal && openDetails(booking)}><td className="py-4 font-semibold text-[#ff641f]">{booking.reference}</td><td className="py-4">{booking.customer?.name ?? '—'}</td><td className="py-4 text-[#777]">{booking.vehicle ? (booking.vehicle.name || `${booking.vehicle.brand} ${booking.vehicle.model}`) : '—'}</td><td className="py-4 text-xs text-[#777]">{bookingDate(booking.pickup_at)} → {bookingDate(booking.return_at)}</td><td className="py-4">₱{Number(booking.balance ?? 0).toLocaleString()}</td><td className="py-4"><select onClick={event => event.stopPropagation()} className="border border-black/10 bg-[#f8f7f5] px-2 py-1 text-xs capitalize disabled:cursor-not-allowed disabled:opacity-60" value={booking.status} disabled={nextStatuses.length === 0} onChange={e => requestStatusChange(booking, e.target.value)}><option value={booking.status}>{booking.status}</option>{nextStatuses.map(value => <option key={value}>{value}</option>)}</select></td><td className="py-4 text-right"><button className="text-[#ff641f]" onClick={event => { event.stopPropagation(); openEdit(booking) }}>Edit</button></td></tr> })}</tbody></table></div>
+    <div className="mt-6 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_140px]">
+      <input className="w-full border border-black/10 bg-white px-3 py-2.5 text-sm" placeholder="Search reference, customer, vehicle, or plate..." value={search} onChange={event => setSearch(event.target.value)} />
+      <select className="w-full border border-black/10 bg-white px-3 py-2.5 text-sm" value={filter} onChange={event => setFilter(event.target.value)}>
+        <option value="">All bookings</option><option value="upcoming">Upcoming</option><option value="ongoing">Ongoing</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option>
+      </select>
+      <select className="w-full border border-black/10 bg-white px-3 py-2.5 text-sm" value={sort} onChange={event => setSort(event.target.value as 'latest' | 'oldest')}><option value="latest">Latest</option><option value="oldest">Oldest</option></select>
+    </div>
+    <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="border-b border-black/10 text-[10px] uppercase tracking-widest text-[#888]"><tr><th className="pb-3">Reference</th><th className="pb-3">Customer</th><th className="pb-3">Vehicle</th><th className="pb-3">Dates</th><th className="pb-3">Balance</th><th className="pb-3">Status</th><th /></tr></thead><tbody>{loading ? <tr><td className="py-8 text-[#888]" colSpan={7}>Loading bookings...</td></tr> : bookings.map(booking => { const isPending = booking.status === 'pending'; const isCancelled = booking.status === 'cancelled'; const isRejected = booking.status === 'rejected'; const isTerminal = isCancelled || isRejected; const rowClass = isPending ? 'border-b border-black/[.06] bg-yellow-100/70' : isRejected ? 'border-b border-red-200 bg-red-100/60 text-red-900 opacity-75' : isCancelled ? 'border-b border-black/[.06] bg-gray-100 text-gray-500 opacity-75' : 'cursor-pointer border-b border-black/[.06] transition hover:bg-orange-50'; const nextStatuses = statusTransitions[booking.status] ?? []; return <tr className={rowClass} key={booking.id} onClick={() => !isTerminal && openDetails(booking)}><td className="py-4 font-semibold text-[#ff641f]">{booking.reference}</td><td className="py-4">{booking.customer?.name ?? '—'}</td><td className="py-4 text-[#777]">{booking.vehicle ? (booking.vehicle.name || `${booking.vehicle.brand} ${booking.vehicle.model}`) : '—'}</td><td className="py-4 text-xs"><span className={`block ${isToday(booking.pickup_at) ? 'font-bold text-[#ff641f]' : 'text-[#777]'}`}>Departure: {bookingDatePart(booking.pickup_at)} {bookingTimePart(booking.pickup_at)}</span><span className={`mt-1 block ${isToday(booking.return_at) ? 'font-bold text-[#ff641f]' : 'text-[#777]'}`}>Return: {bookingDatePart(booking.return_at)} {bookingTimePart(booking.return_at)}</span></td><td className="py-4">₱{Number(booking.balance ?? 0).toLocaleString()}</td><td className="py-4"><select onClick={event => event.stopPropagation()} className="border border-black/10 bg-[#f8f7f5] px-2 py-1 text-xs capitalize disabled:cursor-not-allowed disabled:opacity-60" value={booking.status} disabled={nextStatuses.length === 0} onChange={e => requestStatusChange(booking, e.target.value)}><option value={booking.status}>{booking.status}</option>{nextStatuses.map(value => <option key={value}>{value}</option>)}</select></td><td className="py-4 text-right"><button className="text-[#ff641f]" onClick={event => { event.stopPropagation(); openEdit(booking) }}>Edit</button></td></tr> })}</tbody></table></div>
   </div></AdminShell></>
 }
