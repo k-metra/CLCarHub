@@ -63,8 +63,8 @@ export default function AdminLoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0b0b0b] px-5 text-white">
       <div className="w-full max-w-[430px] border border-white/[.1] bg-[#151515] p-8 shadow-2xl md:p-10">
-        <Link className="font-['Space_Grotesk'] text-[21px] font-bold" to="/">
-          CL<span className="text-[#ff641f]">CarHub</span>
+        <Link className="inline-block" to="/" aria-label="CLCarHub home">
+          <img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-20 w-32 object-contain object-left" />
         </Link>
         <div className="mt-10">
           {verified && (
