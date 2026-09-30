@@ -4,7 +4,6 @@ import AdminLoginPage from "./pages/AdminLoginPage";
 import BookingsPage from "./pages/BookingsPage";
 import HomePage from "./pages/HomePage";
 import VehiclesPage from "./pages/VehiclesPage";
-import AdminPlaceholderPage from "./pages/AdminPlaceholderPage";
 import CustomerAccountPage from "./pages/CustomerAccountPage";
 import PartnersPage from "./pages/PartnersPage";
 import CalendarPage from "./pages/CalendarPage";
@@ -15,6 +14,7 @@ import IncomeFlowReportPage from "./pages/IncomeFlowReportPage";
 import VehicleRevenueReportPage from "./pages/VehicleRevenueReportPage";
 import FleetUtilizationReportPage from "./pages/FleetUtilizationReportPage";
 import AccountsPage from "./pages/AccountsPage";
+import ContractBuilderPage from "./pages/ContractBuilderPage";
 import { AuthProvider } from "./lib/AuthContext";
 import { ToastProvider } from "./components/Ui";
 
@@ -33,7 +33,7 @@ export default function App() {
           <Route path="/admin/calendar" element={<CalendarPage />} />
           <Route
             path="/admin/contracts"
-            element={<AdminPlaceholderPage title="Contract builder" />}
+            element={<ContractBuilderPage />}
           />
           <Route
             path="/admin/expenses"
