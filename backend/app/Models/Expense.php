@@ -23,4 +23,9 @@ class Expense extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    public function fund(): BelongsTo
+    {
+        return $this->belongsTo(Fund::class);
+    }
 }
