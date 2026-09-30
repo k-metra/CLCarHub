@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Vehicle;
+use App\Models\FundTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -14,7 +15,7 @@ class BookingController extends Controller
     public function index(Request $request)
     {
         $now = now();
-        $query = Booking::with(['customer', 'vehicle.images', 'payments', 'statusHistory.user'])
+        $query = Booking::with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('reference', 'like', "%{$search}%")
@@ -56,13 +57,13 @@ class BookingController extends Controller
             $booking = Booking::create([...$data, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
             $this->syncPayments($booking, $payments);
 
-            return response()->json($booking->load(['customer', 'vehicle.images', 'payments', 'statusHistory.user']), 201);
+            return response()->json($booking->load(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user']), 201);
         });
     }
 
     public function show(Booking $booking)
     {
-        return $booking->load(['customer', 'vehicle.images', 'creator', 'payments', 'statusHistory.user']);
+        return $booking->load(['customer', 'vehicle.images', 'creator', 'payments.fund', 'statusHistory.user']);
     }
 
     public function update(Request $request, Booking $booking)
@@ -91,7 +92,7 @@ class BookingController extends Controller
         $this->recalculateTotal($booking);
         if ($payments !== null) $this->syncPayments($booking, $payments);
 
-        return $booking->fresh(['customer', 'vehicle.images', 'payments', 'statusHistory.user']);
+        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user']);
     }
 
     public function destroy(Booking $booking)
@@ -105,7 +106,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'return_address' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'return_address' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function allowedStatusTransitions(): array
@@ -126,7 +127,19 @@ class BookingController extends Controller
     {
         $booking->payments()->delete();
         foreach ($payments as $payment) {
-            $booking->payments()->create(['amount' => $payment['amount'], 'notes' => $payment['notes'] ?? null, 'paid_at' => $payment['paid_at'], 'payment_method' => null, 'status' => 'paid']);
+            $createdPayment = $booking->payments()->create(['amount' => $payment['amount'], 'fund_id' => $payment['fund_id'] ?? null, 'notes' => $payment['notes'] ?? null, 'paid_at' => $payment['paid_at'], 'payment_method' => null, 'status' => 'paid']);
+            if ($createdPayment->fund_id) {
+                FundTransaction::create([
+                    'fund_id' => $createdPayment->fund_id,
+                    'payment_id' => $createdPayment->id,
+                    'type' => 'inflow',
+                    'transacted_at' => $createdPayment->paid_at ?? now(),
+                    'amount' => $createdPayment->amount,
+                    'description' => "Booking payment {$booking->reference}",
+                    'notes' => $createdPayment->notes,
+                    'created_by' => $booking->created_by,
+                ]);
+            }
         }
     }
 
