@@ -44,11 +44,8 @@ export default function HomePage() {
     <div className="min-h-screen overflow-hidden bg-[#0b0b0b] text-[#f4f3f0]">
       <header className="absolute z-10 w-full border-b border-white/[.08]">
         <nav className="mx-auto flex h-[84px] w-[calc(100%-56px)] max-w-[1160px] items-center justify-between">
-          <Link
-            className="font-['Space_Grotesk'] text-[21px] font-bold text-white"
-            to="/"
-          >
-            CL<span className="text-[#ff641f]">CarHub</span>
+          <Link className="shrink-0" to="/" aria-label="CLCarHub home">
+            <img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-20 w-32 object-contain object-left" />
           </Link>
           <button
             className="flex flex-col gap-[5px] md:hidden"
