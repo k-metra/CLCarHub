@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\FundController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\PartnerController;
@@ -33,9 +34,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
     Route::apiResource('bookings', BookingController::class);
     Route::apiResource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('funds', FundController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::post('/funds/{fund}/transactions', [FundController::class, 'storeTransaction']);
+    Route::patch('/fund-transactions/{transaction}', [FundController::class, 'updateTransaction']);
+    Route::delete('/fund-transactions/{transaction}', [FundController::class, 'destroyTransaction']);
     Route::apiResource('appointments', AppointmentController::class);
     Route::middleware(EnsureRole::class.':owner,it_management')->prefix('reports')->group(function () {
         Route::get('/revenue', [ReportController::class, 'revenue']);
+        Route::get('/vehicle-revenue', [ReportController::class, 'vehicleRevenue']);
         Route::get('/utilization', [ReportController::class, 'utilization']);
         Route::get('/income-flow', [ReportController::class, 'incomeFlow']);
     });
