@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
+use App\Models\FundTransaction;
 use Illuminate\Http\Request;
 
 class ExpenseController extends Controller
@@ -11,7 +12,7 @@ class ExpenseController extends Controller
     public function index(Request $request)
     {
         $sort = $request->input('sort', 'date_latest');
-        $query = Expense::with('vehicle')
+        $query = Expense::with(['vehicle', 'fund'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('description', 'like', "%{$search}%")
@@ -54,15 +55,18 @@ class ExpenseController extends Controller
         $data = $this->normalize($data);
         $data['created_by'] = $request->user()?->id;
 
-        return response()->json(Expense::create($data)->load('vehicle'), 201);
+        $expense = Expense::create($data);
+        $this->syncFundTransaction($expense);
+        return response()->json($expense->load(['vehicle', 'fund']), 201);
     }
 
     public function update(Request $request, Expense $expense)
     {
         $data = $this->normalize($request->validate($this->rules()));
         $expense->update($data);
+        $this->syncFundTransaction($expense);
 
-        return $expense->fresh('vehicle');
+        return $expense->fresh(['vehicle', 'fund']);
     }
 
     private function rules(): array
@@ -74,6 +78,7 @@ class ExpenseController extends Controller
             'spent_at' => ['required', 'date'],
             'description' => ['required', 'string'],
             'amount' => ['required', 'numeric', 'min:0.01'],
+            'fund_id' => ['nullable', 'exists:funds,id'],
         ];
     }
 
@@ -90,8 +95,22 @@ class ExpenseController extends Controller
 
     public function destroy(Expense $expense)
     {
+        FundTransaction::where('expense_id', $expense->id)->delete();
         $expense->delete();
 
         return response()->noContent();
+    }
+
+    private function syncFundTransaction(Expense $expense): void
+    {
+        if (! $expense->fund_id) {
+            FundTransaction::where('expense_id', $expense->id)->delete();
+            return;
+        }
+
+        FundTransaction::updateOrCreate(
+            ['expense_id' => $expense->id],
+            ['fund_id' => $expense->fund_id, 'type' => 'outflow', 'transacted_at' => $expense->spent_at, 'amount' => $expense->amount, 'description' => $expense->description, 'notes' => $expense->expense_type, 'created_by' => $expense->created_by],
+        );
     }
 }
