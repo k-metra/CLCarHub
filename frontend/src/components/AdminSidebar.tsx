@@ -52,18 +52,20 @@ const sections: SidebarSection[] = [
 export function AdminSidebar({
   collapsed,
   onNavigate,
+  mobile = false,
 }: {
   collapsed: boolean;
   onNavigate?: () => void;
+  mobile?: boolean;
 }) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () => Object.fromEntries(sections.map((section) => [section.title, true])),
   );
   return (
     <aside
-      className={`${collapsed ? "w-[76px]" : "w-[260px]"} hidden shrink-0 border-r border-white/[.08] bg-[#151515] text-white transition-[width] duration-200 lg:block`}
+      className={`${collapsed ? "w-[76px]" : "w-[260px]"} ${mobile ? "block h-full" : "hidden lg:block"} shrink-0 border-r border-white/[.08] bg-[#151515] text-white transition-[width] duration-200`}
     >
-      <div className="sticky top-0 h-screen overflow-y-auto px-3 py-6">
+      <div className="sticky top-0 h-full overflow-y-auto px-3 py-6">
         <div
           className={`mb-8 px-3 text-[10px] font-bold uppercase tracking-[2.5px] text-[#ff641f] ${collapsed ? "text-center" : ""}`}
         >
