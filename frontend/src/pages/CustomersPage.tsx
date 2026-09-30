@@ -4,6 +4,8 @@ import { ImageLightbox, useToast } from "../components/Ui";
 import api from "../lib/api";
 import type { CustomerAttachment, Paginated } from "../types";
 
+const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
+
 type Customer = {
   id: number;
   name: string;
@@ -16,6 +18,7 @@ type Customer = {
   identification_information?: string | null;
   notes?: string | null;
   bookings_count?: number;
+  outstanding_balance?: number;
   attachments?: CustomerAttachment[];
 };
 
@@ -393,7 +396,7 @@ export default function CustomersPage() {
                       <p className="mt-1 break-words text-sm text-[#777]">{customer.email || "—"}</p>
                       <p className="break-words text-sm text-[#777]">{customer.phone || "—"}</p>
                     </div>
-                    <span className="shrink-0 text-xs text-[#777]">{customer.bookings_count ?? 0} bookings</span>
+                    <div className="shrink-0 text-right text-xs"><p className="text-[#777]">{customer.bookings_count ?? 0} bookings</p><p className="mt-1 font-semibold text-amber-600">{money.format(customer.outstanding_balance ?? 0)} due</p></div>
                   </div>
                   <p className="mt-3 break-words text-sm text-[#777]">
                     License: {customer.license_number || "—"}
@@ -416,13 +419,14 @@ export default function CustomersPage() {
                 <th className="pb-3">Contact</th>
                 <th className="pb-3">License</th>
                 <th className="pb-3">Bookings</th>
+                <th className="pb-3">Outstanding</th>
                 <th className="pb-3" />
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-[#888]">
+                  <td colSpan={6} className="py-8 text-[#888]">
                     Loading customers...
                   </td>
                 </tr>
@@ -448,6 +452,7 @@ export default function CustomersPage() {
                       )}
                     </td>
                     <td className="py-4">{customer.bookings_count ?? 0}</td>
+                    <td className="py-4 font-semibold text-amber-600">{money.format(customer.outstanding_balance ?? 0)}</td>
                     <td className="py-4 text-right">
                       <button
                         className="mr-4 text-[#ff641f]"
