@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\ContractController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CustomerController;
@@ -36,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('accounts', AccountController::class)->only(['store', 'update', 'destroy']);
     Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
     Route::apiResource('bookings', BookingController::class);
+    Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::apiResource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('funds', FundController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('/funds/{fund}/transactions', [FundController::class, 'storeTransaction']);
