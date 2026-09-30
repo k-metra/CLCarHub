@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth, canManageAccounts, canViewReports } from "../lib/AuthContext";
 
 type SidebarSection = {
   title: string;
   items: { label: string; path: string; icon: string }[];
+};
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
 const sections: SidebarSection[] = [
@@ -61,6 +66,31 @@ export function AdminSidebar({
   mobile?: boolean;
 }) {
   const { user } = useAuth();
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+      setIsInstalled(true);
+    };
+    setIsInstalled(window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+  const installApp = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === "accepted") setInstallPrompt(null);
+  };
   const visibleSections = sections.map(section => ({
     ...section,
     items: section.items.filter(item =>
@@ -76,14 +106,25 @@ export function AdminSidebar({
   );
   return (
     <aside
-      className={`${collapsed ? "w-[76px]" : "w-[260px]"} ${mobile ? "block h-full" : "hidden lg:block"} shrink-0 border-r border-white/[.08] bg-[#151515] text-white transition-[width] duration-200`}
+      className={`${collapsed ? "w-[76px]" : "w-[260px]"} ${mobile ? "block h-[calc(100vh-5rem)]" : "sticky top-20 hidden h-[calc(100vh-5rem)] self-start lg:block"} shrink-0 border-r border-white/[.08] bg-[#151515] text-white transition-[width] duration-200 print:hidden`}
     >
-      <div className="sticky top-0 h-full overflow-y-auto px-3 py-6">
+      <div className="h-full overflow-y-auto px-3 py-6">
         <div
           className={`mb-8 px-3 text-[10px] font-bold uppercase tracking-[2.5px] text-[#ff641f] ${collapsed ? "text-center" : ""}`}
         >
           {collapsed ? "CL" : "ADMIN MENU"}
         </div>
+        {installPrompt && !isInstalled && (
+          <button
+            type="button"
+            className={`mb-6 flex w-full items-center justify-center gap-2 rounded bg-[#e85b00] px-3 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#ff641f] ${collapsed ? "px-2" : ""}`}
+            onClick={() => void installApp()}
+            title="Install CLCarHub App"
+          >
+            <span aria-hidden="true">▣</span>
+            {!collapsed && "Install CLCarHub App"}
+          </button>
+        )}
         {visibleSections.map((section) => (
           <div className="mb-5" key={section.title}>
             <button
