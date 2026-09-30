@@ -23,7 +23,7 @@ export function AdminShell({
 
   return (
     <div className="min-h-screen bg-[#f4f3f0] text-[#151515]">
-      <header className="relative z-20 flex h-20 min-w-0 items-center justify-between border-b border-black/10 bg-[#111] px-4 text-white sm:px-6 md:px-10">
+      <header className="relative z-20 flex h-20 min-w-0 items-center justify-between border-b border-black/10 bg-[#111] px-4 text-white print:hidden sm:px-6 md:px-10">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             className="text-xl text-[#bbb] lg:hidden"
@@ -62,9 +62,11 @@ export function AdminShell({
         </div>
       </header>
       <div className="flex">
-        <AdminSidebar collapsed={sidebarCollapsed} />
+        <div className="print:hidden">
+          <AdminSidebar collapsed={sidebarCollapsed} />
+        </div>
         <div
-          className={`${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"} fixed bottom-0 left-0 top-20 z-50 block w-[min(84vw,300px)] transition-transform lg:hidden`}
+          className={`${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"} fixed bottom-0 left-0 top-20 z-50 block w-[min(84vw,300px)] transition-transform print:hidden lg:hidden`}
         >
           <AdminSidebar
             collapsed={false}
@@ -74,16 +76,16 @@ export function AdminShell({
         </div>
         {mobileSidebarOpen && (
           <button
-            className="fixed inset-0 top-20 z-40 bg-black/40 lg:hidden"
+            className="fixed inset-0 top-20 z-40 bg-black/40 print:hidden lg:hidden"
             onClick={() => setMobileSidebarOpen(false)}
             aria-label="Close navigation"
           />
         )}
-        <main className="min-w-0 max-w-full flex-1 overflow-hidden px-4 py-8 sm:px-6 md:px-10 md:py-10">
-          <Link className="text-xs text-[#ff641f]" to="/admin">
+        <main className="min-w-0 max-w-full flex-1 overflow-hidden px-4 py-8 print:p-0 sm:px-6 md:px-10 md:py-10">
+          <Link className="text-xs text-[#ff641f] print:hidden" to="/admin">
             ← Dashboard
           </Link>
-          <div className="mt-5">
+          <div className="mt-5 print:hidden">
             <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">
               ADMINISTRATION
             </p>
