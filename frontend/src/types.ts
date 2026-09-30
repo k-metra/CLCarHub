@@ -6,3 +6,4 @@ export type BookingStatusHistory = { id: number; from_status: string | null; to_
 export type CustomerAttachment = { id: number; category: string; path: string; url: string }
 export type BookingRecord = { id: number; reference: string; pickup_at: string; return_at: string; status: string; total_amount: string; balance?: number; rental_amount?: string; destination?: string; delivery_address?: string; return_address?: string; notes?: string; fuel_charge?: string; rfid_charge?: string; damage_fees?: string; car_wash_fees?: string; extension_fees?: string; customer?: { id?: number; name: string }; vehicle?: VehicleRecord; payments?: PaymentRecord[]; statusHistory?: BookingStatusHistory[] }
 export type Paginated<T> = { data: T[]; total: number }
+export type ExpenseRecord = { id: number; category: 'unit-related' | 'general'; vehicle_id?: number | null; vehicle?: VehicleRecord | null; expense_type?: string | null; spent_at: string; description: string; amount: string }
