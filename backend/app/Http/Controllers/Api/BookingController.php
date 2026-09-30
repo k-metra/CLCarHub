@@ -13,7 +13,28 @@ class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        return Booking::with(['customer', 'vehicle.images', 'payments', 'statusHistory.user'])->when($request->status, fn ($q, $v) => $q->where('status', $v))->latest()->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
+        $now = now();
+        $query = Booking::with(['customer', 'vehicle.images', 'payments', 'statusHistory.user'])
+            ->when($request->search, function ($query, $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('reference', 'like', "%{$search}%")
+                        ->orWhereHas('customer', fn ($customer) => $customer->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%"))
+                        ->orWhereHas('vehicle', fn ($vehicle) => $vehicle->where('name', 'like', "%{$search}%")->orWhere('brand', 'like', "%{$search}%")->orWhere('model', 'like', "%{$search}%")->orWhere('plate_number', 'like', "%{$search}%"));
+                });
+            })
+            ->when($request->filter, function ($query, $filter) use ($now) {
+                match ($filter) {
+                    'upcoming' => $query->where('pickup_at', '>', $now)->whereNotIn('status', ['cancelled', 'rejected', 'completed']),
+                    'ongoing' => $query->where('pickup_at', '<=', $now)->where('return_at', '>=', $now)->whereNotIn('status', ['cancelled', 'rejected', 'completed']),
+                    'confirmed' => $query->where('status', 'confirmed'),
+                    'pending' => $query->where('status', 'pending'),
+                    'rejected' => $query->where('status', 'rejected'),
+                    'cancelled' => $query->where('status', 'cancelled'),
+                    default => null,
+                };
+            });
+
+        return $query->orderBy('pickup_at', $request->input('sort') === 'oldest' ? 'asc' : 'desc')->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
     }
 
     public function store(Request $request)
