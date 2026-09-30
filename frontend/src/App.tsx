@@ -10,6 +10,9 @@ import PartnersPage from "./pages/PartnersPage";
 import CalendarPage from "./pages/CalendarPage";
 import CustomersPage from "./pages/CustomersPage";
 import ExpensesPage from "./pages/ExpensesPage";
+import FundsPage from "./pages/FundsPage";
+import IncomeFlowReportPage from "./pages/IncomeFlowReportPage";
+import VehicleRevenueReportPage from "./pages/VehicleRevenueReportPage";
 import { AuthProvider } from "./lib/AuthContext";
 import { ToastProvider } from "./components/Ui";
 
@@ -36,7 +39,7 @@ export default function App() {
           />
           <Route
             path="/admin/funds"
-            element={<AdminPlaceholderPage title="Funds" />}
+            element={<FundsPage />}
           />
           <Route path="/admin/customers" element={<CustomersPage />} />
           <Route path="/admin/partners" element={<PartnersPage />} />
@@ -46,11 +49,11 @@ export default function App() {
           />
           <Route
             path="/admin/reports/income-flow"
-            element={<AdminPlaceholderPage title="Income flow report" />}
+            element={<IncomeFlowReportPage />}
           />
           <Route
             path="/admin/reports/revenue"
-            element={<AdminPlaceholderPage title="Vehicle revenue" />}
+            element={<VehicleRevenueReportPage />}
           />
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
