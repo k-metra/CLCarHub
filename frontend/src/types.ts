@@ -1,9 +1,11 @@
 export type VehicleImage = { id: number; path: string; url: string }
 export type VehicleRecord = { id: number; name: string; brand: string; model: string; year: number; color: string; type: string; transmission: string; fuel_type: string; plate_number: string; seats: number; daily_rate: string; reservation_fee?: string; security_deposit_fee?: string; status: string; ownership?: string; partner_id?: number; partner?: PartnerRecord; coding_day?: string | null; is_coding_today?: boolean; images?: VehicleImage[] }
 export type PartnerRecord = { id: number; name: string; email: string; contact_number: string; address: string; commission_based_on: string; commission_type: string; commission_value: string; vehicles_count?: number }
-export type PaymentRecord = { id: number; amount: string; notes?: string; paid_at: string }
+export type PaymentRecord = { id: number; amount: string; notes?: string; paid_at: string; fund_id?: number | null; fund?: FundRecord | null }
 export type BookingStatusHistory = { id: number; from_status: string | null; to_status: string; reason?: string | null; created_at: string; user?: { name?: string } }
 export type CustomerAttachment = { id: number; category: string; path: string; url: string }
 export type BookingRecord = { id: number; reference: string; pickup_at: string; return_at: string; status: string; total_amount: string; balance?: number; rental_amount?: string; destination?: string; delivery_address?: string; return_address?: string; notes?: string; fuel_charge?: string; rfid_charge?: string; damage_fees?: string; car_wash_fees?: string; extension_fees?: string; customer?: { id?: number; name: string }; vehicle?: VehicleRecord; payments?: PaymentRecord[]; statusHistory?: BookingStatusHistory[] }
 export type Paginated<T> = { data: T[]; total: number }
-export type ExpenseRecord = { id: number; category: 'unit-related' | 'general'; vehicle_id?: number | null; vehicle?: VehicleRecord | null; expense_type?: string | null; spent_at: string; description: string; amount: string }
+export type ExpenseRecord = { id: number; category: 'unit-related' | 'general'; vehicle_id?: number | null; vehicle?: VehicleRecord | null; fund_id?: number | null; fund?: FundRecord | null; expense_type?: string | null; spent_at: string; description: string; amount: string }
+export type FundRecord = { id: number; name: string; type: string; account_name?: string | null; account_number?: string | null; qr_code_url?: string | null; opening_balance: string; balance: number; notes?: string | null; transactions_count?: number }
+export type FundTransactionRecord = { id: number; fund_id: number; fund?: FundRecord; type: 'inflow' | 'outflow'; transacted_at: string; amount: string; description: string; notes?: string | null }
