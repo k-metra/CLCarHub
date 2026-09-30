@@ -1,0 +1,17 @@
+{
+  "name": "CLCarHub",
+  "short_name": "CLCarHub",
+  "description": "CLCarHub vehicle rental management",
+  "start_url": "/admin",
+  "display": "standalone",
+  "background_color": "#f4f3f0",
+  "theme_color": "#111111",
+  "icons": [
+    {
+      "src": "/clcarhublogo_upscaled.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
