@@ -2,18 +2,18 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { useSearchParams } from 'react-router-dom'
 import { AdminShell } from '../components/AdminShell'
 import api from '../lib/api'
-import type { BookingRecord, Paginated, VehicleRecord } from '../types'
+import type { BookingRecord, FundRecord, Paginated, VehicleRecord } from '../types'
 import { ConfirmDialog, useToast } from '../components/Ui'
 
 type Customer = { id: number; name: string; email?: string; phone: string; address?: string }
-type Payment = { amount: string; notes: string; paid_at: string }
+type Payment = { amount: string; notes: string; paid_at: string; fund_id: string }
 type BookingForm = {
   vehicle_id: string; customer_id: string; pickup_at: string; return_at: string; destination: string
   delivery_address: string; return_address: string; notes: string; fuel_charge: string; rfid_charge: string
   damage_fees: string; car_wash_fees: string; extension_fees: string; payments: Payment[]
 }
 
-const emptyPayment = (): Payment => ({ amount: '', notes: '', paid_at: new Date().toISOString().slice(0, 10) })
+const emptyPayment = (): Payment => ({ amount: '', notes: '', paid_at: new Date().toISOString().slice(0, 10), fund_id: '' })
 const emptyForm: BookingForm = { vehicle_id: '', customer_id: '', pickup_at: '', return_at: '', destination: '', delivery_address: '', return_address: '', notes: '', fuel_charge: '', rfid_charge: '', damage_fees: '', car_wash_fees: '', extension_fees: '', payments: [] }
 const feeFields: Array<[keyof BookingForm, string]> = [['fuel_charge', 'Fuel charge'], ['rfid_charge', 'RFID charge'], ['damage_fees', 'Damage fees'], ['car_wash_fees', 'Car wash fees'], ['extension_fees', 'Extension fees']]
 const statusTransitions: Record<string, string[]> = {
@@ -136,6 +136,7 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<BookingRecord[]>([])
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [funds, setFunds] = useState<FundRecord[]>([])
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'latest' | 'oldest'>('latest')
@@ -161,8 +162,8 @@ export default function BookingsPage() {
   }, [filter, search, sort])
   useEffect(() => { const timer = window.setTimeout(loadBookings, 250); return () => window.clearTimeout(timer) }, [loadBookings])
   useEffect(() => {
-    Promise.all([api.get<Paginated<VehicleRecord>>('/vehicles?per_page=100'), api.get<Paginated<Customer>>('/customers?per_page=100')])
-      .then(([vehicleResult, customerResult]) => { setVehicles(vehicleResult.data.data); setCustomers(customerResult.data.data) })
+    Promise.all([api.get<Paginated<VehicleRecord>>('/vehicles?per_page=100'), api.get<Paginated<Customer>>('/customers?per_page=100'), api.get<{ funds: FundRecord[] }>('/funds')])
+      .then(([vehicleResult, customerResult, fundResult]) => { setVehicles(vehicleResult.data.data); setCustomers(customerResult.data.data); setFunds(fundResult.data.funds) })
       .catch(e => setError(e instanceof Error ? e.message : 'Unable to load booking options'))
   }, [])
 
@@ -171,7 +172,7 @@ export default function BookingsPage() {
   const openDetails = (booking: BookingRecord) => { setSelectedBooking(booking); setDetailTab('details'); setShowActions(false) }
   const openEdit = (booking: BookingRecord) => {
     setEditing(booking.id)
-    setForm({ ...emptyForm, vehicle_id: String(booking.vehicle?.id ?? ''), customer_id: String(booking.customer?.id ?? ''), pickup_at: dateTimeLocalValue(booking.pickup_at), return_at: dateTimeLocalValue(booking.return_at), destination: booking.destination ?? '', delivery_address: booking.delivery_address ?? '', return_address: booking.return_address ?? '', notes: booking.notes ?? '', fuel_charge: booking.fuel_charge ?? '', rfid_charge: booking.rfid_charge ?? '', damage_fees: booking.damage_fees ?? '', car_wash_fees: booking.car_wash_fees ?? '', extension_fees: booking.extension_fees ?? '', payments: booking.payments?.map(payment => ({ amount: payment.amount, notes: payment.notes ?? '', paid_at: payment.paid_at.slice(0, 10) })) ?? [] })
+    setForm({ ...emptyForm, vehicle_id: String(booking.vehicle?.id ?? ''), customer_id: String(booking.customer?.id ?? ''), pickup_at: dateTimeLocalValue(booking.pickup_at), return_at: dateTimeLocalValue(booking.return_at), destination: booking.destination ?? '', delivery_address: booking.delivery_address ?? '', return_address: booking.return_address ?? '', notes: booking.notes ?? '', fuel_charge: booking.fuel_charge ?? '', rfid_charge: booking.rfid_charge ?? '', damage_fees: booking.damage_fees ?? '', car_wash_fees: booking.car_wash_fees ?? '', extension_fees: booking.extension_fees ?? '', payments: booking.payments?.map(payment => ({ amount: payment.amount, notes: payment.notes ?? '', paid_at: payment.paid_at.slice(0, 10), fund_id: payment.fund_id ? String(payment.fund_id) : '' })) ?? [] })
     setShowForm(true)
   }
 
@@ -195,7 +196,7 @@ export default function BookingsPage() {
   const saveBooking = async (event: FormEvent) => {
     event.preventDefault(); setError('')
     const numeric = (value: string) => value ? Number(value) : 0
-    const payload = { ...form, payments: form.payments.filter(payment => payment.amount).map(payment => ({ ...payment, amount: numeric(payment.amount) })), ...Object.fromEntries(feeFields.map(([key]) => [key, numeric(form[key] as string)])) }
+    const payload = { ...form, payments: form.payments.filter(payment => payment.amount).map(payment => ({ ...payment, amount: numeric(payment.amount), fund_id: payment.fund_id ? Number(payment.fund_id) : null })), ...Object.fromEntries(feeFields.map(([key]) => [key, numeric(form[key] as string)])) }
     try {
       if (editing) await api.patch(`/bookings/${editing}`, payload)
       else await api.post('/bookings', payload)
@@ -253,7 +254,7 @@ export default function BookingsPage() {
       </div>
       {editing && <div className="mt-6 border-t border-black/10 pt-5"><h3 className="font-semibold">Additional charges</h3><div className="mt-3 grid gap-3 md:grid-cols-3">{feeFields.map(([key, label]) => <label className="text-xs text-[#777]" key={key}>{label}<input className="mt-1 w-full border border-black/10 px-3 py-2 text-sm" type="number" min="0" step="0.01" value={form[key] as string} onChange={e => setField(key, e.target.value)} /></label>)}</div></div>}
       {editing && <div className="mt-6 border-t border-black/10 pt-5"><h3 className="font-semibold">Status history</h3><div className="mt-3 space-y-3">{(bookings.find(booking => booking.id === editing)?.statusHistory ?? []).length === 0 ? <p className="text-sm text-[#777]">No status changes recorded.</p> : bookings.find(booking => booking.id === editing)?.statusHistory?.map(history => <div className="border-l-2 border-black/10 pl-3 text-sm" key={history.id}><p className="font-medium">{history.from_status ?? 'Created'} → {history.to_status}</p><p className="text-xs text-[#777]">{new Date(history.created_at).toLocaleString()} · {history.user?.name ?? 'System'}</p>{history.reason && <p className="mt-1 text-xs text-[#555]">Reason: {history.reason}</p>}</div>)}</div></div>}
-      <div className="mt-6 border-t border-black/10 pt-5"><div className="flex items-center justify-between"><h3 className="font-semibold">Booking payments</h3><button type="button" className="text-sm text-[#ff641f]" onClick={() => setForm(current => ({ ...current, payments: [...current.payments, emptyPayment()] }))}>+ Add payment</button></div>{form.payments.map((payment, index) => <div className="mt-3 grid gap-3 border border-black/10 p-3 md:grid-cols-[1fr_2fr_1fr_auto]" key={index}><input className="border border-black/10 px-3 py-2 text-sm" type="number" min="0" step="0.01" placeholder="Amount" value={payment.amount} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, amount: e.target.value } : item) }))} /><input className="border border-black/10 px-3 py-2 text-sm" placeholder="Payment note" value={payment.notes} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, notes: e.target.value } : item) }))} /><input className="border border-black/10 px-3 py-2 text-sm" type="date" value={payment.paid_at} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, paid_at: e.target.value } : item) }))} /><button type="button" className="text-red-600" onClick={() => setForm(current => ({ ...current, payments: current.payments.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</button></div>)}</div>
+      <div className="mt-6 border-t border-black/10 pt-5"><div className="flex items-center justify-between"><h3 className="font-semibold">Booking payments</h3><button type="button" className="text-sm text-[#ff641f]" onClick={() => setForm(current => ({ ...current, payments: [...current.payments, emptyPayment()] }))}>+ Add payment</button></div>{form.payments.map((payment, index) => <div className="mt-3 grid gap-3 border border-black/10 p-3 md:grid-cols-[1fr_1.5fr_1fr_1fr_auto]" key={index}><input className="border border-black/10 px-3 py-2 text-sm" type="number" min="0" step="0.01" placeholder="Amount" value={payment.amount} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, amount: e.target.value } : item) }))} /><select className="border border-black/10 px-3 py-2 text-sm" value={payment.fund_id} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, fund_id: e.target.value } : item) }))}><option value="">Fund (optional)</option>{funds.map(fund => <option value={fund.id} key={fund.id}>{fund.name}</option>)}</select><input className="border border-black/10 px-3 py-2 text-sm" placeholder="Payment note" value={payment.notes} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, notes: e.target.value } : item) }))} /><input className="border border-black/10 px-3 py-2 text-sm" type="date" value={payment.paid_at} onChange={e => setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, paid_at: e.target.value } : item) }))} /><button type="button" className="text-red-600" onClick={() => setForm(current => ({ ...current, payments: current.payments.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</button></div>)}</div>
       <div className="mt-6 border-t border-black/10 pt-5"><h3 className="font-semibold">Receipt summary</h3><div className="mt-3 max-w-md space-y-2 text-sm"><div className="flex justify-between"><span className="text-[#777]">Subtotal ({rentalDays} day{rentalDays === 1 ? '' : 's'})</span><span>₱{subtotal.toLocaleString()}</span></div>{feeFields.map(([key, label]) => Number(form[key] || 0) > 0 && <div className="flex justify-between" key={key}><span className="text-[#777]">{label}</span><span>₱{Number(form[key]).toLocaleString()}</span></div>)}{reservationFee > 0 && <div className="flex justify-between"><span className="text-[#777]">Reservation fee</span><span>₱{reservationFee.toLocaleString()}</span></div>}{securityDeposit > 0 && <div className="flex justify-between"><span className="text-[#777]">Security deposit</span><span>₱{securityDeposit.toLocaleString()}</span></div>}<div className="flex justify-between border-t border-black/10 pt-2 font-semibold"><span>Total</span><span>₱{formTotal.toLocaleString()}</span></div><div className="flex justify-between"><span className="text-[#777]">Payments</span><span>- ₱{formPaid.toLocaleString()}</span></div><div className="flex justify-between border-t border-black/10 pt-2 text-base font-bold text-[#ff641f]"><span>Remaining balance</span><span>₱{formBalance.toLocaleString()}</span></div></div></div>
       <div className="mt-6 flex justify-end gap-3"><button type="button" className="border border-black/10 px-4 py-2 text-sm" onClick={() => setShowForm(false)}>Cancel</button><button className="bg-[#151515] px-5 py-2 text-sm font-bold text-white">Save booking</button></div>
     </form></div>}
