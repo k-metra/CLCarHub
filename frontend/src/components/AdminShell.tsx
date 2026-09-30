@@ -23,7 +23,7 @@ export function AdminShell({
 
   return (
     <div className="min-h-screen bg-[#f4f3f0] text-[#151515]">
-      <header className="relative z-20 flex h-20 min-w-0 items-center justify-between border-b border-black/10 bg-[#111] px-4 text-white print:hidden sm:px-6 md:px-10">
+      <header className="sticky top-0 z-40 flex h-20 min-w-0 items-center justify-between border-b border-black/10 bg-[#111] px-4 text-white print:hidden sm:px-6 md:px-10">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             className="text-xl text-[#bbb] lg:hidden"
@@ -61,10 +61,8 @@ export function AdminShell({
           </button>
         </div>
       </header>
-      <div className="flex">
-        <div className="print:hidden">
-          <AdminSidebar collapsed={sidebarCollapsed} />
-        </div>
+      <div className="flex items-start">
+        <AdminSidebar collapsed={sidebarCollapsed} />
         <div
           className={`${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"} fixed bottom-0 left-0 top-20 z-50 block w-[min(84vw,300px)] transition-transform print:hidden lg:hidden`}
         >
