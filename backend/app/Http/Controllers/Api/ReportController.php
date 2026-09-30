@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Vehicle;
 use App\Models\Fund;
 use App\Models\FundTransaction;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -20,7 +21,108 @@ class ReportController extends Controller
 
     public function utilization(Request $request)
     {
-        return Vehicle::withCount(['bookings' => fn ($q) => $q->whereIn('status', ['paid', 'active', 'completed'])])->get()->map(fn ($vehicle) => ['vehicle' => $vehicle->only(['id', 'brand', 'model', 'type']), 'bookings' => $vehicle->bookings_count]);
+        $periodStart = Carbon::parse($request->input('from', now()->startOfMonth()->toDateString()))->startOfDay();
+        $periodEnd = Carbon::parse($request->input('to', now()->endOfMonth()->toDateString()))->endOfDay();
+        abort_if($periodEnd->lt($periodStart), 422, 'The end date must be on or after the start date.');
+
+        $statuses = ['confirmed', 'awaiting_payment', 'paid', 'active', 'completed'];
+        $vehicles = Vehicle::with(['partner', 'images', 'bookings' => function ($query) use ($periodStart, $periodEnd, $statuses) {
+            $query->whereIn('status', $statuses)
+                ->where('pickup_at', '<', $periodEnd)
+                ->where('return_at', '>', $periodStart)
+                ->orderBy('pickup_at');
+        }])
+            ->where('status', '!=', 'archived')
+            ->when($request->type, fn ($query, $value) => $query->where('type', $value))
+            ->when($request->partner_id === 'none', fn ($query) => $query->whereNull('partner_id'))
+            ->when($request->partner_id && $request->partner_id !== 'none', fn ($query, $value) => $query->where('partner_id', $value))
+            ->when($request->search, function ($query, $search) {
+                $query->where(function ($vehicle) use ($search) {
+                    $vehicle->where('name', 'like', "%{$search}%")
+                        ->orWhere('brand', 'like', "%{$search}%")
+                        ->orWhere('model', 'like', "%{$search}%")
+                        ->orWhere('plate_number', 'like', "%{$search}%")
+                        ->orWhereHas('partner', fn ($partner) => $partner->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->get();
+
+        $availableDays = $periodStart->copy()->startOfDay()->diffInDays($periodEnd->copy()->startOfDay()) + 1;
+        $rows = $vehicles->map(function ($vehicle) use ($periodStart, $periodEnd, $availableDays) {
+            $intervals = $vehicle->bookings->map(function ($booking) use ($periodStart, $periodEnd) {
+                $start = $booking->pickup_at->greaterThan($periodStart) ? $booking->pickup_at->copy() : $periodStart->copy();
+                $end = $booking->return_at->lessThan($periodEnd) ? $booking->return_at->copy() : $periodEnd->copy();
+
+                return [$start->startOfDay(), $end->startOfDay()];
+            })->sortBy(fn ($interval) => $interval[0]->timestamp)->values();
+            $bookedDays = 0;
+            $currentEnd = null;
+            foreach ($intervals as [$start, $end]) {
+                if ($currentEnd === null || $start->gt($currentEnd->copy()->addDay())) {
+                    $bookedDays += $start->diffInDays($end) + 1;
+                    $currentEnd = $end;
+                } elseif ($end->gt($currentEnd)) {
+                    $bookedDays += $currentEnd->diffInDays($end);
+                    $currentEnd = $end;
+                }
+            }
+
+            return [
+                'vehicle' => $vehicle,
+                'booking_count' => $vehicle->bookings->count(),
+                'available_days' => $availableDays,
+                'booked_days' => $bookedDays,
+                'idle_days' => max(0, $availableDays - $bookedDays),
+                'utilization_rate' => round(($bookedDays / $availableDays) * 100, 2),
+                'average_rental_days' => $vehicle->bookings->count() ? round($vehicle->bookings->avg(fn ($booking) => $booking->pickup_at->diffInHours($booking->return_at) / 24), 2) : 0,
+            ];
+        })->values();
+
+        $rows = match ($request->input('sort', 'utilization_desc')) {
+            'utilization_asc' => $rows->sortBy('utilization_rate')->values(),
+            'bookings_desc' => $rows->sortByDesc('booking_count')->values(),
+            'bookings_asc' => $rows->sortBy('booking_count')->values(),
+            'booked_days_desc' => $rows->sortByDesc('booked_days')->values(),
+            'booked_days_asc' => $rows->sortBy('booked_days')->values(),
+            'name_asc' => $rows->sortBy(fn ($row) => strtolower((string) ($row['vehicle']->name ?? (($row['vehicle']->brand ?? '').' '.($row['vehicle']->model ?? '')))))->values(),
+            default => $rows->sortByDesc('utilization_rate')->values(),
+        };
+
+        if ($request->boolean('csv')) {
+            $lines = [['Vehicle', 'Plate Number', 'Partner', 'Bookings', 'Available Days', 'Booked Days', 'Idle Days', 'Utilization Rate', 'Average Rental Days']];
+            foreach ($rows as $row) {
+                $vehicle = $row['vehicle'];
+                $lines[] = [
+                    $vehicle?->name ?: trim(($vehicle?->brand ?? '').' '.($vehicle?->model ?? '')),
+                    $vehicle?->plate_number ?? '',
+                    $vehicle?->partner?->name ?? '',
+                    $row['booking_count'],
+                    $row['available_days'],
+                    $row['booked_days'],
+                    $row['idle_days'],
+                    number_format($row['utilization_rate'], 2, '.', '').'%',
+                    number_format($row['average_rental_days'], 2, '.', ''),
+                ];
+            }
+
+            return response(collect($lines)->map(fn ($line) => collect($line)->map(fn ($value) => '"'.str_replace('"', '""', (string) $value).'"')->implode(','))->implode("\r\n"), 200, [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="fleet-utilization.csv"',
+            ]);
+        }
+
+        return [
+            'from' => $periodStart->toDateString(),
+            'to' => $periodEnd->toDateString(),
+            'available_days' => $availableDays,
+            'vehicles' => $rows,
+            'vehicle_count' => $rows->count(),
+            'booking_count' => $rows->sum('booking_count'),
+            'booked_days' => $rows->sum('booked_days'),
+            'idle_days' => $rows->sum('idle_days'),
+            'average_utilization' => $rows->count() ? round($rows->avg('utilization_rate'), 2) : 0,
+            'partners' => \App\Models\Partner::orderBy('name')->get(['id', 'name']),
+        ];
     }
 
     public function vehicleRevenue(Request $request)
