@@ -2,14 +2,16 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { AdminSidebar } from "./AdminSidebar";
-import { useAuth, useSignOut } from "../lib/AuthContext";
+import { canViewReports, useAuth, useSignOut } from "../lib/AuthContext";
 
 export function AdminShell({
   children,
   title,
+  reportsOnly = false,
 }: {
   children: ReactNode;
   title: string;
+  reportsOnly?: boolean;
 }) {
   const { user, loading } = useAuth();
   const signOut = useSignOut();
@@ -17,6 +19,7 @@ export function AdminShell({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
+  if (reportsOnly && !canViewReports(user)) return <Navigate to="/admin" replace />;
 
   return (
     <div className="min-h-screen bg-[#f4f3f0] text-[#151515]">
