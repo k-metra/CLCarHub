@@ -26,7 +26,7 @@ export default function CustomerAccountPage() {
           <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">
             CUSTOMER ACCOUNT
           </p>
-          <h1 className="mt-3 font-['Space_Grotesk'] text-4xl font-semibold">
+          <h1 className="mt-3 font-['Space_Grotesk'] text-3xl font-semibold sm:text-4xl">
             Your trips.
           </h1>
           <p className="mt-3 text-sm text-[#777]">
