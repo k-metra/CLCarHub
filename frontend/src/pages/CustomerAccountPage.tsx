@@ -10,8 +10,8 @@ export default function CustomerAccountPage() {
     <div className="min-h-screen bg-[#f4f3f0] p-8 text-[#151515]">
       <div className="mx-auto max-w-[900px]">
         <header className="flex items-center justify-between">
-          <Link className="font-['Space_Grotesk'] text-xl font-bold" to="/">
-            CL<span className="text-[#ff641f]">CarHub</span>
+          <Link className="shrink-0" to="/" aria-label="CLCarHub home">
+            <img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-[72px] w-32 object-contain object-left" />
           </Link>
           <div className="flex items-center gap-4 text-sm">
             <span>
