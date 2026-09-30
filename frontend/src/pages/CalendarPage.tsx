@@ -109,23 +109,45 @@ export default function CalendarPage() {
       </div>
     </div>
     {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-    {loading ? <CalendarSkeleton view={view} /> : view === 'month' ? <div className="mt-6 grid min-w-[720px] grid-cols-7 border-l border-t border-black/10">
+    {loading ? (
+      <div className="mt-6">
+        <div className="space-y-3 md:hidden">{[1, 2, 3, 4].map(item => <Skeleton className="h-20 w-full" key={item} />)}</div>
+        <div className="hidden md:block"><CalendarSkeleton view={view} /></div>
+      </div>
+    ) : (
+      <div className="mt-6">
+        <div className="md:hidden"><MobileCalendarList bookings={bookings} cursor={cursor} view={view} /></div>
+        <div className="hidden md:block">
+          {view === 'month' ? <div className="w-full overflow-hidden"><div className="grid w-full grid-cols-7 border-l border-t border-black/10">
       {dayNames.map(day => <div className="border-b border-r border-black/10 bg-[#f8f7f5] p-2 text-[10px] font-bold uppercase tracking-widest text-[#888]" key={day}>{day.slice(0, 3)}</div>)}
       {monthDays.map(day => <div className={`min-h-32 border-b border-r border-black/10 p-2 ${day.getMonth() !== cursor.getMonth() ? 'bg-[#fafafa] text-[#aaa]' : ''}`} key={day.toISOString()}>
         <p className={`text-xs font-semibold ${sameDay(day, new Date()) ? 'text-[#ff641f]' : ''}`}>{day.getDate()}</p>
         <div className="mt-2 space-y-1">{bookings.filter(booking => !['pending', 'cancelled', 'rejected'].includes(booking.status) && overlapsDay(booking, day)).map(booking => <BookingCard booking={booking} key={`${booking.id}-${day.toISOString()}`} />)}</div>
       </div>)}
-    </div> : <div className="mt-6 grid min-w-[900px] grid-cols-7 border-l border-t border-black/10">
-      {weekDays.map(day => <div className="border-b border-r border-black/10" key={day.toISOString()}><div className={`border-b border-black/10 p-3 ${sameDay(day, new Date()) ? 'bg-orange-50' : 'bg-[#f8f7f5]'}`}><p className="text-[10px] font-bold uppercase tracking-widest text-[#888]">{dayNames[day.getDay()]}</p><p className={`mt-1 font-['Space_Grotesk'] text-2xl font-semibold ${sameDay(day, new Date()) ? 'text-[#ff641f]' : ''}`}>{day.getDate()}</p></div><div className="min-h-96 space-y-2 p-2">{bookings.filter(booking => !['pending', 'cancelled', 'rejected'].includes(booking.status) && overlapsDay(booking, day)).map(booking => <BookingCard booking={booking} key={booking.id} />)}</div></div>)}
-    </div>}
+    </div></div> : <div className="w-full overflow-hidden"><div className="grid w-full grid-cols-7 border-l border-t border-black/10">
+            {weekDays.map(day => <div className="border-b border-r border-black/10" key={day.toISOString()}><div className={`border-b border-black/10 p-3 ${sameDay(day, new Date()) ? 'bg-orange-50' : 'bg-[#f8f7f5]'}`}><p className="text-[10px] font-bold uppercase tracking-widest text-[#888]">{dayNames[day.getDay()]}</p><p className={`mt-1 font-['Space_Grotesk'] text-2xl font-semibold ${sameDay(day, new Date()) ? 'text-[#ff641f]' : ''}`}>{day.getDate()}</p></div><div className="min-h-96 space-y-2 p-2">{bookings.filter(booking => !['pending', 'cancelled', 'rejected'].includes(booking.status) && overlapsDay(booking, day)).map(booking => <BookingCard booking={booking} key={booking.id} />)}</div></div>)}
+          </div></div>}
+        </div>
+      </div>
+    )}
   </div></AdminShell>
+}
+
+function MobileCalendarList({ bookings, cursor, view }: { bookings: BookingRecord[]; cursor: Date; view: 'month' | 'week' }) {
+  const start = view === 'week' ? startOfWeek(cursor) : new Date(cursor.getFullYear(), cursor.getMonth(), 1)
+  const end = view === 'week' ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7) : new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59)
+  const visible = bookings.filter(booking => !['pending', 'cancelled', 'rejected'].includes(booking.status) && new Date(booking.pickup_at) < end && new Date(booking.return_at) >= start).sort((left, right) => new Date(left.pickup_at).getTime() - new Date(right.pickup_at).getTime())
+  if (visible.length === 0) return <p className="rounded border border-black/10 bg-[#fafafa] px-4 py-10 text-center text-sm text-[#777]">No active bookings in this period.</p>
+  return <div className="space-y-3">{visible.map(booking => <Link className="flex items-center gap-3 rounded border border-black/10 bg-[#fafafa] p-3" to={`/admin/bookings?edit=${booking.id}`} key={booking.id}>
+    {imageUrl(booking) ? <img className="h-14 w-16 shrink-0 rounded object-contain" src={imageUrl(booking)!} alt="" /> : <div className="h-14 w-16 shrink-0 rounded bg-black/5" />}
+    <span className="min-w-0"><strong className="block truncate text-sm">{vehicleName(booking)}</strong><span className="mt-1 block text-xs text-[#777]">{bookingDate(booking.pickup_at)} → {bookingDate(booking.return_at)}</span><span className="mt-1 block text-xs capitalize text-[#999]">{booking.status.replace('_', ' ')}</span></span>
+  </Link>)}</div>
 }
 
 function CalendarSkeleton({ view }: { view: 'month' | 'week' }) {
   const count = view === 'month' ? 42 : 7
-  const minimumWidth = view === 'month' ? 'min-w-[720px]' : 'min-w-[900px]'
   const cellHeight = view === 'month' ? 'min-h-32' : 'min-h-96'
-  return <div className={`mt-6 grid ${minimumWidth} grid-cols-7 border-l border-t border-black/10`}>
+  return <div className="mt-6 grid w-full grid-cols-7 border-l border-t border-black/10">
     {dayNames.map(day => <div className="border-b border-r border-black/10 bg-[#f8f7f5] p-2" key={day}><Skeleton className="h-3 w-8" /></div>)}
     {Array.from({ length: count }, (_, index) => (
       <div className={`${cellHeight} border-b border-r border-black/10 p-2`} key={index}>
