@@ -12,6 +12,16 @@ export type AuthUser = {
   role: string
 }
 
+export type AdminRole = 'owner' | 'co_owner' | 'it_management' | 'staff'
+
+export function canManageAccounts(user: AuthUser | null) {
+  return !!user && ['owner', 'co_owner', 'it_management'].includes(user.role)
+}
+
+export function canViewReports(user: AuthUser | null) {
+  return !!user && ['owner', 'co_owner', 'it_management'].includes(user.role)
+}
+
 type AuthContextValue = {
   user: AuthUser | null
   loading: boolean
