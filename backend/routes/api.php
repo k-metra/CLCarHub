@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\PartnerController;
@@ -31,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('customers', CustomerController::class);
     Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
     Route::apiResource('bookings', BookingController::class);
+    Route::apiResource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('appointments', AppointmentController::class);
     Route::middleware(EnsureRole::class.':owner,it_management')->prefix('reports')->group(function () {
         Route::get('/revenue', [ReportController::class, 'revenue']);
