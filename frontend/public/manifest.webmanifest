@@ -4,7 +4,7 @@
   "description": "CLCarHub vehicle rental management",
   "start_url": "/admin",
   "display": "standalone",
-  "background_color": "#f4f3f0",
+  "background_color": "#ff641f",
   "theme_color": "#111111",
   "icons": [
     {
