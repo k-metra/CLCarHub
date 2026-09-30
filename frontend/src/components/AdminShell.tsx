@@ -39,11 +39,8 @@ export function AdminShell({
           >
             {sidebarCollapsed ? "→" : "←"}
           </button>
-          <Link
-            className="truncate font-['Space_Grotesk'] text-xl font-bold"
-            to="/admin"
-          >
-            CL<span className="text-[#ff641f]">CarHub</span>
+          <Link className="shrink-0" to="/admin" aria-label="CLCarHub administration">
+            <img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-16 w-28 object-contain object-left" />
           </Link>
         </div>
         <div className="flex shrink-0 items-center gap-3 sm:gap-5">
