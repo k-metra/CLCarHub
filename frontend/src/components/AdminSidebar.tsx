@@ -7,11 +7,6 @@ type SidebarSection = {
   items: { label: string; path: string; icon: string }[];
 };
 
-type InstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
-
 const sections: SidebarSection[] = [
   {
     title: "Dashboard",
@@ -69,19 +64,17 @@ export function AdminSidebar({
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   useEffect(() => {
-    const handleBeforeInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as InstallPromptEvent);
-    };
+    const handleInstallAvailable = () => setInstallPrompt(window.__clcarhubInstallPrompt ?? null);
     const handleAppInstalled = () => {
       setInstallPrompt(null);
       setIsInstalled(true);
     };
     setIsInstalled(window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    setInstallPrompt(window.__clcarhubInstallPrompt ?? null);
+    window.addEventListener("clcarhubinstallavailable", handleInstallAvailable);
     window.addEventListener("appinstalled", handleAppInstalled);
     return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("clcarhubinstallavailable", handleInstallAvailable);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
