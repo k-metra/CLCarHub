@@ -9,6 +9,7 @@ import CustomerAccountPage from "./pages/CustomerAccountPage";
 import PartnersPage from "./pages/PartnersPage";
 import CalendarPage from "./pages/CalendarPage";
 import CustomersPage from "./pages/CustomersPage";
+import ExpensesPage from "./pages/ExpensesPage";
 import { AuthProvider } from "./lib/AuthContext";
 import { ToastProvider } from "./components/Ui";
 
@@ -31,7 +32,7 @@ export default function App() {
           />
           <Route
             path="/admin/expenses"
-            element={<AdminPlaceholderPage title="Expenses" />}
+            element={<ExpensesPage />}
           />
           <Route
             path="/admin/funds"
