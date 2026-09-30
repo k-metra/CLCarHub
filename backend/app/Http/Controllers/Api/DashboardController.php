@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\Expense;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -54,14 +55,17 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
+        $totalRevenue = (float) Booking::whereIn('status', $revenueStatuses)->sum('total_amount');
+        $totalExpenses = (float) Expense::sum('amount');
+
         return [
             'year' => $year,
             'summary' => $summary,
             'financial' => [
                 'total_bookings' => Booking::count(),
-                'total_revenue' => (float) Booking::whereIn('status', $revenueStatuses)->sum('total_amount'),
-                'total_expenses' => 0,
-                'total_profit' => (float) Booking::whereIn('status', $revenueStatuses)->sum('total_amount'),
+                'total_revenue' => $totalRevenue,
+                'total_expenses' => $totalExpenses,
+                'total_profit' => $totalRevenue - $totalExpenses,
             ],
             'monthly' => collect(range(1, 12))->map(fn (int $month) => [
                 'month' => $month,
