@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AppointmentController;
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CustomerController;
@@ -31,6 +32,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('partners', PartnerController::class);
     });
     Route::apiResource('customers', CustomerController::class);
+    Route::get('/accounts', [AccountController::class, 'index']);
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('accounts', AccountController::class)->only(['store', 'update', 'destroy']);
     Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
     Route::apiResource('bookings', BookingController::class);
     Route::apiResource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -39,7 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/fund-transactions/{transaction}', [FundController::class, 'updateTransaction']);
     Route::delete('/fund-transactions/{transaction}', [FundController::class, 'destroyTransaction']);
     Route::apiResource('appointments', AppointmentController::class);
-    Route::middleware(EnsureRole::class.':owner,it_management')->prefix('reports')->group(function () {
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->prefix('reports')->group(function () {
         Route::get('/revenue', [ReportController::class, 'revenue']);
         Route::get('/vehicle-revenue', [ReportController::class, 'vehicleRevenue']);
         Route::get('/utilization', [ReportController::class, 'utilization']);
