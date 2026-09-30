@@ -95,7 +95,7 @@ export default function AdminLoginPage() {
           <Eyebrow>
             {registering ? "CUSTOMER ACCOUNT" : "CL CARHUB ACCOUNT"}
           </Eyebrow>
-          <h1 className="mt-4 font-['Space_Grotesk'] text-4xl font-semibold tracking-[-2px]">
+          <h1 className="mt-4 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-1.5px] sm:text-4xl sm:tracking-[-2px]">
             {registering ? "Start your journey." : "Welcome back."}
           </h1>
           <p className="mt-3 text-sm text-[#888]">
