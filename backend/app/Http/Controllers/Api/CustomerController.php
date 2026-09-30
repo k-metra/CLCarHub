@@ -12,7 +12,22 @@ class CustomerController extends Controller
 {
     public function index(Request $request)
     {
-        return Customer::with(['attachments'])->withCount('bookings')->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%")->orWhere('phone', 'like', "%$s%")))->latest()->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
+        $customers = Customer::with(['attachments', 'bookings' => fn ($query) => $query
+            ->whereNotIn('status', ['cancelled', 'rejected'])
+            ->with('payments')])
+            ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'rejected'])])
+            ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%")->orWhere('phone', 'like', "%$s%")))
+            ->latest()
+            ->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
+
+        $customers->getCollection()->transform(function (Customer $customer) {
+            $customer->setAttribute('outstanding_balance', $customer->bookings->sum(fn ($booking) => $booking->balance));
+            $customer->unsetRelation('bookings');
+
+            return $customer;
+        });
+
+        return $customers;
     }
 
     public function store(Request $request)
