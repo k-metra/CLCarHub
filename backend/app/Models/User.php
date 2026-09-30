@@ -25,6 +25,23 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->role === 'owner';
     }
 
+    public function canManageAccounts(): bool
+    {
+        return in_array($this->role, ['owner', 'co_owner', 'it_management'], true);
+    }
+
+    public function canManageRole(string $role): bool
+    {
+        $manageableRoles = match ($this->role) {
+            'owner' => ['co_owner', 'it_management', 'staff'],
+            'co_owner' => ['it_management', 'staff'],
+            'it_management' => ['staff'],
+            default => [],
+        };
+
+        return in_array($role, $manageableRoles, true);
+    }
+
     public function customer(): HasOne
     {
         return $this->hasOne(Customer::class);
