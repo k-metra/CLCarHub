@@ -77,7 +77,7 @@ export default function AdminDashboardPage() {
     <div className="mt-8 space-y-8">
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">OVERVIEW</p>
-        <h2 className="mt-2 font-['Space_Grotesk'] text-4xl font-semibold tracking-[-2px]">Good morning, {user?.name ?? "there"}.</h2>
+        <h2 className="mt-2 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-1.5px] sm:text-4xl sm:tracking-[-2px]">Good morning, {user?.name ?? "there"}.</h2>
         <p className="mt-2 text-sm text-[#777]">Here’s what’s happening across your rental operation.</p>
       </div>
       {error && <p className="border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
@@ -110,17 +110,17 @@ export default function AdminDashboardPage() {
         </div>
         <Card>
           <div className="flex items-center justify-between"><h3 className="font-semibold">Yearly financial chart</h3><span className="border border-black/10 px-3 py-2 text-sm">{data?.year ?? new Date().getFullYear()}</span></div>
-          <div className="mt-6 flex h-48 items-end gap-2 border-b border-l border-black/10 px-3 pb-0">
+          <div className="mt-6 flex h-48 min-w-0 items-end gap-1 overflow-hidden border-b border-l border-black/10 px-1 pb-0 sm:gap-2 sm:px-3">
             {(data?.monthly ?? Array.from({ length: 12 }, (_, month) => ({ month: month + 1, revenue: 0, bookings: 0 }))).map(item => <div className="flex h-full flex-1 items-end justify-center gap-1" key={item.month}><div className="w-2 bg-[#22a95a]" style={{ height: `${Math.max(2, item.revenue / maxRevenue * 100)}%` }} title={`${monthNames[item.month - 1]} revenue`} /><div className="w-2 bg-[#ff641f]" style={{ height: `${Math.max(2, item.bookings / maxBookings * 100)}%` }} title={`${monthNames[item.month - 1]} bookings`} /></div>)}
           </div>
-          <div className="mt-2 flex justify-between text-[10px] text-[#888]">{monthNames.map(month => <span key={month}>{month}</span>)}</div>
+          <div className="mt-2 grid grid-cols-12 text-center text-[9px] text-[#888] sm:text-[10px]">{monthNames.map(month => <span key={month}>{month}</span>)}</div>
           <p className="mt-4 text-xs text-[#777]"><span className="mr-3 text-[#22a95a]">■ Revenue</span><span className="text-[#ff641f]">■ Bookings</span></p>
         </Card>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card><h3 className="font-semibold">Upcoming bookings</h3><div className="mt-4 space-y-3">{loading ? <BookingSkeletons /> : data?.upcoming_bookings.length ? data.upcoming_bookings.map(booking => <Link className="flex items-center gap-4 rounded bg-[#f4f3f0] p-3 hover:border-[#ff641f]" to={`/admin/bookings?edit=${booking.id}`} key={booking.id}>{imageUrl(booking) ? <img className="h-14 w-20 rounded object-contain" src={imageUrl(booking)!} alt="" /> : <div className="h-14 w-20 rounded bg-black/10" />}<div className="min-w-0"><p className="font-semibold">{booking.customer?.name ?? "Customer"}</p><p className="text-xs text-[#777]">{formatDate(booking.pickup_at)} → {formatDate(booking.return_at)}</p><p className="mt-1 text-xs font-medium text-[#555]">{booking.vehicle?.name || `${booking.vehicle?.brand ?? ""} ${booking.vehicle?.model ?? ""}`}</p></div></Link>) : <p className="py-8 text-sm text-[#777]">No upcoming bookings.</p>}</div></Card>
-        <Card><h3 className="font-semibold">Top vehicles by total revenue</h3><div className="mt-5 space-y-4">{loading ? <>{[1, 2, 3, 4].map(item => <Skeleton className="h-8 w-full" key={item} />)}</> : data?.top_vehicles.length ? data.top_vehicles.map(vehicle => <div key={vehicle.id}><div className="mb-1 flex justify-between text-sm"><span>{vehicle.name || `${vehicle.brand} ${vehicle.model}`} ({vehicle.year})</span><strong>{money.format(vehicle.revenue)}</strong></div><div className="h-2 bg-black/5"><div className="h-2 bg-[#ff641f]" style={{ width: `${Math.max(4, vehicle.revenue / Math.max(1, data.top_vehicles[0].revenue) * 100)}%` }} /></div></div>) : <p className="py-8 text-sm text-[#777]">No completed revenue records yet.</p>}</div></Card>
+        <Card><h3 className="font-semibold">Top vehicles by total revenue</h3><div className="mt-5 space-y-4">{loading ? <>{[1, 2, 3, 4].map(item => <Skeleton className="h-8 w-full" key={item} />)}</> : data?.top_vehicles.length ? data.top_vehicles.map(vehicle => <div className="min-w-0" key={vehicle.id}><div className="mb-1 flex min-w-0 items-start justify-between gap-3 text-sm"><span className="min-w-0 break-words">{vehicle.name || `${vehicle.brand} ${vehicle.model}`} ({vehicle.year})</span><strong className="shrink-0">{money.format(vehicle.revenue)}</strong></div><div className="h-2 bg-black/5"><div className="h-2 bg-[#ff641f]" style={{ width: `${Math.max(4, vehicle.revenue / Math.max(1, data.top_vehicles[0].revenue) * 100)}%` }} /></div></div>) : <p className="py-8 text-sm text-[#777]">No completed revenue records yet.</p>}</div></Card>
       </div>
     </div>
     {availabilityOpen && <AvailabilityModal vehicles={availableVehicles} type={availabilityType} date={availabilityDate} onClose={() => setAvailabilityOpen(false)} />}
