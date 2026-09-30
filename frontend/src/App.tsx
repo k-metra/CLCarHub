@@ -13,6 +13,8 @@ import ExpensesPage from "./pages/ExpensesPage";
 import FundsPage from "./pages/FundsPage";
 import IncomeFlowReportPage from "./pages/IncomeFlowReportPage";
 import VehicleRevenueReportPage from "./pages/VehicleRevenueReportPage";
+import FleetUtilizationReportPage from "./pages/FleetUtilizationReportPage";
+import AccountsPage from "./pages/AccountsPage";
 import { AuthProvider } from "./lib/AuthContext";
 import { ToastProvider } from "./components/Ui";
 
@@ -42,10 +44,11 @@ export default function App() {
             element={<FundsPage />}
           />
           <Route path="/admin/customers" element={<CustomersPage />} />
+          <Route path="/admin/accounts" element={<AccountsPage />} />
           <Route path="/admin/partners" element={<PartnersPage />} />
           <Route
             path="/admin/reports/utilization"
-            element={<AdminPlaceholderPage title="Fleet utilization report" />}
+            element={<FleetUtilizationReportPage />}
           />
           <Route
             path="/admin/reports/income-flow"
