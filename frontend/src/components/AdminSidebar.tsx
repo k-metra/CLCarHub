@@ -7,6 +7,11 @@ type SidebarSection = {
   items: { label: string; path: string; icon: string }[];
 };
 
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
 const sections: SidebarSection[] = [
   {
     title: "Dashboard",
