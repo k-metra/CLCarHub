@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
+import { useAuth, canManageAccounts, canViewReports } from "../lib/AuthContext";
 
 type SidebarSection = {
   title: string;
@@ -22,6 +23,7 @@ const sections: SidebarSection[] = [
       { label: "Expenses", path: "/admin/expenses", icon: "−" },
       { label: "Funds", path: "/admin/funds", icon: "$" },
       { label: "Customers", path: "/admin/customers", icon: "♙" },
+      { label: "Accounts", path: "/admin/accounts", icon: "♚" },
     ],
   },
   {
@@ -58,8 +60,19 @@ export function AdminSidebar({
   onNavigate?: () => void;
   mobile?: boolean;
 }) {
+  const { user } = useAuth();
+  const visibleSections = sections.map(section => ({
+    ...section,
+    items: section.items.filter(item =>
+      item.path.startsWith("/admin/reports/")
+        ? canViewReports(user)
+        : item.path === "/admin/accounts"
+          ? canManageAccounts(user)
+          : true,
+    ),
+  })).filter(section => section.items.length > 0);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(sections.map((section) => [section.title, true])),
+    () => Object.fromEntries(visibleSections.map((section) => [section.title, true])),
   );
   return (
     <aside
@@ -71,7 +84,7 @@ export function AdminSidebar({
         >
           {collapsed ? "CL" : "ADMIN MENU"}
         </div>
-        {sections.map((section) => (
+        {visibleSections.map((section) => (
           <div className="mb-5" key={section.title}>
             <button
               className={`flex w-full items-center justify-between px-3 text-[10px] font-bold uppercase tracking-[1.8px] text-[#777] ${collapsed ? "justify-center" : ""}`}
