@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AdminShell } from "../components/AdminShell";
+import { RowActions } from "../components/Ui";
 import api from "../lib/api";
 import type { Paginated, PartnerRecord } from "../types";
 
@@ -222,20 +223,7 @@ export default function PartnersPage() {
                       : `₱${Number(partner.commission_value).toLocaleString()}`}
                   </td>
                   <td className="py-4">{partner.vehicles_count ?? 0}</td>
-                  <td className="py-4 text-right">
-                    <button
-                      className="mr-3 text-[#ff641f]"
-                      onClick={() => edit(partner)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="text-red-600"
-                      onClick={() => remove(partner.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
+                  <td className="py-4 text-right"><RowActions actions={[{ label: "Edit", onClick: () => edit(partner) }, { label: "Delete", danger: true, onClick: () => void remove(partner.id) }]} /></td>
                 </tr>
               ))}
             </tbody>
