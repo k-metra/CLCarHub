@@ -8,7 +8,7 @@ import {
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
 import type { Paginated, PartnerRecord, VehicleRecord } from "../types";
-import { ImageLightbox } from "../components/Ui";
+import { ImageLightbox, RowActions } from "../components/Ui";
 
 const apiOrigin = (
   import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"
@@ -521,27 +521,7 @@ export default function VehiclesPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-4 text-right">
-                        <button
-                          className="mr-3 text-[#ff641f]"
-                          onClick={() => openEdit(vehicle)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="text-red-600"
-                          title={
-                            vehicle.status === "archived"
-                              ? "Restore vehicle"
-                              : "Archive vehicle"
-                          }
-                          onClick={() => archiveVehicle(vehicle)}
-                        >
-                          {vehicle.status === "archived"
-                            ? "Restore"
-                            : "Archive"}
-                        </button>
-                      </td>
+                      <td className="py-4 text-right"><RowActions actions={[{ label: "Edit", onClick: () => openEdit(vehicle) }, { label: vehicle.status === "archived" ? "Restore" : "Archive", danger: vehicle.status !== "archived", onClick: () => void archiveVehicle(vehicle) }]} /></td>
                     </tr>
                   );
                 })
