@@ -24,6 +24,21 @@ self.addEventListener("fetch", (event) => {
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseClone);
         });
+
+        self.addEventListener("notificationclick", (event) => {
+          event.notification.close();
+          const targetUrl = event.notification.data?.url || "/admin/bookings";
+          event.waitUntil(
+            self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+              const existing = clients.find((client) => "focus" in client);
+              if (existing) {
+                existing.navigate(targetUrl);
+                return existing.focus();
+              }
+              return self.clients.openWindow(targetUrl);
+            }),
+          );
+        });
         return response;
       });
     }),
