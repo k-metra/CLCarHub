@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Storage;
 
 class CustomerController extends Controller
 {
+    public function profile(Request $request)
+    {
+        return $request->user()?->customer?->load('attachments')
+            ?? response()->json(['message' => 'Your account is not linked to a customer profile.'], 404);
+    }
+
     public function index(Request $request)
     {
         $customers = Customer::with(['attachments', 'bookings' => fn ($query) => $query
@@ -33,9 +39,11 @@ class CustomerController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
+        $data['name'] = $this->compositeName($data);
         $attachments = $data['attachments'] ?? [];
         unset($data['attachments']);
         $customer = Customer::create($data);
+        $this->syncLinkedUser($customer);
         $this->storeAttachments($customer, $attachments);
 
         return response()->json($customer->load('attachments'), 201);
@@ -49,9 +57,16 @@ class CustomerController extends Controller
     public function update(Request $request, Customer $customer)
     {
         $data = $request->validate($this->rules());
+        $data['name'] = $this->compositeName($data, $customer);
+        foreach (['first_name', 'middle_name', 'last_name'] as $part) {
+            if (! array_key_exists($part, $data)) {
+                $data[$part] = $customer->{$part};
+            }
+        }
         $attachments = $data['attachments'] ?? [];
         unset($data['attachments']);
         $customer->update($data);
+        $this->syncLinkedUser($customer->fresh());
         $this->storeAttachments($customer, $attachments);
 
         return $customer->fresh('attachments');
@@ -75,7 +90,30 @@ class CustomerController extends Controller
 
     private function rules(): array
     {
-        return ['name' => ['required', 'string', 'max:150'], 'email' => ['nullable', 'email'], 'phone' => ['required', 'string', 'max:40'], 'address' => ['nullable', 'string'], 'date_of_birth' => ['nullable', 'date'], 'license_number' => ['nullable', 'string'], 'license_expiry' => ['nullable', 'date'], 'identification_information' => ['nullable', 'string'], 'notes' => ['nullable', 'string'], 'attachments' => ['nullable', 'array'], 'attachments.*.category' => ['required', 'in:license,ltms,proof_of_billing,secondary_id,selfie_license'], 'attachments.*.file' => ['required', 'image', 'max:5120']];
+        return ['name' => ['nullable', 'string', 'max:150'], 'first_name' => ['nullable', 'string', 'max:100'], 'middle_name' => ['nullable', 'string', 'max:100'], 'last_name' => ['nullable', 'string', 'max:100'], 'email' => ['nullable', 'email'], 'phone' => ['required', 'string', 'max:40'], 'address' => ['nullable', 'string'], 'date_of_birth' => ['nullable', 'date'], 'license_number' => ['nullable', 'string'], 'license_expiry' => ['nullable', 'date'], 'identification_information' => ['nullable', 'string'], 'notes' => ['nullable', 'string'], 'attachments' => ['nullable', 'array'], 'attachments.*.category' => ['required', 'in:license,ltms,proof_of_billing,secondary_id,selfie_license'], 'attachments.*.file' => ['required', 'image', 'max:5120']];
+    }
+
+    private function compositeName(array $data, ?Customer $customer = null): string
+    {
+        $parts = array_filter([$data['first_name'] ?? null, $data['middle_name'] ?? null, $data['last_name'] ?? null], fn ($part) => filled(trim((string) $part)));
+
+        return $parts ? implode(' ', $parts) : ($data['name'] ?? $customer?->name ?? '');
+    }
+
+    private function syncLinkedUser(Customer $customer): void
+    {
+        if (! $customer->user) {
+            return;
+        }
+
+        $parts = array_filter([$customer->first_name, $customer->middle_name, $customer->last_name], fn ($part) => filled(trim((string) $part)));
+        $customer->user->update([
+            'first_name' => $customer->first_name,
+            'middle_name' => $customer->middle_name,
+            'last_name' => $customer->last_name,
+            'name' => $parts ? implode(' ', $parts) : $customer->name,
+            'date_of_birth' => $customer->date_of_birth,
+        ]);
     }
 
     private function storeAttachments(Customer $customer, array $attachments): void
