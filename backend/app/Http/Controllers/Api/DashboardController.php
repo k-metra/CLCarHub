@@ -20,7 +20,7 @@ class DashboardController extends Controller
             : 'MONTH(created_at)';
 
         $summary = [
-            'upcoming' => $this->statusSummary($bookings, ['pending', 'confirmed', 'awaiting_payment', 'paid'], 'pickup_at', '>='),
+            'upcoming' => $this->statusSummary($bookings, ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid'], 'pickup_at', '>='),
             'ongoing' => $this->statusSummary($bookings, ['active'], 'pickup_at', '<='),
             'finished' => $this->statusSummary($bookings, ['completed'], 'return_at', '<'),
         ];
@@ -49,7 +49,7 @@ class DashboardController extends Controller
             ->get();
 
         $upcomingBookings = Booking::with(['customer', 'vehicle.images'])
-            ->whereIn('status', ['pending', 'confirmed', 'awaiting_payment', 'paid'])
+            ->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid'])
             ->where('pickup_at', '>=', now())
             ->orderBy('pickup_at')
             ->limit(5)
