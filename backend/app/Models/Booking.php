@@ -10,7 +10,7 @@ class Booking extends Model
 {
     protected $guarded = ['id'];
 
-    protected $appends = ['balance'];
+    protected $appends = ['balance', 'status_reason'];
 
     protected function casts(): array
     {
@@ -49,5 +49,19 @@ class Booking extends Model
             : $this->payments()->sum('amount');
 
         return max(0, (float) $this->total_amount - $paid);
+    }
+
+    public function getStatusReasonAttribute(): ?string
+    {
+        if (! $this->relationLoaded('statusHistory')) {
+            $history = $this->statusHistory()->whereIn('to_status', ['cancelled', 'rejected'])->latest('id')->first();
+        } else {
+            $history = $this->statusHistory
+                ->whereIn('to_status', ['cancelled', 'rejected'])
+                ->sortByDesc('id')
+                ->first();
+        }
+
+        return $history?->reason;
     }
 }
