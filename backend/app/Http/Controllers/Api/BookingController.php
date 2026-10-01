@@ -27,7 +27,7 @@ class BookingController extends Controller
         $customer = $this->authenticatedCustomer($request);
         abort_unless($booking->customer_id === $customer->id, 404);
 
-        return $booking->load(['vehicle.images']);
+        return $booking->load(['vehicle.images', 'payments.fund', 'statusHistory.user']);
     }
 
     public function customerStore(Request $request)
@@ -129,7 +129,14 @@ class BookingController extends Controller
 
     public function show(Booking $booking)
     {
-        return $booking->load(['customer', 'vehicle.images', 'creator', 'payments.fund', 'statusHistory.user']);
+        return $booking->load([
+            'customer.attachments',
+            'customer.user:id,name,first_name,middle_name,last_name,date_of_birth,username,email',
+            'vehicle.images',
+            'creator',
+            'payments.fund',
+            'statusHistory.user',
+        ]);
     }
 
     public function update(Request $request, Booking $booking)
