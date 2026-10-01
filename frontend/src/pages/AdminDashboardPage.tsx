@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../lib/api";
 import { AdminShell } from "../components/AdminShell";
 import { Skeleton } from "../components/Ui";
-import { useAuth } from "../lib/AuthContext";
+import { displayName, useAuth } from "../lib/AuthContext";
 import type { BookingRecord, VehicleRecord } from "../types";
 
 type DashboardData = {
@@ -77,7 +77,7 @@ export default function AdminDashboardPage() {
     <div className="mt-8 space-y-8">
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">OVERVIEW</p>
-        <h2 className="mt-2 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-1.5px] sm:text-4xl sm:tracking-[-2px]">Good morning, {user?.name ?? "there"}.</h2>
+        <h2 className="mt-2 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-1.5px] sm:text-4xl sm:tracking-[-2px]">Good morning, {user ? displayName(user) : "there"}.</h2>
         <p className="mt-2 text-sm text-[#777]">Here’s what’s happening across your rental operation.</p>
       </div>
       {error && <p className="border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
