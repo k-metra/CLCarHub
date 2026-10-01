@@ -1,46 +1,117 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { useToast } from "../components/Ui";
+import api from "../lib/api";
 import { useAuth, useSignOut } from "../lib/AuthContext";
+import type { BookingRecord, CustomerAttachment, Paginated, VehicleRecord } from "../types";
+
+type Tab = "overview" | "calendar" | "request";
+type PaymentMethod = "cash_on_pickup" | "cash_on_delivery";
+type AttachmentCategory = "license" | "secondary_id" | "ltms";
+type CustomerResult = { id: number; name: string; phone?: string | null; email?: string | null; attachments?: CustomerAttachment[] };
+
+const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
+const dateTime = (value?: string) => value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
+const monthTitle = (date: Date) => date.toLocaleDateString([], { month: "long", year: "numeric" });
+const statusClass = (status: string) => ["reserved", "confirmed", "paid", "active"].includes(status) ? "bg-emerald-50 text-emerald-700" : ["cancelled", "rejected"].includes(status) ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700";
+const calendarDays = (month: Date) => { const first = new Date(month.getFullYear(), month.getMonth(), 1); const start = new Date(first); start.setDate(first.getDate() - first.getDay()); return Array.from({ length: 42 }, (_, index) => { const day = new Date(start); day.setDate(start.getDate() + index); return day; }); };
+const emptyForm = { vehicle_id: "", pickup_date: "", pickup_time: "09:00", return_date: "", return_time: "09:00", destination: "", delivery_address: "", return_address: "", notes: "", payment_method: "cash_on_pickup" as PaymentMethod };
 
 export default function CustomerAccountPage() {
-  const { user, loading } = useAuth();
-  const signOut = useSignOut();
-  if (loading) return null;
-  if (!user) return <Navigate to="/admin/login" replace />;
-  return (
-    <div className="min-h-screen bg-[#f4f3f0] p-8 text-[#151515]">
-      <div className="mx-auto max-w-[900px]">
-        <header className="flex items-center justify-between">
-          <Link className="shrink-0" to="/" aria-label="CLCarHub home">
-            <img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-[72px] w-32 object-contain object-left" />
-          </Link>
-          <div className="flex items-center gap-4 text-sm">
-            <span>
-              {user.name} ({user.email})
-            </span>
-            <button className="text-[#ff641f]" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
-        </header>
-        <div className="mt-16 border border-black/10 bg-white p-8">
-          <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">
-            CUSTOMER ACCOUNT
-          </p>
-          <h1 className="mt-3 font-['Space_Grotesk'] text-3xl font-semibold sm:text-4xl">
-            Your trips.
-          </h1>
-          <p className="mt-3 text-sm text-[#777]">
-            Your verified customer account is ready. Booking history and
-            upcoming rentals will appear here.
-          </p>
-          <Link
-            className="mt-6 inline-block bg-[#ff641f] px-5 py-3 text-sm font-bold text-white"
-            to="/"
-          >
-            Browse vehicles →
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
+  const { user, loading } = useAuth(); const signOut = useSignOut(); const { showToast } = useToast();
+  const [tab, setTab] = useState<Tab>("overview"); const [step, setStep] = useState(1);
+  const [bookings, setBookings] = useState<BookingRecord[]>([]); const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
+  const [month, setMonth] = useState(() => new Date()); const [loadingData, setLoadingData] = useState(true); const [submitting, setSubmitting] = useState(false); const [checking, setChecking] = useState(false);
+  const [customer, setCustomer] = useState<CustomerResult | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [files, setFiles] = useState<Record<AttachmentCategory, File[]>>({ license: [], secondary_id: [], ltms: [] });
+  const filePreviewUrls = useMemo(() => {
+    const previews: Record<AttachmentCategory, string[]> = { license: [], secondary_id: [], ltms: [] };
+    (Object.keys(files) as AttachmentCategory[]).forEach(category => {
+      previews[category] = files[category].map(file => URL.createObjectURL(file));
+    });
+    return previews;
+  }, [files]);
+
+  const load = async () => {
+    try {
+      const requests: [Promise<{ data: Paginated<BookingRecord> }>, Promise<{ data: Paginated<VehicleRecord> }>, Promise<{ data: Paginated<CustomerResult> }>] = [
+        api.get("/customer/booking-requests?per_page=100"), api.get("/vehicles?per_page=100"), api.get(`/customers?per_page=100&search=${encodeURIComponent(user?.email ?? "")}`),
+      ];
+      const [bookingResponse, vehicleResponse, customerResponse] = await Promise.all(requests);
+      setBookings(bookingResponse.data.data); setVehicles(vehicleResponse.data.data.filter(vehicle => vehicle.status === "available")); setCustomer(customerResponse.data.data[0] ?? null);
+    } catch (error) { showToast(error instanceof Error ? error.message : "Unable to load your dashboard", "error"); } finally { setLoadingData(false); }
+  };
+  useEffect(() => {
+    if (user?.role !== "customer") return;
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+    // load is intentionally scoped to this page and refreshed when the signed-in user changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const upcoming = bookings.filter(booking => !["completed", "cancelled", "rejected"].includes(booking.status) && new Date(booking.return_at) >= new Date()).sort((a, b) => new Date(a.pickup_at).getTime() - new Date(b.pickup_at).getTime());
+  const pending = bookings.filter(booking => booking.status === "pending"); const totalSpent = bookings.reduce((sum, booking) => sum + Number(booking.total_amount || 0), 0); const days = useMemo(() => calendarDays(month), [month]);
+  const bookingOnDay = (day: Date) => bookings.filter(booking => { const start = new Date(booking.pickup_at); const end = new Date(booking.return_at); return day >= new Date(start.getFullYear(), start.getMonth(), start.getDate()) && day <= new Date(end.getFullYear(), end.getMonth(), end.getDate()); });
+  const selectedVehicle = vehicles.find(vehicle => String(vehicle.id) === form.vehicle_id);
+  const filteredVehicles = vehicles.filter(vehicle => `${vehicle.name} ${vehicle.brand} ${vehicle.model} ${vehicle.plate_number} ${vehicle.color} ${vehicle.type}`.toLowerCase().includes(vehicleSearch.toLowerCase().trim()));
+  const rentalDays = form.pickup_date && form.return_date ? Math.max(1, Math.ceil((new Date(`${form.return_date}T${form.return_time}`).getTime() - new Date(`${form.pickup_date}T${form.pickup_time}`).getTime()) / 86400000)) : 0;
+  const rentalAmount = rentalDays * Number(selectedVehicle?.daily_rate ?? 0); const reservationFee = Number(selectedVehicle?.reservation_fee ?? 0); const existingAttachmentCount = (category: AttachmentCategory) => customer?.attachments?.filter(item => item.category === category).length ?? 0;
+
+  const setField = (key: keyof typeof emptyForm, value: string) => setForm(current => ({ ...current, [key]: value }));
+  const addFiles = (category: AttachmentCategory, selectedFiles: FileList | null, limit: number) => {
+    const newFiles = selectedFiles ? Array.from(selectedFiles) : [];
+    if (!newFiles.length) return;
+    setFiles(current => {
+      const remaining = Math.max(0, limit - existingAttachmentCount(category) - current[category].length);
+      return { ...current, [category]: [...current[category], ...newFiles.slice(0, remaining)] };
+    });
+  };
+  useEffect(() => () => {
+    Object.values(filePreviewUrls).flat().forEach(url => URL.revokeObjectURL(url));
+  }, [filePreviewUrls]);
+  const schedule = () => ({ pickup_at: `${form.pickup_date}T${form.pickup_time}:00`, return_at: `${form.return_date}T${form.return_time}:00` });
+  const checkAvailability = async (event: FormEvent) => {
+    event.preventDefault(); if (!selectedVehicle) return;
+    setChecking(true);
+    try {
+      const result = await api.get<{ available: boolean; conflicts?: { pickup_at: string; return_at: string }[] }>(`/vehicles/${selectedVehicle.id}/availability`, { params: schedule() });
+      if (!result.data.available) {
+        const conflictText = result.data.conflicts?.length
+          ? result.data.conflicts.map(conflict => `${dateTime(conflict.pickup_at)} to ${dateTime(conflict.return_at)}`).join("; ")
+          : `${dateTime(schedule().pickup_at)} to ${dateTime(schedule().return_at)}`;
+        showToast(`Unavailable: ${selectedVehicle.name || `${selectedVehicle.brand} ${selectedVehicle.model}`} is booked during ${conflictText}.`, "error");
+        return;
+      }
+      showToast("Vehicle is available for your selected schedule.", "success"); setStep(2);
+    } catch (error) { showToast(error instanceof Error ? error.message : "Unable to check availability", "error"); } finally { setChecking(false); }
+  };
+  const uploadAttachments = async () => {
+    if (!customer) throw new Error("We could not find your customer profile. Please contact CLCarHub.");
+    if (!customer.phone?.trim()) throw new Error("Please provide your contact phone number before continuing.");
+    const payload = new FormData(); payload.append("_method", "PATCH"); payload.append("name", customer.name); payload.append("phone", customer.phone ?? ""); if (customer.email) payload.append("email", customer.email);
+    let index = 0; Object.entries(files).forEach(([category, selected]) => selected.forEach(file => { payload.append(`attachments[${index}][category]`, category); payload.append(`attachments[${index}][file]`, file); index += 1; }));
+    if (index) { const result = await api.post<CustomerResult>(`/customers/${customer.id}`, payload); setCustomer(result.data); }
+  };
+  const proceedDetails = async () => {
+    const missing = (["license", "secondary_id", "ltms"] as AttachmentCategory[]).filter(category => existingAttachmentCount(category) + files[category].length < (category === "license" ? 2 : 1));
+    if (missing.length) { showToast(`Please provide: ${missing.map(item => item === "license" ? "physical driver's license (front and back)" : item === "secondary_id" ? "secondary ID" : "LTMS photo").join(", ")}.`, "error"); return; }
+    try { setSubmitting(true); await uploadAttachments(); setStep(3); } catch (error) { showToast(error instanceof Error ? error.message : "Unable to upload identity attachments", "error"); } finally { setSubmitting(false); }
+  };
+  const submitRequest = async () => {
+    setSubmitting(true);
+    try {
+      await api.post("/customer/booking-requests", { vehicle_id: Number(form.vehicle_id), ...schedule(), destination: form.destination || null, delivery_address: form.payment_method === "cash_on_delivery" ? form.delivery_address : null, return_address: form.return_address || null, notes: form.notes || null, payment_method: form.payment_method });
+      showToast("Booking request submitted for confirmation.", "success"); setForm(emptyForm); setFiles({ license: [], secondary_id: [], ltms: [] }); setStep(1); await load(); setTab("overview");
+    } catch (error) { showToast(error instanceof Error ? error.message : "Unable to submit booking request", "error"); } finally { setSubmitting(false); }
+  };
+
+  if (loading) return null; if (!user) return <Navigate to="/admin/login" replace />; if (user.role !== "customer") return <Navigate to="/admin" replace />;
+  const input = "mt-2 w-full border border-black/10 px-3 py-3"; const steps = ["Vehicle & schedule", "Trip details", "Checkout"];
+  const requestForm = <section className="mt-8"><div className="mb-6 grid grid-cols-3 gap-2">{steps.map((label, index) => <div key={label} className={`border-t-4 p-3 text-xs font-bold ${step === index + 1 ? "border-[#ff641f] text-[#ff641f]" : step > index + 1 ? "border-emerald-500 text-emerald-700" : "border-black/10 text-[#999]"}`}><span>0{index + 1}</span><p className="mt-1 hidden sm:block">{label}</p></div>)}</div>
+    {step === 1 && <form onSubmit={checkAvailability} className="border border-black/10 bg-white p-5 sm:p-8"><h2 className="font-['Space_Grotesk'] text-2xl font-semibold">Choose a vehicle and schedule</h2><div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]"><div><label className="text-sm font-semibold">Search vehicles<input type="search" className={input} value={vehicleSearch} onChange={event => setVehicleSearch(event.target.value)} placeholder="Search name, model, plate, color..." /></label><p className="mt-4 text-sm font-semibold">Vehicle</p><div className="mt-2 max-h-80 space-y-2 overflow-y-auto pr-1">{filteredVehicles.map(vehicle => { const name = vehicle.name || `${vehicle.brand} ${vehicle.model}`; const selected = form.vehicle_id === String(vehicle.id); return <button type="button" key={vehicle.id} onClick={() => setField("vehicle_id", String(vehicle.id))} className={`flex w-full items-center gap-3 rounded border p-3 text-left transition ${selected ? "border-[#ff641f] bg-[#fff7f3] ring-1 ring-[#ff641f]" : "border-black/10 hover:border-[#ff641f]"}`}><span className="h-16 w-20 shrink-0 overflow-hidden rounded bg-[#e7e5e1]">{vehicle.images?.[0]?.url ? <img src={vehicle.images[0].url} alt="" className="h-full w-full object-cover" /> : null}</span><span className="min-w-0"><span className="block truncate font-semibold">{name}</span><span className="mt-1 block text-xs text-[#777]">{vehicle.brand} {vehicle.model} · {vehicle.year}</span><span className="block text-xs text-[#777]">{vehicle.color} · Plate {vehicle.plate_number} · {vehicle.seats} seats</span><span className="mt-1 block text-sm font-semibold text-[#ff641f]">{money.format(Number(vehicle.daily_rate))}/day</span></span></button>; })}</div>{filteredVehicles.length === 0 && <p className="mt-2 text-sm text-[#777]">No vehicles match your search.</p>}{selectedVehicle && <div className="mt-4 flex gap-4 rounded bg-[#f7f6f3] p-3">{selectedVehicle.images?.[0]?.url ? <img src={selectedVehicle.images[0].url} alt="" className="h-24 w-32 rounded object-cover" /> : <div className="h-24 w-32 rounded bg-[#e7e5e1]" />}<div><p className="font-semibold">{selectedVehicle.name || `${selectedVehicle.brand} ${selectedVehicle.model}`}</p><p className="mt-1 text-xs text-[#777]">{selectedVehicle.year} · {selectedVehicle.transmission} · {selectedVehicle.seats} seats</p><p className="mt-2 font-semibold text-[#ff641f]">{money.format(Number(selectedVehicle.daily_rate))}/day</p></div></div>}</div><fieldset className="grid gap-4 sm:grid-cols-2"><legend className="col-span-full text-sm font-semibold">Pickup and return</legend><label className="text-sm">Pickup date<input required type="date" className={input} value={form.pickup_date} onChange={event => setField("pickup_date", event.target.value)} /></label><label className="text-sm">Pickup time<input required type="time" className={input} value={form.pickup_time} onChange={event => setField("pickup_time", event.target.value)} /></label><label className="text-sm">Return date<input required type="date" className={input} value={form.return_date} onChange={event => setField("return_date", event.target.value)} /></label><label className="text-sm">Return time<input required type="time" className={input} value={form.return_time} onChange={event => setField("return_time", event.target.value)} /></label></fieldset></div><button disabled={checking} className="mt-6 bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{checking ? "Checking..." : "Check availability →"}</button></form>}
+    {step === 2 && <div className="grid gap-6 lg:grid-cols-[1.3fr_.7fr]"><form className="border border-black/10 bg-white p-5 sm:p-8" onSubmit={event => { event.preventDefault(); void proceedDetails(); }}><h2 className="font-['Space_Grotesk'] text-2xl font-semibold">Trip details</h2><label className="mt-6 block text-sm">Contact phone number<input required className={input} value={customer?.phone ?? ""} onChange={event => setCustomer(current => current ? { ...current, phone: event.target.value } : current)} placeholder="09XX XXX XXXX" /></label><label className="mt-4 block text-sm">Destination<input required className={input} value={form.destination} onChange={event => setField("destination", event.target.value)} placeholder="Where will you travel?" /></label><fieldset className="mt-6"><legend className="text-sm font-semibold">Vehicle handoff</legend><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="border p-3 text-sm"><input type="radio" checked={form.payment_method === "cash_on_pickup"} onChange={() => setField("payment_method", "cash_on_pickup")} /> <span className="ml-2 font-semibold">Pickup at CLCarHub</span></label><label className="border p-3 text-sm"><input type="radio" checked={form.payment_method === "cash_on_delivery"} onChange={() => setField("payment_method", "cash_on_delivery")} /> <span className="ml-2 font-semibold">Delivery to me</span></label></div></fieldset>{form.payment_method === "cash_on_delivery" && <p className="mt-3 bg-amber-50 p-3 text-xs text-amber-800">Delivery is available in Laguna only. Please provide your exact delivery address.</p>}{form.payment_method === "cash_on_delivery" && <label className="mt-4 block text-sm">Delivery address<input required className={input} value={form.delivery_address} onChange={event => setField("delivery_address", event.target.value)} /></label>}<label className="mt-4 block text-sm">Return address<input className={input} value={form.return_address} onChange={event => setField("return_address", event.target.value)} /></label><label className="mt-4 block text-sm">Notes<textarea className={input} rows={3} value={form.notes} onChange={event => setField("notes", event.target.value)} /></label><button type="button" className="mt-5 w-full border border-black/10 p-3 text-left text-sm" onClick={() => { showToast("Return to step 1 to change your schedule.", "info"); setStep(1); }}>Schedule: {dateTime(schedule().pickup_at)} → {dateTime(schedule().return_at)} <span className="float-right text-[#ff641f]">Change</span></button><div className="mt-6"><p className="text-sm font-semibold">Required identity attachments</p>{([["license", "Physical driver's license (front & back)", 2], ["secondary_id", "Secondary ID", 1], ["ltms", "LTMS portal photos", 1]] as const).map(([category, label, limit]) => <div className="mt-3" key={category}><label className="block text-sm">{label}<input required={existingAttachmentCount(category) + files[category].length < limit} type="file" accept="image/*" multiple={limit > 1} className={`${input} text-xs`} onChange={event => { addFiles(category, event.target.files, limit); event.currentTarget.value = ""; }} /></label><span className="text-xs text-[#777]">{existingAttachmentCount(category) + files[category].length}/{limit} provided</span>{files[category].length > 0 && <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{files[category].map((file, index) => <div className="relative overflow-hidden rounded border border-black/10 bg-[#f7f6f3]" key={`${file.name}-${file.lastModified}-${index}`}><img src={filePreviewUrls[category][index]} alt={file.name} className="h-24 w-full object-cover" /><button type="button" aria-label={`Remove ${file.name}`} className="absolute right-1 top-1 rounded-full bg-black/70 px-2 py-1 text-xs text-white" onClick={() => setFiles(current => ({ ...current, [category]: current[category].filter((_, fileIndex) => fileIndex !== index) }))}>×</button><p className="truncate px-2 py-1 text-[10px]">{file.name}</p></div>)}</div>}</div>)}</div><div className="mt-6 flex flex-wrap gap-3"><button type="button" className="border border-black/10 px-5 py-3 text-sm" onClick={() => setStep(1)}>← Back to vehicle & schedule</button><button disabled={submitting} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? "Saving..." : "Continue to checkout →"}</button></div></form><aside className="h-fit border border-black/10 bg-white p-5"><h3 className="font-semibold">Cost summary</h3><div className="mt-4 flex justify-between text-sm"><span>{rentalDays || 0} rental day(s)</span><span>{money.format(rentalAmount)}</span></div><div className="mt-3 flex justify-between border-t pt-3 text-sm"><span>Reservation fee due</span><span className="font-semibold">{money.format(reservationFee)}</span></div><p className="mt-4 text-xs text-[#777]">Final charges are subject to confirmation by CLCarHub.</p></aside></div>}
+    {step === 3 && <div className="max-w-2xl border border-black/10 bg-white p-5 sm:p-8"><h2 className="font-['Space_Grotesk'] text-2xl font-semibold">Checkout</h2><p className="mt-2 text-sm text-[#777]">Review your request before sending it to CLCarHub.</p><div className="mt-6 space-y-3 border-y border-black/10 py-5 text-sm"><div className="flex justify-between"><span>Vehicle</span><strong>{selectedVehicle?.name || `${selectedVehicle?.brand ?? ""} ${selectedVehicle?.model ?? ""}`}</strong></div><div className="flex justify-between"><span>Schedule</span><span>{dateTime(schedule().pickup_at)} → {dateTime(schedule().return_at)}</span></div><div className="flex justify-between"><span>Rental estimate</span><span>{money.format(rentalAmount)}</span></div><div className="flex justify-between font-semibold"><span>Reservation fee due</span><span>{money.format(reservationFee)}</span></div></div><div className="mt-5 bg-amber-50 p-4 text-sm text-amber-900"><strong>Cash only.</strong> Please prepare the reservation fee in cash. Your booking is not confirmed until CLCarHub reviews the request.</div><div className="mt-6 flex gap-3"><button type="button" className="border border-black/10 px-5 py-3 text-sm" onClick={() => setStep(2)}>← Back</button><button type="button" disabled={submitting} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50" onClick={() => void submitRequest()}>{submitting ? "Submitting..." : "Confirm & submit request"}</button></div></div>}</section>;
+  return <div className="min-h-screen bg-[#f4f3f0] text-[#151515]"><header className="border-b border-black/10 bg-[#111] px-5 text-white sm:px-8"><div className="mx-auto flex h-20 max-w-6xl items-center justify-between"><Link to="/" aria-label="CLCarHub home"><img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-16 w-28 object-contain object-left" /></Link><div className="flex items-center gap-4 text-sm"><span className="hidden sm:block">{user.name}</span><button className="text-[#ffb18e] hover:text-white" onClick={signOut}>Sign out</button></div></div></header><main className="mx-auto max-w-6xl px-5 py-8 sm:px-8"><p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">CUSTOMER DASHBOARD</p><div className="mt-2 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h1 className="font-['Space_Grotesk'] text-3xl font-semibold sm:text-4xl">Welcome, {user.name.split(" ")[0]}.</h1><p className="mt-2 text-sm text-[#777]">Manage your rentals, request a vehicle, and keep track of your schedule.</p></div><button className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white" onClick={() => { setStep(1); setTab("request"); }}>Request a booking →</button></div><nav className="mt-8 flex gap-1 overflow-x-auto border-b border-black/10"><button className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold ${tab === "overview" ? "border-[#ff641f] text-[#ff641f]" : "border-transparent text-[#777]"}`} onClick={() => setTab("overview")}>Overview</button><button className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold ${tab === "calendar" ? "border-[#ff641f] text-[#ff641f]" : "border-transparent text-[#777]"}`} onClick={() => setTab("calendar")}>My calendar</button><button className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold ${tab === "request" ? "border-[#ff641f] text-[#ff641f]" : "border-transparent text-[#777]"}`} onClick={() => setTab("request")}>Request booking</button></nav>{loadingData ? <div className="mt-8 rounded border border-black/10 bg-white p-10 text-center text-sm text-[#777]">Loading your bookings...</div> : tab === "overview" ? <section className="mt-8 space-y-8"><div className="grid gap-4 sm:grid-cols-3"><div className="border border-black/10 bg-white p-5"><p className="text-xs text-[#777]">Upcoming trips</p><p className="mt-2 text-3xl font-semibold text-[#ff641f]">{upcoming.length}</p></div><div className="border border-black/10 bg-white p-5"><p className="text-xs text-[#777]">Pending requests</p><p className="mt-2 text-3xl font-semibold">{pending.length}</p></div><div className="border border-black/10 bg-white p-5"><p className="text-xs text-[#777]">Total booked</p><p className="mt-2 text-3xl font-semibold">{money.format(totalSpent)}</p></div></div><section><div className="flex items-center justify-between"><h2 className="font-['Space_Grotesk'] text-2xl font-semibold">Your bookings</h2><button className="text-sm font-semibold text-[#ff641f]" onClick={() => setTab("calendar")}>View calendar →</button></div><div className="mt-4 space-y-3">{bookings.length === 0 ? <div className="border border-dashed border-black/20 bg-white p-10 text-center"><p className="font-semibold">No bookings yet</p></div> : bookings.map(booking => <div className="flex flex-col gap-4 border border-black/10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between" key={booking.id}><div className="flex min-w-0 items-center gap-4">{booking.vehicle?.images?.[0]?.url ? <img src={booking.vehicle.images[0].url} alt="" className="h-16 w-20 rounded object-cover" /> : <div className="h-16 w-20 rounded bg-[#eee]" />}<div><p className="font-semibold">{booking.reference}</p><p className="mt-1 text-sm">{booking.vehicle?.name || `${booking.vehicle?.brand ?? ""} ${booking.vehicle?.model ?? ""}`}</p><p className="mt-1 text-xs text-[#777]">{dateTime(booking.pickup_at)} → {dateTime(booking.return_at)}</p></div></div><div className="text-left sm:text-right"><span className={`inline-block rounded px-2 py-1 text-[10px] font-bold uppercase ${statusClass(booking.status)}`}>{booking.status.replaceAll("_", " ")}</span><p className="mt-2 text-sm font-semibold">{money.format(Number(booking.total_amount || 0))}</p></div></div>)}</div></section></section> : tab === "calendar" ? <section className="mt-8 border border-black/10 bg-white p-4 sm:p-6"><div className="flex items-center justify-between"><button className="border border-black/10 px-3 py-2" onClick={() => setMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}>←</button><h2 className="font-['Space_Grotesk'] text-xl font-semibold">{monthTitle(month)}</h2><button className="border border-black/10 px-3 py-2" onClick={() => setMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}>→</button></div><div className="mt-5 grid grid-cols-7 border-l border-t border-black/10">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <div className="border-b border-r border-black/10 p-2 text-center text-[10px] font-bold uppercase text-[#999]" key={day}>{day}</div>)}{days.map(day => { const dayBookings = bookingOnDay(day); return <div className={`min-h-24 border-b border-r border-black/10 p-2 ${day.getMonth() === month.getMonth() ? "bg-white" : "bg-[#fafafa]"}`} key={day.toISOString()}><p className="text-xs text-[#555]">{day.getDate()}</p>{dayBookings.map(booking => <div className={`mt-2 truncate rounded px-1.5 py-1 text-[10px] ${statusClass(booking.status)}`} key={booking.id}>{booking.reference}</div>)}</div>; })}</div></section> : requestForm}</main></div>;
 }
