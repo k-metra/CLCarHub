@@ -9,6 +9,9 @@ const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP
 type Customer = {
   id: number;
   name: string;
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
   email?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -40,6 +43,9 @@ const emptyAttachments = (): Record<AttachmentCategory, File[]> => ({
 });
 const emptyForm: CustomerForm = {
   name: "",
+  first_name: "",
+  middle_name: "",
+  last_name: "",
   email: "",
   phone: "",
   address: "",
@@ -95,6 +101,9 @@ export default function CustomersPage() {
     setEditing(customer.id);
     setForm({
       name: customer.name,
+      first_name: customer.first_name ?? "",
+      middle_name: customer.middle_name ?? "",
+      last_name: customer.last_name ?? "",
       email: customer.email ?? "",
       phone: customer.phone ?? "",
       address: customer.address ?? "",
@@ -109,6 +118,8 @@ export default function CustomersPage() {
   };
   const setField = (key: keyof CustomerForm, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const compositeName = (value: CustomerForm) =>
+    [value.first_name, value.middle_name, value.last_name].filter((part) => part?.trim()).join(" ") || value.name;
   const setAttachments = (
     category: AttachmentCategory,
     files: FileList | null,
@@ -138,8 +149,9 @@ export default function CustomersPage() {
     event.preventDefault();
     try {
       const payload = new FormData();
+      payload.append("name", compositeName(form));
       Object.entries(form).forEach(([key, value]) => {
-        if (key !== "attachments" && value != null)
+        if (key !== "attachments" && key !== "name" && value != null)
           payload.append(key, String(value));
       });
       let attachmentIndex = 0;
@@ -210,7 +222,9 @@ export default function CustomersPage() {
 
   type CustomerTextField = Exclude<keyof CustomerForm, "attachments">;
   const fields: Array<[CustomerTextField, string, string]> = [
-    ["name", "Name", "text"],
+    ["first_name", "First name", "text"],
+    ["middle_name", "Middle name (optional)", "text"],
+    ["last_name", "Last name", "text"],
     ["email", "Email", "email"],
     ["phone", "Phone", "text"],
     ["date_of_birth", "Date of birth", "date"],
@@ -266,7 +280,7 @@ export default function CustomersPage() {
                     <input
                       className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
                       type={type}
-                      required={key === "name" || key === "phone"}
+                      required={key === "first_name" || key === "last_name" || key === "phone"}
                       value={form[key] ?? ""}
                       onChange={(event) => setField(key, event.target.value)}
                     />
