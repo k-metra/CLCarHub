@@ -25,7 +25,7 @@ class ReportController extends Controller
         $periodEnd = Carbon::parse($request->input('to', now()->endOfMonth()->toDateString()))->endOfDay();
         abort_if($periodEnd->lt($periodStart), 422, 'The end date must be on or after the start date.');
 
-        $statuses = ['confirmed', 'awaiting_payment', 'paid', 'active', 'completed'];
+        $statuses = ['reserved', 'confirmed', 'awaiting_payment', 'paid', 'active', 'completed'];
         $vehicles = Vehicle::with(['partner', 'images', 'bookings' => function ($query) use ($periodStart, $periodEnd, $statuses) {
             $query->whereIn('status', $statuses)
                 ->where('pickup_at', '<', $periodEnd)
@@ -127,7 +127,7 @@ class ReportController extends Controller
 
     public function vehicleRevenue(Request $request)
     {
-        $activeStatuses = ['confirmed', 'awaiting_payment', 'paid', 'active', 'completed'];
+        $activeStatuses = ['reserved', 'confirmed', 'awaiting_payment', 'paid', 'active', 'completed'];
         $status = $request->input('status');
         $bookings = Booking::with(['vehicle.partner', 'vehicle.images', 'payments', 'customer'])
             ->whereIn('status', $status ? [$status] : $activeStatuses)
