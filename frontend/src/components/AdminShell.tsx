@@ -19,6 +19,7 @@ export function AdminShell({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
+  if (user.role === "customer") return <Navigate to="/account" replace />;
   if (reportsOnly && !canViewReports(user)) return <Navigate to="/admin" replace />;
 
   return (
