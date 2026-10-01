@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { AdminSidebar } from "./AdminSidebar";
 import { canViewReports, displayName, useAuth, useSignOut } from "../lib/AuthContext";
+import { AdminBookingNotifications } from "./AdminBookingNotifications";
 
 export function AdminShell({
   children,
@@ -45,6 +46,7 @@ export function AdminShell({
           </Link>
         </div>
         <div className="flex shrink-0 items-center gap-3 sm:gap-5">
+          <AdminBookingNotifications />
           <div className="hidden text-right sm:block">
             <p className="text-sm font-semibold">{displayName(user)}</p>
             <p className="text-[10px] uppercase tracking-widest text-[#888]">
