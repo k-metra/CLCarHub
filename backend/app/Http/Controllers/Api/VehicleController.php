@@ -28,7 +28,7 @@ class VehicleController extends Controller
             ->where('type', $data['type'])
             ->where('status', 'available')
             ->whereDoesntHave('bookings', fn ($query) => $query
-                ->whereIn('status', ['pending', 'confirmed', 'awaiting_payment', 'paid', 'active'])
+                ->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid', 'active'])
                 ->where('pickup_at', '<', $data['return_at'])
                 ->where('return_at', '>', $data['pickup_at']))
             ->latest()
@@ -89,8 +89,21 @@ class VehicleController extends Controller
     public function availability(Request $request, Vehicle $vehicle)
     {
         $data = $request->validate(['pickup_at' => ['required', 'date'], 'return_at' => ['required', 'date', 'after:pickup_at']]);
+        $conflicts = $vehicle->bookings()
+            ->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid', 'active'])
+            ->where('pickup_at', '<', $data['return_at'])
+            ->where('return_at', '>', $data['pickup_at'])
+            ->get(['pickup_at', 'return_at'])
+            ->map(fn ($booking) => [
+                'pickup_at' => $booking->pickup_at,
+                'return_at' => $booking->return_at,
+            ])
+            ->values();
 
-        return ['available' => $vehicle->status === 'available' && ! $vehicle->bookings()->whereIn('status', ['pending', 'confirmed', 'awaiting_payment', 'paid', 'active'])->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists()];
+        return [
+            'available' => $vehicle->status === 'available' && $conflicts->isEmpty(),
+            'conflicts' => $conflicts,
+        ];
     }
 
     private function rules(): array
