@@ -10,6 +10,18 @@ export type AuthUser = {
   username?: string | null
   email: string
   role: string
+  first_name?: string | null
+  middle_name?: string | null
+  last_name?: string | null
+  date_of_birth?: string | null
+  email_verified_at?: string | null
+}
+
+export function displayName(user: Pick<AuthUser, 'first_name' | 'middle_name' | 'last_name' | 'username' | 'name'>) {
+  if (user.first_name?.trim() && user.middle_name?.trim() && user.last_name?.trim()) {
+    return [user.first_name, user.middle_name, user.last_name].join(' ')
+  }
+  return user.username?.trim() || user.name
 }
 
 export type AdminRole = 'owner' | 'co_owner' | 'it_management' | 'staff'
@@ -26,6 +38,7 @@ type AuthContextValue = {
   user: AuthUser | null
   loading: boolean
   setSession: (token: string, user: AuthUser) => void
+  updateUser: (user: Partial<AuthUser>) => void
   logout: () => Promise<void>
 }
 
@@ -53,6 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(authenticatedUser)
   }
 
+  const updateUser = (updates: Partial<AuthUser>) => {
+    setUser(current => current ? { ...current, ...updates } : current)
+  }
+
   const logout = async () => {
     try {
       await api.post('/auth/logout')
@@ -64,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   if (loading) return <LoadingScreen label="Loading your workspace" />
 
-  return <AuthContext.Provider value={{ user, loading, setSession, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, setSession, updateUser, logout }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
