@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
-import { accountPath, useAuth, useSignOut } from "../lib/AuthContext";
+import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 
 const vehicles = [
   {
@@ -80,7 +80,7 @@ export default function HomePage() {
                     className="w-fit rounded-[30px] border border-white/[.17] px-[17px] py-[11px] text-[13px]"
                     to={accountPath(user)}
                   >
-                    {user.name}
+                    {displayName(user)}
                   </Link>
                   <button
                     className="w-fit text-left text-[13px] text-[#bbb] hover:text-white"
