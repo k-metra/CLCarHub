@@ -35,6 +35,30 @@ class BookingAvailabilityTest extends TestCase
         $this->assertCount(1, Booking::all());
     }
 
+    public function test_vehicle_availability_returns_conflicting_intervals_without_customer_details(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        Booking::create([
+            'reference' => 'CLCH-2030-000001',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-12 10:00',
+            'status' => 'confirmed',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 4000,
+            'total_amount' => 4000,
+        ]);
+
+        $this->getJson("/api/vehicles/{$vehicle->id}/availability?pickup_at=2030-01-11%2010:00&return_at=2030-01-13%2010:00")
+            ->assertOk()
+            ->assertJsonPath('available', false)
+            ->assertJsonPath('conflicts.0.pickup_at', '2030-01-10T02:00:00.000000Z')
+            ->assertJsonPath('conflicts.0.return_at', '2030-01-12T02:00:00.000000Z')
+            ->assertJsonMissingPath('conflicts.0.customer_id')
+            ->assertJsonMissingPath('conflicts.0.customer');
+    }
+
     public function test_exactly_twenty_four_hours_costs_one_rental_day(): void
     {
         [$vehicle, $customer] = $this->authenticate();
