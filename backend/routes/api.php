@@ -24,6 +24,10 @@ Route::get('/vehicles/{vehicle}/availability', [VehicleController::class, 'avail
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/user', [AuthController::class, 'user']);
+    Route::get('/auth/profile', [AuthController::class, 'profile']);
+    Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
+    Route::post('/auth/password', [AuthController::class, 'changePassword']);
+    Route::post('/auth/email-verification', [AuthController::class, 'resendVerification']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
@@ -33,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('partners', PartnerController::class);
     });
     Route::apiResource('customers', CustomerController::class);
+    Route::middleware(EnsureRole::class.':customer')->get('/customer/profile', [CustomerController::class, 'profile']);
     Route::get('/accounts', [AccountController::class, 'index']);
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('accounts', AccountController::class)->only(['store', 'update', 'destroy']);
     Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
