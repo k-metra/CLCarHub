@@ -185,8 +185,9 @@ export default function BookingsPage() {
     try {
       const result = await api.get<Paginated<BookingRecord>>(`/bookings?${params.toString()}`)
       const terminalStatuses = new Set(['cancelled', 'rejected', 'completed'])
+      const statusPriority = (status: string) => status === 'pending' ? 0 : terminalStatuses.has(status) ? 2 : 1
       const orderedBookings = !search.trim() && !filter && sort === 'latest'
-        ? [...result.data.data].sort((left, right) => Number(terminalStatuses.has(left.status)) - Number(terminalStatuses.has(right.status)))
+        ? [...result.data.data].sort((left, right) => statusPriority(left.status) - statusPriority(right.status))
         : result.data.data
       setBookings(orderedBookings)
       return result.data.data
