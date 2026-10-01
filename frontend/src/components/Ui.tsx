@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 type Toast = { id: number; message: string; tone: "success" | "error" | "info" };
 type ToastContextValue = { showToast: (message: string, tone?: Toast["tone"]) => void };
@@ -116,4 +116,21 @@ export function Button({
       {children}
     </button>
   );
+}
+
+export function RowActions({ actions }: { actions: Array<{ label: string; onClick: () => void; danger?: boolean }> }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const handlePointer = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointer);
+    return () => document.removeEventListener("pointerdown", handlePointer);
+  }, [open]);
+  return <div className="relative inline-block" ref={ref}>
+    <button type="button" aria-label="More actions" className="rounded px-2 py-1 text-xl leading-none text-[#777] hover:bg-black/5 hover:text-[#151515]" onClick={() => setOpen(current => !current)}>⋯</button>
+    {open && <div className="absolute right-0 z-30 mt-1 min-w-36 border border-black/10 bg-white p-1 text-left shadow-xl">{actions.map(action => <button type="button" key={action.label} className={`block w-full whitespace-nowrap px-3 py-2 text-sm hover:bg-[#f8f7f5] ${action.danger ? "text-red-600" : ""}`} onClick={() => { setOpen(false); action.onClick(); }}>{action.label}</button>)}</div>}
+  </div>;
 }
