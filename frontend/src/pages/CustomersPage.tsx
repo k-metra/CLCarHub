@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AdminShell } from "../components/AdminShell";
-import { ImageLightbox, useToast } from "../components/Ui";
+import { ImageLightbox, RowActions, useToast } from "../components/Ui";
 import api from "../lib/api";
 import type { CustomerAttachment, Paginated } from "../types";
 
@@ -416,10 +416,7 @@ export default function CustomersPage() {
                     License: {customer.license_number || "—"}
                     {customer.license_expiry && ` · Expires ${new Date(customer.license_expiry).toLocaleDateString()}`}
                   </p>
-                  <div className="mt-4 flex gap-4 text-sm">
-                    <button className="text-[#ff641f]" onClick={() => openEdit(customer)}>Edit</button>
-                    <button className="text-red-600" onClick={() => void deleteCustomer(customer)}>Delete</button>
-                  </div>
+                  <div className="mt-4 flex justify-end text-sm"><RowActions actions={[{ label: "Edit", onClick: () => openEdit(customer) }, { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) }]} /></div>
                 </article>
               ))}
             </div>
@@ -467,20 +464,7 @@ export default function CustomersPage() {
                     </td>
                     <td className="py-4">{customer.bookings_count ?? 0}</td>
                     <td className="py-4 font-semibold text-amber-600">{money.format(customer.outstanding_balance ?? 0)}</td>
-                    <td className="py-4 text-right">
-                      <button
-                        className="mr-4 text-[#ff641f]"
-                        onClick={() => openEdit(customer)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="text-red-600"
-                        onClick={() => void deleteCustomer(customer)}
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    <td className="py-4 text-right"><RowActions actions={[{ label: "Edit", onClick: () => openEdit(customer) }, { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) }]} /></td>
                   </tr>
                 ))
               )}
