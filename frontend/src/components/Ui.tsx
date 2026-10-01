@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type Toast = { id: number; message: string; tone: "success" | "error" | "info" };
 type ToastContextValue = { showToast: (message: string, tone?: Toast["tone"]) => void };
@@ -121,16 +122,32 @@ export function Button({
 export function RowActions({ actions }: { actions: Array<{ label: string; onClick: () => void; danger?: boolean }> }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ top: 0, right: 0 });
+  const updatePosition = useCallback(() => {
+    const bounds = ref.current?.getBoundingClientRect();
+    if (!bounds) return;
+    setPosition({ top: bounds.bottom + 4, right: Math.max(8, window.innerWidth - bounds.right) });
+  }, []);
   useEffect(() => {
     if (!open) return;
+    updatePosition();
     const handlePointer = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     };
+    const handleViewportChange = () => updatePosition();
     document.addEventListener("pointerdown", handlePointer);
-    return () => document.removeEventListener("pointerdown", handlePointer);
-  }, [open]);
-  return <div className="relative inline-block" ref={ref}>
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointer);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [open, updatePosition]);
+  return <div className="inline-block" ref={ref}>
     <button type="button" aria-label="More actions" className="rounded px-2 py-1 text-xl leading-none text-[#777] hover:bg-black/5 hover:text-[#151515]" onClick={() => setOpen(current => !current)}>⋯</button>
-    {open && <div className="absolute right-0 z-30 mt-1 min-w-36 border border-black/10 bg-white p-1 text-left shadow-xl">{actions.map(action => <button type="button" key={action.label} className={`block w-full whitespace-nowrap px-3 py-2 text-sm hover:bg-[#f8f7f5] ${action.danger ? "text-red-600" : ""}`} onClick={() => { setOpen(false); action.onClick(); }}>{action.label}</button>)}</div>}
+    {open && createPortal(<div ref={menuRef} className="fixed z-[130] min-w-36 border border-black/10 bg-white p-1 text-left shadow-xl" style={{ top: position.top, right: position.right }}>{actions.map(action => <button type="button" key={action.label} className={`block w-full whitespace-nowrap px-3 py-2 text-sm hover:bg-[#f8f7f5] ${action.danger ? "text-red-600" : ""}`} onClick={() => { setOpen(false); action.onClick(); }}>{action.label}</button>)}</div>, document.body)}
   </div>;
 }
