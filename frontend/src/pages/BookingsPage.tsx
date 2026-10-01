@@ -205,6 +205,17 @@ export default function BookingsPage() {
       setDetailLoading(false)
     }
   }
+  const openDetailsById = async (bookingId: number) => {
+    setDetailTab('details'); setShowActions(false); setDetailLoading(true)
+    try {
+      const result = await api.get<BookingRecord>(`/bookings/${bookingId}`)
+      setSelectedBooking(result.data)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to load booking details', 'error')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
   const openEdit = (booking: BookingRecord) => {
     setEditing(booking.id)
     setForm({ ...emptyForm, vehicle_id: String(booking.vehicle?.id ?? ''), customer_id: String(booking.customer?.id ?? ''), pickup_at: dateTimeLocalValue(booking.pickup_at), return_at: dateTimeLocalValue(booking.return_at), destination: booking.destination ?? '', delivery_address: booking.delivery_address ?? '', return_address: booking.return_address ?? '', notes: booking.notes ?? '', fuel_charge: booking.fuel_charge ?? '', rfid_charge: booking.rfid_charge ?? '', damage_fees: booking.damage_fees ?? '', car_wash_fees: booking.car_wash_fees ?? '', extension_fees: booking.extension_fees ?? '', payments: booking.payments?.map(payment => ({ amount: payment.amount, notes: payment.notes ?? '', paid_at: payment.paid_at.slice(0, 10), fund_id: payment.fund_id ? String(payment.fund_id) : '' })) ?? [] })
@@ -220,6 +231,16 @@ export default function BookingsPage() {
       setSearchParams(searchParams, { replace: true })
     }
   }, [bookings, searchParams, setSearchParams, showForm])
+  useEffect(() => {
+    const bookingId = Number(searchParams.get('booking'))
+    const booking = bookings.find(item => item.id === bookingId)
+    if (bookingId > 0 && !selectedBooking && !showForm) {
+      if (booking) void openDetails(booking)
+      else void openDetailsById(bookingId)
+      searchParams.delete('booking')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [bookings, searchParams, setSearchParams, selectedBooking, showForm])
 
   const saveCustomer = async () => {
     const result = await api.post<Customer>('/customers', newCustomer)
