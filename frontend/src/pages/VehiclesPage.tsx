@@ -54,7 +54,7 @@ type VehicleForm = {
   transmission: string;
   fuel_type: string;
   daily_rate: string;
-  reservation_fee: string;
+  hour_extension_rate: string;
   security_deposit_fee: string;
   status: string;
   partner_id: string;
@@ -73,7 +73,7 @@ const emptyForm: VehicleForm = {
   transmission: "automatic",
   fuel_type: "regular_unleaded",
   daily_rate: "",
-  reservation_fee: "",
+  hour_extension_rate: "",
   security_deposit_fee: "",
   status: "available",
   partner_id: "",
@@ -89,7 +89,7 @@ const fields: Array<[keyof VehicleForm, string, string]> = [
   ["plate_number", "Plate number", "text"],
   ["seats", "Seat count", "number"],
   ["daily_rate", "Daily rate", "number"],
-  ["reservation_fee", "Reservation fee (optional)", "number"],
+  ["hour_extension_rate", "Hourly extension rate (optional)", "number"],
   ["security_deposit_fee", "Security deposit fee (optional)", "number"],
 ];
 
@@ -162,7 +162,7 @@ export default function VehiclesPage() {
       transmission: vehicle.transmission ?? "automatic",
       fuel_type: vehicle.fuel_type ?? "regular_unleaded",
       daily_rate: vehicle.daily_rate,
-      reservation_fee: vehicle.reservation_fee ?? "",
+      hour_extension_rate: vehicle.hour_extension_rate ?? "",
       security_deposit_fee: vehicle.security_deposit_fee ?? "",
       status: vehicle.status,
       partner_id: vehicle.partner_id?.toString() ?? "",
