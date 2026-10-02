@@ -44,6 +44,10 @@ class Booking extends Model
 
     public function getBalanceAttribute(): float
     {
+        if (in_array($this->status, ['cancelled', 'rejected'], true)) {
+            return 0;
+        }
+
         $paid = $this->relationLoaded('payments')
             ? $this->payments->sum(fn (Payment $payment) => (float) $payment->amount)
             : $this->payments()->sum('amount');
