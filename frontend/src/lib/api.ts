@@ -20,6 +20,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   response => response,
   error => {
+    if (error.response?.status === 413) {
+      return Promise.reject(new Error('One or more uploaded files are too large. Please choose files smaller than 20 MB each and try again.'))
+    }
     const validationErrors = error.response?.data?.errors
     const message = error.response?.data?.message
       ?? (validationErrors ? Object.values(validationErrors).flat().join(' ') : undefined)
