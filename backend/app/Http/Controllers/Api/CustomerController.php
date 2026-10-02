@@ -36,6 +36,30 @@ class CustomerController extends Controller
         return $customers;
     }
 
+    public function summary()
+    {
+        $customers = Customer::query()
+            ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'rejected'])])
+            ->get(['id', 'name']);
+        $balances = Customer::with(['bookings' => fn ($query) => $query
+            ->whereNotIn('status', ['cancelled', 'rejected'])
+            ->with('payments')])
+            ->get();
+
+        $topCustomer = $customers->sortByDesc('bookings_count')->first();
+        $totalReceivable = $balances->sum(fn (Customer $customer) => $customer->bookings->sum(fn ($booking) => $booking->balance));
+
+        return [
+            'total_customers' => Customer::count(),
+            'top_customer' => $topCustomer ? [
+                'id' => $topCustomer->id,
+                'name' => $topCustomer->name,
+                'bookings_count' => $topCustomer->bookings_count,
+            ] : null,
+            'total_receivable' => (float) $totalReceivable,
+        ];
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
@@ -51,7 +75,12 @@ class CustomerController extends Controller
 
     public function show(Customer $customer)
     {
-        return $customer->load(['bookings.vehicle', 'attachments']);
+        return $customer->load([
+            'bookings' => fn ($query) => $query->latest('pickup_at'),
+            'bookings.vehicle',
+            'bookings.payments',
+            'attachments',
+        ]);
     }
 
     public function update(Request $request, Customer $customer)
