@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\FundController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\PartnerController;
+use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +29,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/password', [AuthController::class, 'changePassword']);
     Route::post('/auth/email-verification', [AuthController::class, 'resendVerification']);
+    Route::get('/push/config', [PushSubscriptionController::class, 'config']);
+    Route::post('/push/subscriptions', [PushSubscriptionController::class, 'store']);
+    Route::delete('/push/subscriptions', [PushSubscriptionController::class, 'destroy']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
