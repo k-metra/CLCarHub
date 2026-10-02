@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Vehicle;
 use App\Models\FundTransaction;
+use App\Models\FleetSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -57,9 +58,10 @@ class BookingController extends Controller
                 'The vehicle is not available for the selected period.'
             );
 
-            $days = $this->rentalDays($data['pickup_at'], $data['return_at']);
-            $rental = $days * (float) $vehicle->daily_rate;
-            $reservationFee = (float) ($vehicle->reservation_fee ?? 0);
+            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle);
+            $rental = $rentalBreakdown['rental'];
+            $fleetSettings = FleetSetting::findOrFail(1);
+            $reservationFee = (float) $fleetSettings->reservation_fee;
             $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0);
             $booking = Booking::create([
                 ...$data,
@@ -71,7 +73,8 @@ class BookingController extends Controller
                 'additional_charges' => 0,
                 'discount' => 0,
                 'deposit' => $securityDeposit,
-                'total_amount' => $rental + $reservationFee + $securityDeposit,
+                'extension_fees' => $rentalBreakdown['extension'],
+                'total_amount' => $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, 0, 0, $rentalBreakdown['extension'], $fleetSettings),
                 'created_by' => $request->user()->id,
             ]);
             app(PushNotificationService::class)->sendToAdmins(
@@ -139,14 +142,16 @@ class BookingController extends Controller
         return DB::transaction(function () use ($data, $payments, $request) {
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
             abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid', 'active'])->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
-            $days = $this->rentalDays($data['pickup_at'], $data['return_at']);
-            $rental = $days * (float) $vehicle->daily_rate;
-            $reservationFee = (float) ($vehicle->reservation_fee ?? 0);
+            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle);
+            $rental = $rentalBreakdown['rental'];
+            $fleetSettings = FleetSetting::findOrFail(1);
+            $reservationFee = (float) $fleetSettings->reservation_fee;
             $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0);
             $deposit = (float) ($data['deposit'] ?? $securityDeposit);
-            $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees', 'extension_fees'])->sum(fn ($fee) => (float) ($data[$fee] ?? 0));
-            $total = $rental + (float) ($data['additional_charges'] ?? 0) + $fees + $reservationFee + $securityDeposit - (float) ($data['discount'] ?? 0);
-            $booking = Booking::create([...$data, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
+            $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees'])->sum(fn ($fee) => (float) ($data[$fee] ?? 0));
+            $extensionFees = array_key_exists('extension_fees', $data) ? (float) $data['extension_fees'] : $rentalBreakdown['extension'];
+            $total = $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) ($data['additional_charges'] ?? 0), $fees, $extensionFees, $fleetSettings) - (float) ($data['discount'] ?? 0);
+            $booking = Booking::create([...$data, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
             $this->syncPayments($booking, $payments);
             $booking->load('customer');
             $customerName = $booking->customer?->name ?? 'A customer';
@@ -181,7 +186,7 @@ class BookingController extends Controller
         if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
             abort_unless(in_array($data['status'], $this->allowedStatusTransitions()[$booking->status] ?? [], true), 422, "A {$booking->status} booking cannot be changed to {$data['status']}.");
             if ($data['status'] === 'reserved') {
-                $reservationFee = (float) ($booking->vehicle()->firstOrFail()->reservation_fee ?? 0);
+                $reservationFee = (float) FleetSetting::findOrFail(1)->reservation_fee;
                 $incomingPayments = $data['payments'] ?? null;
                 $paidAmount = $incomingPayments === null
                     ? (float) $booking->payments()->where('status', 'paid')->sum('amount')
@@ -201,7 +206,11 @@ class BookingController extends Controller
         }
         $booking->refresh();
         $vehicle = Vehicle::findOrFail($booking->vehicle_id);
-        $booking->rental_amount = $this->rentalDays($booking->pickup_at, $booking->return_at) * (float) $vehicle->daily_rate;
+        $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->return_at, $vehicle);
+        $booking->rental_amount = $rentalBreakdown['rental'];
+        if (! array_key_exists('extension_fees', $data)) {
+            $booking->extension_fees = $rentalBreakdown['extension'];
+        }
         $booking->deposit = (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0);
         $booking->save();
         $this->recalculateTotal($booking);
@@ -279,17 +288,31 @@ class BookingController extends Controller
     private function recalculateTotal(Booking $booking): void
     {
         $vehicle = $booking->vehicle()->firstOrFail();
-        $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees', 'extension_fees'])->sum(fn ($fee) => (float) $booking->{$fee});
-        $reservationFee = (float) ($vehicle->reservation_fee ?? 0);
+        $fleetSettings = FleetSetting::findOrFail(1);
+        $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees'])->sum(fn ($fee) => (float) $booking->{$fee});
+        $reservationFee = (float) $fleetSettings->reservation_fee;
         $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $booking->deposit ?? $vehicle->deposit ?? 0);
-        $booking->update(['total_amount' => max(0, (float) $booking->rental_amount + (float) $booking->additional_charges + $fees + $reservationFee + $securityDeposit - (float) $booking->discount)]);
+        $booking->update(['total_amount' => max(0, $this->totalBeforeDiscount((float) $booking->rental_amount, $reservationFee, $securityDeposit, (float) $booking->additional_charges, $fees, (float) $booking->extension_fees, $fleetSettings) - (float) $booking->discount)]);
     }
 
-    private function rentalDays(Carbon|string $pickupAt, Carbon|string $returnAt): int
+    private function totalBeforeDiscount(float $rental, float $reservationFee, float $securityDeposit, float $additionalCharges, float $fees, float $extensionFees, FleetSetting $settings): float
+    {
+        return $rental + $additionalCharges + $fees + $extensionFees + $securityDeposit + ($settings->reservation_fee_deductible ? 0 : $reservationFee);
+    }
+
+    private function rentalBreakdown(Carbon|string $pickupAt, Carbon|string $returnAt, Vehicle $vehicle): array
     {
         $pickupAt = $pickupAt instanceof Carbon ? $pickupAt : Carbon::parse($pickupAt);
         $returnAt = $returnAt instanceof Carbon ? $returnAt : Carbon::parse($returnAt);
+        $minutes = $pickupAt->diffInMinutes($returnAt);
+        $days = intdiv($minutes, 24 * 60);
+        $settings = FleetSetting::findOrFail(1);
+        $remainingMinutes = $minutes % (24 * 60);
+        $billableMinutes = max(0, $remainingMinutes - (int) $settings->late_return_grace_period_minutes);
+        $remainingHours = (int) ceil($billableMinutes / 60);
+        $hourlyRate = (float) ($vehicle->hour_extension_rate ?? $settings->default_hour_extension_rate);
+        $extension = $remainingHours === 0 ? 0 : ($remainingHours >= $settings->full_day_extension_threshold_hours ? (float) $vehicle->daily_rate : $remainingHours * $hourlyRate);
 
-        return max(1, (int) ceil($pickupAt->diffInMinutes($returnAt) / (24 * 60)));
+        return ['rental' => max(1, $days) * (float) $vehicle->daily_rate, 'extension' => $extension];
     }
 }
