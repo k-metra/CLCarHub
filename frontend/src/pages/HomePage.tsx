@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
+import { DateTimePicker } from "../components/DateTimePicker";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 
 const vehicles = [
@@ -33,6 +34,8 @@ const vehicles = [
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [location, setLocation] = useState("Cebu City");
+  const [pickupDate, setPickupDate] = useState("2026-10-02");
+  const [returnDate, setReturnDate] = useState("2026-10-05");
   const [searched, setSearched] = useState(false);
   const { user, loading } = useAuth();
   const signOut = useSignOut();
@@ -183,22 +186,14 @@ export default function HomePage() {
               <small className="ml-2 block text-[9px] text-[#777]">
                 PICK-UP DATE
               </small>
-              <input
-                className="mt-1 w-full bg-transparent text-sm text-white"
-                type="date"
-                defaultValue="2026-10-02"
-              />
+              <DateTimePicker value={pickupDate} onChange={setPickupDate} className="mt-1 w-full border-0 !bg-transparent text-sm text-white" />
             </label>
             <label className="text-[#ff641f]">
               ▣
               <small className="ml-2 block text-[9px] text-[#777]">
                 RETURN DATE
               </small>
-              <input
-                className="mt-1 w-full bg-transparent text-sm text-white"
-                type="date"
-                defaultValue="2026-10-05"
-              />
+              <DateTimePicker value={returnDate} onChange={setReturnDate} className="mt-1 w-full border-0 !bg-transparent text-sm text-white" />
             </label>
             <Button
               onClick={() => {
