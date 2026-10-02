@@ -68,3 +68,17 @@ self.addEventListener("notificationclick", (event) => {
     }),
   );
 });
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  const data = event.data.json();
+  event.waitUntil(
+    self.registration.showNotification(data.title || "CL CarHub", {
+      body: data.body || "There is new activity in CL CarHub.",
+      tag: data.key,
+      data: { url: data.url || "/admin" },
+      icon: "/icon.jpg",
+      badge: "/icon.jpg",
+    }),
+  );
+});
