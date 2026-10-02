@@ -11,6 +11,7 @@ type CustomerProfile = Profile & { phone?: string | null; attachments?: Customer
 type Category = "license" | "secondary_id" | "ltms";
 
 const categories: Array<[Category, string, number]> = [["license", "Physical driver's license (front & back)", 2], ["secondary_id", "Secondary ID", 1], ["ltms", "LTMS portal photos", 1]];
+const maxUploadBytes = 20 * 1024 * 1024;
 
 export default function ProfilePage() {
   const { user, loading, updateUser } = useAuth();
@@ -52,6 +53,10 @@ export default function ProfilePage() {
   };
   const upload = async (category: Category, selected: FileList | null, limit: number) => {
     if (!customer || !selected?.length) return;
+    if (Array.from(selected).some(file => file.size > maxUploadBytes)) {
+      showToast("One or more files are too large. Please choose files smaller than 20 MB each.", "error");
+      return;
+    }
     const existing = customer.attachments?.filter(item => item.category === category).length ?? 0;
     const payload = new FormData(); payload.append("_method", "PATCH"); payload.append("name", customer.name); payload.append("phone", customer.phone ?? ""); if (customer.email) payload.append("email", customer.email);
     Array.from(selected).slice(0, Math.max(0, limit - existing)).forEach((file, index) => { payload.append(`attachments[${index}][category]`, category); payload.append(`attachments[${index}][file]`, file); });
