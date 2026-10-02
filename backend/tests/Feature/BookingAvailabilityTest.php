@@ -114,7 +114,7 @@ class BookingAvailabilityTest extends TestCase
             ]);
         }
 
-        $this->getJson('/api/bookings?per_page=100')
+        $response = $this->getJson('/api/bookings?per_page=100')
             ->assertOk()
             ->assertJsonPath('data.0.reference', 'PENDING-CLOSE')
             ->assertJsonPath('data.1.reference', 'PENDING-FAR')
@@ -122,6 +122,7 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonPath('data.3.reference', 'COMPLETED')
             ->assertJsonPath('data.4.reference', 'REJECTED')
             ->assertJsonPath('data.5.reference', 'CANCELLED');
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
     }
 
     public function test_balance_is_derived_from_total_amount_and_payments(): void
