@@ -65,4 +65,56 @@ class CustomerBookingRequestTest extends TestCase
         $this->getJson('/api/customer/booking-requests')->assertOk()->assertJsonCount(1, 'data');
         $this->getJson("/api/customer/booking-requests/{$booking->id}")->assertNotFound();
     }
+
+    public function test_customer_booking_keeps_a_twenty_five_hour_rental_within_the_default_grace_period(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'car', 'plate_number' => 'CUS-789', 'daily_rate' => 2000, 'status' => 'available']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-05-10 09:00',
+            'return_at' => '2030-05-11 10:00',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated()
+            ->assertJsonPath('rental_amount', '2000.00')
+            ->assertJsonPath('extension_fees', '0.00')
+            ->assertJsonPath('total_amount', '2000.00');
+    }
+
+    public function test_customer_booking_applies_the_late_return_grace_period_before_billing_extension(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'car', 'plate_number' => 'CUS-790', 'daily_rate' => 2000, 'status' => 'available']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-06-10 09:00',
+            'return_at' => '2030-06-11 10:00',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated()
+            ->assertJsonPath('rental_amount', '2000.00')
+            ->assertJsonPath('extension_fees', '0.00')
+            ->assertJsonPath('total_amount', '2000.00');
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-07-10 09:00',
+            'return_at' => '2030-07-11 10:01',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated()
+            ->assertJsonPath('extension_fees', '200.00');
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-08-10 09:00',
+            'return_at' => '2030-08-11 11:01',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated()
+            ->assertJsonPath('extension_fees', '400.00');
+    }
 }
