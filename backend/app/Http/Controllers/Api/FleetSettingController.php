@@ -1,0 +1,36 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\FleetSetting;
+use Illuminate\Http\Request;
+
+class FleetSettingController extends Controller
+{
+    public function show()
+    {
+        return FleetSetting::firstOrCreate(['id' => 1], [
+            'reservation_fee' => 0,
+            'reservation_fee_deductible' => true,
+            'default_hour_extension_rate' => 200,
+            'full_day_extension_threshold_hours' => 12,
+            'late_return_grace_period_minutes' => 60,
+        ]);
+    }
+
+    public function update(Request $request)
+    {
+        $data = $request->validate([
+            'reservation_fee' => ['required', 'numeric', 'min:0'],
+            'reservation_fee_deductible' => ['required', 'boolean'],
+            'default_hour_extension_rate' => ['nullable', 'numeric', 'min:0'],
+            'full_day_extension_threshold_hours' => ['required', 'integer', 'min:1', 'max:23'],
+            'late_return_grace_period_minutes' => ['required', 'integer', 'min:0', 'max:1439'],
+        ]);
+
+        $settings = FleetSetting::updateOrCreate(['id' => 1], $data);
+
+        return $settings;
+    }
+}
