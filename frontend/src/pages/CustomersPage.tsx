@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AdminShell } from "../components/AdminShell";
+import { DateTimePicker } from "../components/DateTimePicker";
 import { ImageLightbox, RowActions, useToast } from "../components/Ui";
 import api from "../lib/api";
 import type { CustomerAttachment, Paginated } from "../types";
@@ -277,13 +278,17 @@ export default function CustomersPage() {
                 {fields.map(([key, label, type]) => (
                   <label className="text-xs text-[#777]" key={key}>
                     {label}
-                    <input
-                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
-                      type={type}
-                      required={key === "first_name" || key === "last_name" || key === "phone"}
-                      value={form[key] ?? ""}
-                      onChange={(event) => setField(key, event.target.value)}
-                    />
+                    {type === "date" ? (
+                      <DateTimePicker value={String(form[key] ?? "")} onChange={value => setField(key, value)} className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" />
+                    ) : (
+                      <input
+                        className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
+                        type={type}
+                        required={key === "first_name" || key === "last_name" || key === "phone"}
+                        value={form[key] ?? ""}
+                        onChange={(event) => setField(key, event.target.value)}
+                      />
+                    )}
                   </label>
                 ))}
                 <label className="text-xs text-[#777] md:col-span-2">
