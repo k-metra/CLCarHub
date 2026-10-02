@@ -96,7 +96,7 @@ class FundController extends Controller
 
     private function fundRules(): array
     {
-        return ['name' => ['required', 'string', 'max:100'], 'type' => ['required', 'in:cash,bank,e-wallet,other'], 'account_name' => ['nullable', 'string', 'max:255'], 'account_number' => ['nullable', 'string', 'max:100'], 'qr_code' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp,gif', 'max:5120'], 'opening_balance' => ['required', 'numeric', 'min:0'], 'notes' => ['nullable', 'string']];
+        return ['name' => ['required', 'string', 'max:100'], 'type' => ['required', 'in:cash,bank,e-wallet,other'], 'account_name' => ['nullable', 'string', 'max:255'], 'account_number' => ['nullable', 'string', 'max:100'], 'qr_code' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp,gif', 'max:20480'], 'opening_balance' => ['required', 'numeric', 'min:0'], 'notes' => ['nullable', 'string']];
     }
 
     private function storeQrCode(Request $request, array $data): array
