@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PushSubscriptionController;
+use App\Http\Controllers\Api\FleetSettingController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/push/config', [PushSubscriptionController::class, 'config']);
     Route::post('/push/subscriptions', [PushSubscriptionController::class, 'store']);
     Route::delete('/push/subscriptions', [PushSubscriptionController::class, 'destroy']);
+    Route::get('/fleet-settings', [FleetSettingController::class, 'show']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
@@ -39,7 +41,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/vehicles/{vehicle}/image', [VehicleController::class, 'uploadImage']);
         Route::post('/vehicles/{vehicle}/restore', [VehicleController::class, 'restore']);
         Route::apiResource('partners', PartnerController::class);
+        Route::put('/fleet-settings', [FleetSettingController::class, 'update']);
     });
+    Route::get('/customers/summary', [CustomerController::class, 'summary']);
     Route::apiResource('customers', CustomerController::class);
     Route::middleware(EnsureRole::class.':customer')->get('/customer/profile', [CustomerController::class, 'profile']);
     Route::get('/accounts', [AccountController::class, 'index']);
