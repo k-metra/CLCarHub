@@ -184,6 +184,28 @@ Laravel API sends `Cache-Control: no-store` headers so booking and dashboard
 responses cannot be served from browser or proxy caches. If Nginx adds custom
 cache rules, do not cache the `/api/` location.
 
+### Background push notifications
+
+The admin notification menu can subscribe the current browser or installed PWA
+to background push notifications. Generate VAPID keys once in the backend:
+
+```bash
+php artisan tinker
+```
+
+Then run:
+
+```php
+Minishlink\WebPush\VAPID::createVapidKeys();
+```
+
+Copy the returned `publicKey` and `privateKey` into
+`WEB_PUSH_PUBLIC_KEY` and `WEB_PUSH_PRIVATE_KEY` in `backend/.env`, then run
+`php artisan migrate --force` and `php artisan config:cache`. Push delivery is
+best-effort; in-app polling remains the source of truth. Users enable
+**Background push notifications** from the admin notification menu after
+granting browser notification permission.
+
 ## Create the first owner account
 
 After configuring the production `.env` and running migrations, create the first
