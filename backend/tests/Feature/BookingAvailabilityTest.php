@@ -91,6 +91,39 @@ class BookingAvailabilityTest extends TestCase
         $this->assertCount(2, Booking::all());
     }
 
+    public function test_booking_index_uses_status_priority_and_closest_departure_by_default(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        foreach ([
+            ['reference' => 'CANCELLED', 'status' => 'cancelled', 'pickup_at' => '2026-10-02 10:00'],
+            ['reference' => 'REJECTED', 'status' => 'rejected', 'pickup_at' => '2026-10-02 09:00'],
+            ['reference' => 'COMPLETED', 'status' => 'completed', 'pickup_at' => '2026-10-05 09:00'],
+            ['reference' => 'RESERVED-FAR', 'status' => 'reserved', 'pickup_at' => '2026-10-10 09:00'],
+            ['reference' => 'PENDING-FAR', 'status' => 'pending', 'pickup_at' => '2026-10-10 10:00'],
+            ['reference' => 'PENDING-CLOSE', 'status' => 'pending', 'pickup_at' => '2026-10-02 08:00'],
+        ] as $data) {
+            Booking::create([
+                ...$data,
+                'customer_id' => $customer->id,
+                'vehicle_id' => $vehicle->id,
+                'return_at' => date('Y-m-d H:i:s', strtotime($data['pickup_at'].' +1 day')),
+                'payment_status' => 'unpaid',
+                'rental_amount' => 2000,
+                'total_amount' => 2000,
+            ]);
+        }
+
+        $this->getJson('/api/bookings?per_page=100')
+            ->assertOk()
+            ->assertJsonPath('data.0.reference', 'PENDING-CLOSE')
+            ->assertJsonPath('data.1.reference', 'PENDING-FAR')
+            ->assertJsonPath('data.2.reference', 'RESERVED-FAR')
+            ->assertJsonPath('data.3.reference', 'COMPLETED')
+            ->assertJsonPath('data.4.reference', 'REJECTED')
+            ->assertJsonPath('data.5.reference', 'CANCELLED');
+    }
+
     public function test_balance_is_derived_from_total_amount_and_payments(): void
     {
         [$vehicle, $customer] = $this->authenticate();
