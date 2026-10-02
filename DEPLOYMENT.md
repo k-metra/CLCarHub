@@ -12,6 +12,19 @@
 
 The repository contains a Laravel API in `backend/` and a separately built React/Vite frontend in `frontend/`.
 
+Uploaded images are limited to 20 MB per file. The backend includes
+`backend/public/.user.ini` for PHP-FPM, with a 30 MB request allowance for
+multipart overhead and multiple files. If Nginx is configured with a request
+body limit, set it to at least 30 MB as well:
+
+```nginx
+client_max_body_size 30m;
+```
+
+Reload PHP-FPM and Nginx after changing these limits. The application returns
+a user-friendly 413 response when an upload exceeds the configured request
+size.
+
 ## MySQL setup
 
 Create a dedicated database and user. Do not use the MySQL `root` account from the application:
