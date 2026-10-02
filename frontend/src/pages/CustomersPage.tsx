@@ -3,7 +3,7 @@ import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { ImageLightbox, RowActions, useToast } from "../components/Ui";
 import api from "../lib/api";
-import type { CustomerAttachment, Paginated } from "../types";
+import type { BookingRecord, CustomerAttachment, Paginated } from "../types";
 
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
@@ -24,6 +24,12 @@ type Customer = {
   bookings_count?: number;
   outstanding_balance?: number;
   attachments?: CustomerAttachment[];
+  bookings?: BookingRecord[];
+};
+type CustomerSummary = {
+  total_customers: number;
+  top_customer: { id: number; name: string; bookings_count: number } | null;
+  total_receivable: number;
 };
 
 type AttachmentCategory =
@@ -32,7 +38,7 @@ type AttachmentCategory =
   | "proof_of_billing"
   | "secondary_id"
   | "selfie_license";
-type CustomerForm = Omit<Customer, "id" | "bookings_count" | "attachments"> & {
+type CustomerForm = Omit<Customer, "id" | "bookings_count" | "outstanding_balance" | "bookings" | "attachments"> & {
   attachments: Record<AttachmentCategory, File[]>;
 };
 const emptyAttachments = (): Record<AttachmentCategory, File[]> => ({
@@ -74,6 +80,10 @@ export default function CustomersPage() {
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [editing, setEditing] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [summary, setSummary] = useState<CustomerSummary>({ total_customers: 0, top_customer: null, total_receivable: 0 });
+  const [profile, setProfile] = useState<Customer | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
 
   const loadCustomers = useCallback(() => {
     setLoading(true);
@@ -92,6 +102,26 @@ export default function CustomersPage() {
     const timer = window.setTimeout(loadCustomers, 250);
     return () => window.clearTimeout(timer);
   }, [loadCustomers]);
+
+  useEffect(() => {
+    api.get<CustomerSummary>("/customers/summary")
+      .then(result => setSummary(result.data))
+      .catch(e => setError(e instanceof Error ? e.message : "Unable to load customer summary"));
+  }, []);
+
+  const openProfile = async (customer: Customer) => {
+    setProfileLoading(true);
+    setProfile(customer);
+    try {
+      const result = await api.get<Customer>(`/customers/${customer.id}`);
+      setProfile(result.data);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Unable to load customer profile", "error");
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -236,6 +266,23 @@ export default function CustomersPage() {
   return (
     <AdminShell title="Customer management">
       <div className="mt-8 border border-black/10 bg-white p-4 md:p-6">
+        <div className="mb-6 grid gap-4 md:grid-cols-3">
+          <section className="border border-black/10 bg-[#f8f7f5] p-5">
+            <p className="text-xs uppercase tracking-widest text-[#777]">Total customers</p>
+            <p className="mt-2 text-3xl font-semibold">{summary.total_customers.toLocaleString()}</p>
+            <p className="mt-1 text-xs text-[#777]">Registered in the system</p>
+          </section>
+          <section className="border border-black/10 bg-[#f8f7f5] p-5">
+            <p className="text-xs uppercase tracking-widest text-[#777]">Top customer</p>
+            <p className="mt-2 truncate text-xl font-semibold">{summary.top_customer?.name ?? "—"}</p>
+            <p className="mt-1 text-xs text-[#777]">{summary.top_customer ? `${summary.top_customer.bookings_count} booking${summary.top_customer.bookings_count === 1 ? "" : "s"}` : "No bookings yet"}</p>
+          </section>
+          <section className="border border-black/10 bg-[#f8f7f5] p-5">
+            <p className="text-xs uppercase tracking-widest text-[#777]">Total receivable</p>
+            <p className="mt-2 text-3xl font-semibold text-[#ff641f]">{money.format(summary.total_receivable)}</p>
+            <p className="mt-1 text-xs text-[#777]">Outstanding customer balances</p>
+          </section>
+        </div>
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm text-[#777]">
@@ -421,7 +468,7 @@ export default function CustomersPage() {
                     License: {customer.license_number || "—"}
                     {customer.license_expiry && ` · Expires ${new Date(customer.license_expiry).toLocaleDateString()}`}
                   </p>
-                  <div className="mt-4 flex justify-end text-sm"><RowActions actions={[{ label: "Edit", onClick: () => openEdit(customer) }, { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) }]} /></div>
+                  <div className="mt-4 flex justify-end text-sm"><RowActions actions={[{ label: "View Profile", onClick: () => void openProfile(customer) }, { label: "Edit", onClick: () => openEdit(customer) }, { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) }]} /></div>
                 </article>
               ))}
             </div>
@@ -469,13 +516,60 @@ export default function CustomersPage() {
                     </td>
                     <td className="py-4">{customer.bookings_count ?? 0}</td>
                     <td className="py-4 font-semibold text-amber-600">{money.format(customer.outstanding_balance ?? 0)}</td>
-                    <td className="py-4 text-right"><RowActions actions={[{ label: "Edit", onClick: () => openEdit(customer) }, { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) }]} /></td>
+                    <td className="py-4 text-right"><RowActions actions={[{ label: "View Profile", onClick: () => void openProfile(customer) }, { label: "Edit", onClick: () => openEdit(customer) }, { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) }]} /></td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {profile && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+            <section className="max-h-[90vh] w-full max-w-4xl overflow-y-auto bg-white p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-black/10 pb-5">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-[#ff641f]">Customer profile</p>
+                  <h2 className="mt-2 text-2xl font-semibold">{profile.name}</h2>
+                  <p className="mt-1 text-sm text-[#777]">{profile.email || "No email"} · {profile.phone || "No phone"}</p>
+                </div>
+                <button type="button" className="text-2xl text-[#777]" onClick={() => setProfile(null)}>×</button>
+              </div>
+              {profileLoading ? <div className="flex min-h-48 items-center justify-center text-sm text-[#777]">Loading profile...</div> : <>
+                <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                  <div><p className="text-xs uppercase text-[#888]">Address</p><p className="mt-1 text-sm">{profile.address || "—"}</p></div>
+                  <div><p className="text-xs uppercase text-[#888]">License</p><p className="mt-1 text-sm">{profile.license_number || "—"}</p></div>
+                  <div><p className="text-xs uppercase text-[#888]">Outstanding</p><p className="mt-1 font-semibold text-amber-600">{money.format(profile.outstanding_balance ?? profile.bookings?.reduce((sum, booking) => sum + (["cancelled", "rejected"].includes(booking.status) ? 0 : Number(booking.balance ?? 0)), 0) ?? 0)}</p></div>
+                </div>
+                <div className="mt-8">
+                  <h3 className="font-semibold">Booking history</h3>
+                  {profile.bookings?.length ? <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-black/10 text-xs uppercase text-[#888]"><tr><th className="py-3 pr-4">Reference</th><th className="py-3 pr-4">Vehicle</th><th className="py-3 pr-4">Pickup</th><th className="py-3 pr-4">Status</th><th className="py-3 text-right">Balance</th></tr></thead><tbody>{profile.bookings.map(booking => <tr className="cursor-pointer border-b border-black/[.06] hover:bg-[#fff7f3]" key={booking.id} tabIndex={0} onClick={() => setSelectedBooking(booking)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedBooking(booking); } }}><td className="py-3 pr-4 font-semibold">{booking.reference}</td><td className="py-3 pr-4">{booking.vehicle?.name || `${booking.vehicle?.brand ?? ""} ${booking.vehicle?.model ?? ""}` || "—"}</td><td className="py-3 pr-4 text-[#777]">{new Date(booking.pickup_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</td><td className="py-3 pr-4 capitalize">{booking.status.replaceAll("_", " ")}</td><td className="py-3 text-right font-semibold">{money.format(Number(booking.balance ?? 0))}</td></tr>)}</tbody></table></div> : <p className="mt-3 text-sm text-[#777]">No booking history.</p>}
+                </div>
+                <div className="mt-8">
+                  <h3 className="font-semibold">Submitted requirements</h3>
+                  {profile.attachments?.length ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{profile.attachments.map(attachment => <ImageLightbox key={attachment.id} src={attachment.url} alt={attachment.category.replaceAll("_", " ")} />)}</div> : <p className="mt-3 text-sm text-[#777]">No requirements submitted.</p>}
+                </div>
+              </>}
+            </section>
+          </div>
+        )}
+        {selectedBooking && profile && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/60 p-4">
+            <section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto bg-white p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-black/10 pb-5">
+                <div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Booking details</p><h2 className="mt-2 text-2xl font-semibold">{selectedBooking.reference}</h2><p className="mt-1 capitalize text-sm text-[#777]">{selectedBooking.status.replaceAll("_", " ")}</p></div>
+                <button type="button" className="text-2xl text-[#777]" onClick={() => setSelectedBooking(null)}>×</button>
+              </div>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <div><p className="text-xs uppercase text-[#888]">Vehicle</p><p className="mt-1 font-semibold">{selectedBooking.vehicle?.name || `${selectedBooking.vehicle?.brand ?? ""} ${selectedBooking.vehicle?.model ?? ""}` || "—"}</p><p className="text-sm text-[#777]">{selectedBooking.vehicle?.plate_number || "—"}</p></div>
+                <div><p className="text-xs uppercase text-[#888]">Customer</p><p className="mt-1 font-semibold">{profile.name}</p><p className="text-sm text-[#777]">{profile.email || profile.phone || "—"}</p></div>
+                <div><p className="text-xs uppercase text-[#888]">Pickup</p><p className="mt-1 text-sm">{new Date(selectedBooking.pickup_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</p><p className="text-xs text-[#777]">{selectedBooking.delivery_address || selectedBooking.destination || "No destination"}</p></div>
+                <div><p className="text-xs uppercase text-[#888]">Return</p><p className="mt-1 text-sm">{new Date(selectedBooking.return_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</p><p className="text-xs text-[#777]">{selectedBooking.return_address || "No return address"}</p></div>
+              </div>
+              <div className="mt-8 border-t border-black/10 pt-5"><h3 className="font-semibold">Charges</h3><div className="mt-3 grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-[#888]">Rental fees</p><p className="font-semibold">{money.format(Number(selectedBooking.rental_amount ?? 0))}</p></div><div><p className="text-xs text-[#888]">Extension fees</p><p className="font-semibold">{money.format(Number(selectedBooking.extension_fees ?? 0))}</p></div><div><p className="text-xs text-[#888]">Additional charges</p><p className="font-semibold">{money.format(Number(selectedBooking.additional_charges ?? 0))}</p></div><div><p className="text-xs text-[#888]">Security deposit</p><p className="font-semibold">{money.format(Number(selectedBooking.deposit ?? selectedBooking.vehicle?.security_deposit_fee ?? 0))}</p></div><div><p className="text-xs text-[#888]">Total</p><p className="font-semibold">{money.format(Number(selectedBooking.total_amount ?? 0))}</p></div><div><p className="text-xs text-[#888]">Outstanding balance</p><p className="font-semibold text-amber-600">{money.format(Number(selectedBooking.balance ?? 0))}</p></div></div></div>
+              <div className="mt-8 border-t border-black/10 pt-5"><h3 className="font-semibold">Submitted requirements</h3>{profile.attachments?.length ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{profile.attachments.map(attachment => <ImageLightbox key={attachment.id} src={attachment.url} alt={attachment.category.replaceAll("_", " ")} />)}</div> : <p className="mt-3 text-sm text-[#777]">No requirements submitted.</p>}</div>
+            </section>
+          </div>
+        )}
       </div>
     </AdminShell>
   );
