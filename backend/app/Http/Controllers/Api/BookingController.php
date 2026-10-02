@@ -101,7 +101,26 @@ class BookingController extends Controller
                 };
             });
 
-        return $query->orderBy('pickup_at', $request->input('sort') === 'oldest' ? 'asc' : 'desc')->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
+        $sort = $request->input('sort', 'priority');
+        if (in_array($sort, ['latest', 'oldest'], true)) {
+            return $query
+                ->orderBy('pickup_at', $sort === 'oldest' ? 'asc' : 'desc')
+                ->orderBy('id', 'desc')
+                ->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
+        }
+
+        return $query
+            ->orderByRaw("CASE
+                WHEN status = 'pending' THEN 0
+                WHEN status IN ('reserved', 'confirmed', 'awaiting_payment', 'paid', 'active') THEN 1
+                WHEN status = 'completed' THEN 2
+                WHEN status = 'rejected' THEN 3
+                WHEN status = 'cancelled' THEN 4
+                ELSE 1
+            END")
+            ->orderBy('pickup_at', 'asc')
+            ->orderBy('id', 'asc')
+            ->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
     }
 
     public function store(Request $request)
