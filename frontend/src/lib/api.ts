@@ -5,6 +5,8 @@ const api = axios.create({
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache, no-store',
+    Pragma: 'no-cache',
   },
 })
 
