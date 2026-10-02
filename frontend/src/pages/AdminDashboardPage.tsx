@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import api from "../lib/api";
 import { AdminShell } from "../components/AdminShell";
+import { DateTimePicker } from "../components/DateTimePicker";
 import { Skeleton } from "../components/Ui";
 import { displayName, useAuth } from "../lib/AuthContext";
 import type { BookingRecord, VehicleRecord } from "../types";
@@ -92,7 +93,7 @@ export default function AdminDashboardPage() {
         <h3 className="font-semibold">Car availability</h3>
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
           <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select value={availabilityType} onChange={event => setAvailabilityType(event.target.value as "car" | "motorcycle")} className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm"><option value="car">Car</option><option value="motorcycle">Motorcycle</option></select></label>
-          <label className="flex-1 text-xs font-semibold text-[#555]">Date & time<input type="datetime-local" value={availabilityDate} onChange={event => setAvailabilityDate(event.target.value)} className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" /></label>
+          <label className="flex-1 text-xs font-semibold text-[#555]">Date & time<DateTimePicker mode="datetime" value={availabilityDate} onChange={setAvailabilityDate} className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" /></label>
           <button type="button" onClick={checkAvailability} disabled={availabilityLoading} className="bg-[#ff641f] px-5 py-3 text-center text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{availabilityLoading ? "Checking..." : "Check availability"}</button>
         </div>
         {availabilityError && <p className="mt-3 text-sm text-red-600">{availabilityError}</p>}
