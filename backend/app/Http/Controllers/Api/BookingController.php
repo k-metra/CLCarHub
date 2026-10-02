@@ -9,6 +9,7 @@ use App\Models\FundTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use App\Services\PushNotificationService;
 
 class BookingController extends Controller
 {
@@ -73,6 +74,12 @@ class BookingController extends Controller
                 'total_amount' => $rental + $reservationFee + $securityDeposit,
                 'created_by' => $request->user()->id,
             ]);
+            app(PushNotificationService::class)->sendToAdmins(
+                'New booking',
+                "{$customer->name} submitted {$booking->reference}.",
+                "/admin/bookings?booking={$booking->id}",
+                "booking-created-{$booking->id}",
+            );
 
             return response()->json($booking->load(['vehicle.images']), 201);
         });
@@ -141,6 +148,14 @@ class BookingController extends Controller
             $total = $rental + (float) ($data['additional_charges'] ?? 0) + $fees + $reservationFee + $securityDeposit - (float) ($data['discount'] ?? 0);
             $booking = Booking::create([...$data, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
             $this->syncPayments($booking, $payments);
+            $booking->load('customer');
+            $customerName = $booking->customer?->name ?? 'A customer';
+            app(PushNotificationService::class)->sendToAdmins(
+                'New booking',
+                "{$customerName} submitted {$booking->reference}.",
+                "/admin/bookings?booking={$booking->id}",
+                "booking-created-{$booking->id}",
+            );
 
             return response()->json($booking->load(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user']), 201);
         });
@@ -191,6 +206,15 @@ class BookingController extends Controller
         $booking->save();
         $this->recalculateTotal($booking);
         if ($payments !== null) $this->syncPayments($booking, $payments);
+        if ($oldStatus !== $booking->status) {
+            $booking->load('customer');
+            app(PushNotificationService::class)->sendToAdmins(
+                "Booking {$booking->status}",
+                "{$booking->reference} was marked {$booking->status}.",
+                "/admin/bookings?booking={$booking->id}",
+                "booking-{$booking->status}-{$booking->id}",
+            );
+        }
 
         return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user']);
     }
