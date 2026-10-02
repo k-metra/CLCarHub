@@ -5,7 +5,7 @@
   "start_url": "/admin",
   "display": "standalone",
   "background_color": "#ff641f",
-  "theme_color": "#111111",
+  "theme_color": "#ff641f",
   "icons": [
     {
       "src": "/clcarhublogo_upscaled.png",
