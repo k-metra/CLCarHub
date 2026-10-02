@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AdminShell } from "../components/AdminShell";
+import { DateTimePicker } from "../components/DateTimePicker";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";
 import type { VehicleRecord } from "../types";
@@ -78,8 +79,8 @@ export default function VehicleRevenueReportPage() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <input className="border border-black/10 bg-white px-3 py-2.5 text-sm lg:col-span-2" placeholder="Search vehicle, plate, partner, customer..." value={search} onChange={event => setSearch(event.target.value)} />
-        <input type="date" className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={from} onChange={event => setFrom(event.target.value)} />
-        <input type="date" className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={to} onChange={event => setTo(event.target.value)} />
+        <DateTimePicker value={from} onChange={setFrom} className="border border-black/10 bg-white px-3 py-2.5 text-sm" placeholder="From date" />
+        <DateTimePicker value={to} onChange={setTo} className="border border-black/10 bg-white px-3 py-2.5 text-sm" placeholder="To date" />
         <select className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={sort} onChange={event => setSort(event.target.value)}><option value="revenue_desc">Revenue: Highest</option><option value="revenue_asc">Revenue: Lowest</option><option value="collected_desc">Collected: Highest</option><option value="collected_asc">Collected: Lowest</option><option value="bookings_desc">Bookings: Most</option><option value="bookings_asc">Bookings: Fewest</option><option value="name_asc">Vehicle: A-Z</option></select>
         <select className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={status} onChange={event => setStatus(event.target.value)}><option value="">Active statuses</option><option value="confirmed">Confirmed</option><option value="awaiting_payment">Awaiting payment</option><option value="paid">Paid</option><option value="active">Active</option><option value="completed">Completed</option></select>
       </div>
