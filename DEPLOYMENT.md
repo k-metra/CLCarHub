@@ -179,6 +179,11 @@ If the API is hosted under the same domain, `/api/` must likewise be routed
 to Laravel rather than the frontend fallback. A separate API subdomain is
 often simpler to configure and maintain.
 
+The frontend service worker deliberately bypasses `/api/*` requests, and the
+Laravel API sends `Cache-Control: no-store` headers so booking and dashboard
+responses cannot be served from browser or proxy caches. If Nginx adds custom
+cache rules, do not cache the `/api/` location.
+
 ## Create the first owner account
 
 After configuring the production `.env` and running migrations, create the first
