@@ -12,6 +12,28 @@
 
 The repository contains a Laravel API in `backend/` and a separately built React/Vite frontend in `frontend/`.
 
+If Composer reports that `ext-curl` is missing on an Ubuntu/Debian server,
+install the cURL extension for the PHP version used by the server. For PHP
+8.4:
+
+```bash
+sudo apt update
+sudo apt install php8.4-curl
+sudo systemctl restart php8.4-fpm
+php -m | grep -i '^curl$'
+```
+
+The last command must print `curl`. If it does not, check `php --ini` and
+ensure the CLI PHP and PHP-FPM versions match. Then retry Composer from the
+backend directory:
+
+```bash
+composer install --no-dev --optimize-autoloader
+```
+
+Do not use `--ignore-platform-req=ext-curl` in production; Web Push requires
+the cURL extension to communicate with push services.
+
 Uploaded images are limited to 20 MB per file. The backend includes
 `backend/public/.user.ini` for PHP-FPM, with a 30 MB request allowance for
 multipart overhead and multiple files. If Nginx is configured with a request
@@ -190,14 +212,20 @@ The admin notification menu can subscribe the current browser or installed PWA
 to background push notifications. Generate VAPID keys once in the backend:
 
 ```bash
+composer install --no-dev --optimize-autoloader
 php artisan tinker
 ```
 
 Then run:
 
 ```php
-Minishlink\WebPush\VAPID::createVapidKeys();
+\Minishlink\WebPush\VAPID::createVapidKeys();
 ```
+
+If Tinker reports that the class cannot be found, run
+`composer dump-autoload --optimize` from `backend/` and retry. The
+`minishlink/web-push` dependency must be installed on the production server;
+deploy both `composer.json` and `composer.lock`.
 
 Copy the returned `publicKey` and `privateKey` into
 `WEB_PUSH_PUBLIC_KEY` and `WEB_PUSH_PRIVATE_KEY` in `backend/.env`, then run
