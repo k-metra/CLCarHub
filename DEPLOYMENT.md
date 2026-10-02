@@ -87,6 +87,10 @@ php artisan migrate --force
 php artisan storage:link
 ```
 
+The fleet settings migration creates the global reservation fee configuration
+and removes the old per-vehicle reservation fee column. Configure it after
+deployment from the admin sidebar under **Fleet Management → Fleet Settings**.
+
 `FILESYSTEM_DISK` should be `public` in the production `.env`:
 
 ```dotenv
