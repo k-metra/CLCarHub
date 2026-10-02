@@ -31,7 +31,6 @@ class ContractController extends Controller
             'options.release_of_liability' => ['sometimes', 'boolean'],
             'options.no_smoking' => ['sometimes', 'boolean'],
             'options.carwash_payment' => ['sometimes', 'numeric', 'min:0'],
-            'options.hour_extension_rate' => ['sometimes', 'numeric', 'min:0'],
         ]);
         $contract = Contract::create([...$data, 'created_by' => $request->user()?->id]);
 
@@ -53,7 +52,6 @@ class ContractController extends Controller
             'options.release_of_liability' => ['sometimes', 'boolean'],
             'options.no_smoking' => ['sometimes', 'boolean'],
             'options.carwash_payment' => ['sometimes', 'numeric', 'min:0'],
-            'options.hour_extension_rate' => ['sometimes', 'numeric', 'min:0'],
         ]);
         if (($data['status'] ?? null) === 'signed' && ! $contract->signed_at) {
             $data['signed_at'] = now();
