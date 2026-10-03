@@ -103,6 +103,7 @@ export default function FleetSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [searching, setSearching] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [mapCenter, setMapCenter] = useState(defaultMapCenter);
 
@@ -185,6 +186,69 @@ export default function FleetSettingsPage() {
 
   const handleMapClick = (latitude: number, longitude: number) => {
     pinLocation(latitude, longitude, "Pinned garage location", null);
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      showToast("Current location is not supported by this browser.", "error");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        const { latitude, longitude } = coords;
+        try {
+          const query = new URLSearchParams({
+            lat: String(latitude),
+            lon: String(longitude),
+            lang: "en",
+          });
+          const response = await fetch(`https://photon.komoot.io/reverse?${query.toString()}`, {
+            headers: { Accept: "application/json" },
+          });
+          if (!response.ok) throw new Error("Address lookup is temporarily unavailable.");
+          const data = await response.json() as {
+            features?: Array<{
+              properties?: {
+                name?: string;
+                street?: string;
+                housenumber?: string;
+                city?: string;
+                state?: string;
+                country?: string;
+              };
+            }>;
+          };
+          const properties = data.features?.[0]?.properties;
+          const name = properties?.name ?? "Current garage location";
+          const address = [
+            properties?.housenumber && properties.street
+              ? `${properties.housenumber} ${properties.street}`
+              : properties?.street,
+            properties?.city,
+            properties?.state,
+            properties?.country,
+          ].filter(Boolean).join(", ");
+          pinLocation(latitude, longitude, name, address || null);
+        } catch (error) {
+          pinLocation(latitude, longitude, "Current garage location", null);
+          showToast(error instanceof Error ? `${error.message} Coordinates were pinned.` : "Coordinates were pinned, but the address lookup failed.", "error");
+        } finally {
+          setLocating(false);
+        }
+      },
+      error => {
+        const message = error.code === error.PERMISSION_DENIED
+          ? "Location permission was denied. Allow location access and try again."
+          : error.code === error.TIMEOUT
+            ? "Location detection timed out. Try again."
+            : "Unable to determine your current location.";
+        showToast(message, "error");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    );
   };
 
   const persistSettings = async () => {
@@ -286,6 +350,14 @@ export default function FleetSettingsPage() {
               </button>
             </div>
           </form>
+          <button
+            type="button"
+            disabled={locating}
+            onClick={useCurrentLocation}
+            className="mt-3 border border-black/15 px-4 py-3 text-sm font-semibold text-[#151515] hover:bg-[#f8f7f5] disabled:opacity-50"
+          >
+            {locating ? "Detecting current location..." : "Use current location"}
+          </button>
           {searchResults.length > 0 && (
             <div className="mt-3 divide-y divide-black/10 border border-black/10" role="listbox" aria-label="Location search results">
               {searchResults.map(result => (
