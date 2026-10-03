@@ -17,6 +17,7 @@ import AccountsPage from "./pages/AccountsPage";
 import ContractBuilderPage from "./pages/ContractBuilderPage";
 import ProfilePage from "./pages/ProfilePage";
 import FleetSettingsPage from "./pages/FleetSettingsPage";
+import FleetGalleryPage from "./pages/FleetGalleryPage";
 import { AuthProvider } from "./lib/AuthContext";
 import { ToastProvider } from "./components/Ui";
 
@@ -27,6 +28,7 @@ export default function App() {
         <AuthProvider>
           <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/vehicles" element={<FleetGalleryPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
