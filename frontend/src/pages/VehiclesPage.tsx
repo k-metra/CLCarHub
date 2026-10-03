@@ -56,6 +56,7 @@ type VehicleForm = {
   daily_rate: string;
   hour_extension_rate: string;
   security_deposit_fee: string;
+  delivery_rate_per_km: string;
   status: string;
   partner_id: string;
   image: File | null;
@@ -75,6 +76,7 @@ const emptyForm: VehicleForm = {
   daily_rate: "",
   hour_extension_rate: "",
   security_deposit_fee: "",
+  delivery_rate_per_km: "",
   status: "available",
   partner_id: "",
   image: null,
@@ -91,6 +93,7 @@ const fields: Array<[keyof VehicleForm, string, string]> = [
   ["daily_rate", "Daily rate", "number"],
   ["hour_extension_rate", "Hourly extension rate (optional)", "number"],
   ["security_deposit_fee", "Security deposit fee (optional)", "number"],
+  ["delivery_rate_per_km", "Delivery rate per kilometer (optional)", "number"],
 ];
 
 export default function VehiclesPage() {
@@ -164,6 +167,7 @@ export default function VehiclesPage() {
       daily_rate: vehicle.daily_rate,
       hour_extension_rate: vehicle.hour_extension_rate ?? "",
       security_deposit_fee: vehicle.security_deposit_fee ?? "",
+      delivery_rate_per_km: vehicle.delivery_rate_per_km ?? "",
       status: vehicle.status,
       partner_id: vehicle.partner_id?.toString() ?? "",
     });
@@ -176,7 +180,7 @@ export default function VehiclesPage() {
     const payload = new FormData();
     Object.entries(form).forEach(([key, value]) => {
       if (editing && key === "image") return;
-      if (key === "partner_id") {
+      if (key === "partner_id" || key === "delivery_rate_per_km") {
         payload.append(key, value || "");
       } else if (value !== null && value !== "") {
         payload.append(key, value instanceof File ? value : value);
