@@ -7,7 +7,7 @@ import {
 } from "react";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
-import type { Paginated, PartnerRecord, VehicleRecord } from "../types";
+import { vehicleTypeLabels, vehicleTypes, type Paginated, type PartnerRecord, type VehicleRecord } from "../types";
 import { ImageLightbox, RowActions } from "../components/Ui";
 
 const apiOrigin = (
@@ -70,7 +70,7 @@ const emptyForm: VehicleForm = {
   color: "",
   plate_number: "",
   seats: "4",
-  type: "car",
+  type: "sedan",
   transmission: "automatic",
   fuel_type: "regular_unleaded",
   daily_rate: "",
@@ -266,8 +266,7 @@ export default function VehiclesPage() {
             onChange={(e) => setType(e.target.value)}
           >
             <option value="">All types</option>
-            <option value="car">Car</option>
-            <option value="motorcycle">Motorcycle</option>
+            {vehicleTypes.map((vehicleType) => <option key={vehicleType} value={vehicleType}>{vehicleTypeLabels[vehicleType]}</option>)}
           </select>
           <select
             className="border border-black/10 bg-[#f8f7f5] px-4 py-3 text-sm"
@@ -345,8 +344,7 @@ export default function VehiclesPage() {
                     value={form.type}
                     onChange={(e) => updateField("type", e.target.value)}
                   >
-                    <option value="car">Car</option>
-                    <option value="motorcycle">Motorcycle</option>
+                    {vehicleTypes.map((vehicleType) => <option key={vehicleType} value={vehicleType}>{vehicleTypeLabels[vehicleType]}</option>)}
                   </select>
                 </label>
                 <label className="text-xs text-[#777]">
