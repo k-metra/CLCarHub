@@ -10,6 +10,7 @@ use App\Models\FleetSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use App\Services\PushNotificationService;
 
 class BookingController extends Controller
@@ -41,6 +42,8 @@ class BookingController extends Controller
             'return_at' => ['required', 'date', 'after:pickup_at'],
             'destination' => ['nullable', 'string', 'max:255'],
             'delivery_address' => ['required_if:payment_method,cash_on_delivery', 'nullable', 'string', 'max:255'],
+            'delivery_latitude' => ['required_if:payment_method,cash_on_delivery', 'nullable', 'numeric', 'between:-90,90'],
+            'delivery_longitude' => ['required_if:payment_method,cash_on_delivery', 'nullable', 'numeric', 'between:-180,180'],
             'return_address' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
             'payment_method' => ['required', 'in:cash_on_pickup,cash_on_delivery'],
@@ -63,6 +66,7 @@ class BookingController extends Controller
             $fleetSettings = FleetSetting::findOrFail(1);
             $reservationFee = (float) $fleetSettings->reservation_fee;
             $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0);
+            $delivery = $this->deliveryBreakdown($data, $vehicle, $fleetSettings);
             $booking = Booking::create([
                 ...$data,
                 'customer_id' => $customer->id,
@@ -71,10 +75,11 @@ class BookingController extends Controller
                 'payment_status' => 'unpaid',
                 'rental_amount' => $rental,
                 'additional_charges' => 0,
+                ...$delivery,
                 'discount' => 0,
                 'deposit' => $securityDeposit,
                 'extension_fees' => $rentalBreakdown['extension'],
-                'total_amount' => $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, 0, 0, $rentalBreakdown['extension'], $fleetSettings),
+                'total_amount' => $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, 0, 0, $rentalBreakdown['extension'], (float) $delivery['delivery_fee'], $fleetSettings),
                 'created_by' => $request->user()->id,
             ]);
             app(PushNotificationService::class)->sendToAdmins(
@@ -150,7 +155,7 @@ class BookingController extends Controller
             $deposit = (float) ($data['deposit'] ?? $securityDeposit);
             $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees'])->sum(fn ($fee) => (float) ($data[$fee] ?? 0));
             $extensionFees = array_key_exists('extension_fees', $data) ? (float) $data['extension_fees'] : $rentalBreakdown['extension'];
-            $total = $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) ($data['additional_charges'] ?? 0), $fees, $extensionFees, $fleetSettings) - (float) ($data['discount'] ?? 0);
+            $total = $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) ($data['additional_charges'] ?? 0), $fees, $extensionFees, (float) ($data['delivery_fee'] ?? 0), $fleetSettings) - (float) ($data['discount'] ?? 0);
             $booking = Booking::create([...$data, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
             $this->syncPayments($booking, $payments);
             $booking->load('customer');
@@ -239,7 +244,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'return_address' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,reserved,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,reserved,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function authenticatedCustomer(Request $request)
@@ -292,12 +297,35 @@ class BookingController extends Controller
         $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees'])->sum(fn ($fee) => (float) $booking->{$fee});
         $reservationFee = (float) $fleetSettings->reservation_fee;
         $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $booking->deposit ?? $vehicle->deposit ?? 0);
-        $booking->update(['total_amount' => max(0, $this->totalBeforeDiscount((float) $booking->rental_amount, $reservationFee, $securityDeposit, (float) $booking->additional_charges, $fees, (float) $booking->extension_fees, $fleetSettings) - (float) $booking->discount)]);
+        $booking->update(['total_amount' => max(0, $this->totalBeforeDiscount((float) $booking->rental_amount, $reservationFee, $securityDeposit, (float) $booking->additional_charges, $fees, (float) $booking->extension_fees, (float) $booking->delivery_fee, $fleetSettings) - (float) $booking->discount)]);
     }
 
-    private function totalBeforeDiscount(float $rental, float $reservationFee, float $securityDeposit, float $additionalCharges, float $fees, float $extensionFees, FleetSetting $settings): float
+    private function totalBeforeDiscount(float $rental, float $reservationFee, float $securityDeposit, float $additionalCharges, float $fees, float $extensionFees, float $deliveryFee, FleetSetting $settings): float
     {
-        return $rental + $additionalCharges + $fees + $extensionFees + $securityDeposit + ($settings->reservation_fee_deductible ? 0 : $reservationFee);
+        return $rental + $additionalCharges + $fees + $extensionFees + $deliveryFee + $securityDeposit + ($settings->reservation_fee_deductible ? 0 : $reservationFee);
+    }
+
+    private function deliveryBreakdown(array $data, Vehicle $vehicle, FleetSetting $settings): array
+    {
+        if (($data['payment_method'] ?? null) !== 'cash_on_delivery') {
+            return ['delivery_distance_km' => null, 'delivery_rate_per_km' => null, 'delivery_fee' => 0, 'delivery_latitude' => null, 'delivery_longitude' => null];
+        }
+
+        $originLat = $settings->garage_location_latitude;
+        $originLon = $settings->garage_location_longitude;
+        abort_if($originLat === null || $originLon === null, 422, 'Delivery is not available because the garage location has not been configured.');
+
+        $latitude = (float) $data['delivery_latitude'];
+        $longitude = (float) $data['delivery_longitude'];
+        $route = Http::withOptions([
+            'verify' => env('ROUTING_CA_BUNDLE', true),
+        ])->timeout(8)->get("https://router.project-osrm.org/route/v1/driving/{$originLon},{$originLat};{$longitude},{$latitude}", ['overview' => 'false']);
+        abort_unless($route->successful() && $route->json('code') === 'Ok', 422, 'Unable to calculate the delivery distance. Please try another location.');
+
+        $distanceKm = round(((float) $route->json('routes.0.distance')) / 1000, 2);
+        $rate = (float) ($vehicle->delivery_rate_per_km ?? $settings->default_delivery_rate_per_km);
+
+        return ['delivery_distance_km' => $distanceKm, 'delivery_rate_per_km' => $rate, 'delivery_fee' => round($distanceKm * $rate, 2), 'delivery_latitude' => $latitude, 'delivery_longitude' => $longitude];
     }
 
     private function rentalBreakdown(Carbon|string $pickupAt, Carbon|string $returnAt, Vehicle $vehicle): array
