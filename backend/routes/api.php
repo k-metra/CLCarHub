@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\FleetSettingController;
+use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/push/subscriptions', [PushSubscriptionController::class, 'destroy']);
     Route::get('/fleet-settings', [FleetSettingController::class, 'show']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->get('/audit-logs', [AuditLogController::class, 'index']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
         Route::apiResource('vehicles', VehicleController::class)->except(['index', 'show']);
