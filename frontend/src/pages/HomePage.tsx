@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
@@ -20,9 +20,10 @@ const imageLabels: Record<string, string> = {
 
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [location, setLocation] = useState("Cebu City");
-  const [pickupDate, setPickupDate] = useState("2026-10-02");
-  const [returnDate, setReturnDate] = useState("2026-10-05");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [pickupDate, setPickupDate] = useState(() => searchParams.get("pickup_at") ?? "2026-10-02T09:00");
+  const [returnDate, setReturnDate] = useState(() => searchParams.get("return_at") ?? "2026-10-05T09:00");
+  const [availabilityError, setAvailabilityError] = useState("");
   const [searched, setSearched] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(true);
@@ -51,11 +52,28 @@ export default function HomePage() {
   };
   const rentVehicle = (vehicle: VehicleRecord) => {
     setSelectedVehicle(null);
+    const schedule = new URLSearchParams({ vehicle_id: String(vehicle.id), pickup_at: pickupDate, return_at: returnDate });
     if (user?.role === "customer") {
-      navigate(`/account?tab=request&vehicle_id=${vehicle.id}`);
+      navigate(`/account?tab=request&${schedule}`);
       return;
     }
-    navigate(`/admin/login?register=1&vehicle_id=${vehicle.id}`);
+    navigate(`/admin/login?register=1&${schedule}`);
+  };
+  const checkAvailability = () => {
+    if (!pickupDate || !returnDate) {
+      setSearched(false);
+      setAvailabilityError("Select both a pickup and return date and time.");
+      return;
+    }
+    if (new Date(returnDate) <= new Date(pickupDate)) {
+      setSearched(false);
+      setAvailabilityError("Return must be later than pickup.");
+      return;
+    }
+    setAvailabilityError("");
+    setSearchParams({ pickup_at: pickupDate, return_at: returnDate });
+    setSearched(true);
+    window.setTimeout(scrollToFleet, 0);
   };
   const scrollToFleet = () => {
     document.getElementById("fleet")?.scrollIntoView({ behavior: "smooth" });
@@ -186,45 +204,33 @@ export default function HomePage() {
           </div>
           <div className="grid flex-1 grid-cols-2 gap-[17px] md:grid-cols-4">
             <label className="text-[#ff641f]">
-              ⌖
+              ▣
               <small className="ml-2 block text-[9px] text-[#777]">
-                LOCATION
+                PICK-UP
               </small>
-              <select
-                className="mt-1 w-full bg-transparent text-sm text-white"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              >
-                <option>Cebu City</option>
-                <option>Mandaue City</option>
-              </select>
+              <DateTimePicker mode="datetime" value={pickupDate} onChange={setPickupDate} className="mt-1 w-full border-0 !bg-transparent text-sm text-white" />
             </label>
             <label className="text-[#ff641f]">
               ▣
               <small className="ml-2 block text-[9px] text-[#777]">
-                PICK-UP DATE
+                RETURN
               </small>
-              <DateTimePicker value={pickupDate} onChange={setPickupDate} className="mt-1 w-full border-0 !bg-transparent text-sm text-white" />
-            </label>
-            <label className="text-[#ff641f]">
-              ▣
-              <small className="ml-2 block text-[9px] text-[#777]">
-                RETURN DATE
-              </small>
-              <DateTimePicker value={returnDate} onChange={setReturnDate} className="mt-1 w-full border-0 !bg-transparent text-sm text-white" />
+              <DateTimePicker mode="datetime" value={returnDate} onChange={setReturnDate} className="mt-1 w-full border-0 !bg-transparent text-sm text-white" />
             </label>
             <Button
-              onClick={() => {
-                setSearched(true);
-                scrollToFleet();
-              }}
+              onClick={checkAvailability}
             >
               Check availability →
             </Button>
           </div>
           {searched && (
             <span className="absolute bottom-[-30px] text-xs text-[#ff9b73]">
-              Available rides found near {location}.
+              Showing vehicles for your selected schedule.
+            </span>
+          )}
+          {availabilityError && (
+            <span className="absolute bottom-[-30px] text-xs text-red-300">
+              {availabilityError}
             </span>
           )}
         </section>
