@@ -17,7 +17,7 @@ class BookingAvailabilityTest extends TestCase
     private function authenticate(): array
     {
         $owner = User::factory()->create(['role' => 'owner']);
-        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Corolla', 'type' => 'car', 'plate_number' => 'ABC-123', 'daily_rate' => 2000, 'status' => 'available']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Corolla', 'type' => 'sedan', 'plate_number' => 'ABC-123', 'daily_rate' => 2000, 'status' => 'available']);
         $customer = Customer::create(['name' => 'First Customer', 'phone' => '09170000000']);
         Sanctum::actingAs($owner);
 
