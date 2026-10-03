@@ -16,8 +16,11 @@ export default function AdminLoginPage() {
   const [username, setUsername] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [verified, setVerified] = useState(false);
+  const [vehicleId, setVehicleId] = useState("");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    setRegistering(params.get("register") === "1");
+    setVehicleId(params.get("vehicle_id") ?? "");
     if (params.get("verified") === "1") {
       setVerified(true);
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -47,7 +50,7 @@ export default function AdminLoginPage() {
         user: Parameters<typeof setSession>[1];
       }>("/auth/login", { email, password });
       setSession(data.token, data.user);
-      navigate(accountPath(data.user));
+      navigate(data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}` : accountPath(data.user));
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -170,6 +173,12 @@ export default function AdminLoginPage() {
             <span className="ml-3">→</span>
           </Button>
         </form>
+        <p className="mt-6 text-center text-sm text-[#888]">
+          Already have an account?{" "}
+          <button type="button" className="text-[#ff641f] underline hover:text-[#ff9b73]" onClick={() => { setRegistering(false); setError(""); }}>
+            Sign in
+          </button>
+        </p>
       </div>
     </div>
   );
