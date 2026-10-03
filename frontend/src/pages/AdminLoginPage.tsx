@@ -17,6 +17,7 @@ export default function AdminLoginPage() {
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [verified, setVerified] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
+  const [legalConsent, setLegalConsent] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setRegistering(params.get("register") === "1");
@@ -32,6 +33,10 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       if (registering) {
+        if (!legalConsent) {
+          setError("Please agree to the Terms and Conditions and Privacy Policy to create an account.");
+          return;
+        }
         await api.post("/auth/register", {
           username,
           email,
@@ -165,8 +170,25 @@ export default function AdminLoginPage() {
               />
             </label>
           )}
+          {registering && (
+            <label className="flex items-start gap-3 text-xs leading-5 text-[#aaa]">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 shrink-0 accent-[#ff641f]"
+                checked={legalConsent}
+                onChange={event => setLegalConsent(event.target.checked)}
+                required
+              />
+              <span>
+                I agree to the{" "}
+                <Link className="text-[#ff641f] underline hover:text-[#ff9b73]" to="/terms" target="_blank" rel="noreferrer">Terms and Conditions</Link>
+                {" "}and acknowledge that I have read the{" "}
+                <Link className="text-[#ff641f] underline hover:text-[#ff9b73]" to="/privacy" target="_blank" rel="noreferrer">Privacy Policy</Link>.
+              </span>
+            </label>
+          )}
           {error && <p className="text-xs text-[#ff8b68]">{error}</p>}
-          <Button>
+          <Button disabled={registering && !legalConsent}>
             {loading
               ? "Please wait..."
               : registering
