@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
+import PublicFooter from "../components/PublicFooter";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import api from "../lib/api";
@@ -339,9 +340,7 @@ export default function HomePage() {
           </Button>
         </section>
       </main>
-      <footer className="border-t border-white/[.08] py-10 text-center text-xs text-[#777]">
-        © 2026 CL CarHub. Better rides. Better journeys.
-      </footer>
+      <PublicFooter />
       {selectedVehicle && <VehicleProfileModal vehicle={selectedVehicle} selectedImage={selectedImage} onSelectImage={setSelectedImage} onRent={() => rentVehicle(selectedVehicle)} onClose={() => setSelectedVehicle(null)} />}
     </div>
   );
