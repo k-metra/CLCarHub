@@ -4,6 +4,7 @@ import { AdminShell } from "../components/AdminShell";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";
 import type { FleetSettings } from "../types";
+import RichTextEditor from "../components/RichTextEditor";
 
 const defaultMapCenter: [number, number] = [14.5995, 120.9842];
 const defaults: FleetSettings = {
@@ -17,6 +18,8 @@ const defaults: FleetSettings = {
   garage_location_address: null,
   garage_location_latitude: null,
   garage_location_longitude: null,
+  terms_and_conditions: null,
+  privacy_policy: null,
 };
 
 type SearchResult = {
@@ -37,6 +40,8 @@ const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   garage_location_address: value.garage_location_address ?? defaults.garage_location_address,
   garage_location_latitude: value.garage_location_latitude == null ? null : Number(value.garage_location_latitude),
   garage_location_longitude: value.garage_location_longitude == null ? null : Number(value.garage_location_longitude),
+  terms_and_conditions: value.terms_and_conditions ?? defaults.terms_and_conditions,
+  privacy_policy: value.privacy_policy ?? defaults.privacy_policy,
 });
 
 function GarageMap({
@@ -338,6 +343,36 @@ export default function FleetSettingsPage() {
               </div>
             </form>
           )}
+        </section>
+        <section className="border border-black/10 bg-white p-5 sm:p-8">
+          <p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p>
+          <h2 className="mt-2 text-2xl font-semibold">Legal pages</h2>
+          <p className="mt-2 text-sm text-[#777]">
+            Edit the content shown on the public Terms and conditions and Privacy policy pages. Plain text is preserved with line breaks.
+          </p>
+          <form className="mt-6 space-y-6" onSubmit={save}>
+            <label className="block text-sm font-semibold">
+              Terms and conditions
+              <RichTextEditor
+                value={settings.terms_and_conditions ?? ""}
+                onChange={value => setSettings(current => ({ ...current, terms_and_conditions: value }))}
+                placeholder="Enter your terms and conditions..."
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              Privacy policy
+              <RichTextEditor
+                value={settings.privacy_policy ?? ""}
+                onChange={value => setSettings(current => ({ ...current, privacy_policy: value }))}
+                placeholder="Enter your privacy policy..."
+              />
+            </label>
+            <div className="flex justify-end">
+              <button disabled={saving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
+                {saving ? "Saving..." : "Save legal content"}
+              </button>
+            </div>
+          </form>
         </section>
         <section className="border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Delivery origin</p>
