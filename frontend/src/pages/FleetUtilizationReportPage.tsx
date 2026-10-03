@@ -3,7 +3,7 @@ import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";
-import type { PartnerRecord, VehicleRecord } from "../types";
+import { vehicleTypeLabels, vehicleTypes, type PartnerRecord, type VehicleRecord } from "../types";
 
 type UtilizationRow = {
   vehicle: VehicleRecord;
@@ -89,7 +89,7 @@ export default function FleetUtilizationReportPage() {
         <input className="border border-black/10 bg-white px-3 py-2.5 text-sm lg:col-span-2" placeholder="Search vehicle, plate, or partner..." value={search} onChange={event => setSearch(event.target.value)} />
         <DateTimePicker value={from} onChange={setFrom} className="border border-black/10 bg-white px-3 py-2.5 text-sm" placeholder="From date" />
         <DateTimePicker value={to} onChange={setTo} className="border border-black/10 bg-white px-3 py-2.5 text-sm" placeholder="To date" />
-        <select className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={type} onChange={event => setType(event.target.value)}><option value="">All types</option><option value="car">Cars</option><option value="motorcycle">Motorcycles</option></select>
+        <select className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={type} onChange={event => setType(event.target.value)}><option value="">All types</option>{vehicleTypes.map(vehicleType => <option key={vehicleType} value={vehicleType}>{vehicleTypeLabels[vehicleType]}</option>)}</select>
         <select className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={partnerId} onChange={event => setPartnerId(event.target.value)}><option value="">All partners</option><option value="none">No partner</option>{data?.partners.map(partner => <option value={partner.id} key={partner.id}>{partner.name}</option>)}</select>
         <select className="border border-black/10 bg-white px-3 py-2.5 text-sm lg:col-span-2" value={sort} onChange={event => setSort(event.target.value)}><option value="utilization_desc">Utilization: Highest</option><option value="utilization_asc">Utilization: Lowest</option><option value="bookings_desc">Bookings: Most</option><option value="bookings_asc">Bookings: Fewest</option><option value="booked_days_desc">Booked days: Most</option><option value="booked_days_asc">Booked days: Fewest</option><option value="name_asc">Vehicle: A-Z</option></select>
       </div>
