@@ -79,9 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  if (loading) return <LoadingScreen label="Loading your workspace" />
-
-  return <AuthContext.Provider value={{ user, loading, setSession, updateUser, logout }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, loading, setSession, updateUser, logout }}>
+      {loading ? <LoadingScreen label="Loading your workspace" /> : children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
