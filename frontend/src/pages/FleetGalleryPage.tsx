@@ -4,6 +4,7 @@ import api from "../lib/api";
 import { VehicleProfileModal } from "./HomePage";
 import { vehicleTypeLabels, vehicleTypes, type VehicleImage, type VehicleRecord } from "../types";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
+import PublicFooter from "../components/PublicFooter";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 const thumbnailUrl = (vehicle: VehicleRecord) => {
@@ -66,6 +67,7 @@ export default function FleetGalleryPage() {
       </div>
       {!filtered.length && <p className="mt-8 border border-white/[.07] p-6 text-sm text-[#999]">No vehicles match your search or filter.</p>}
     </main>
+    <PublicFooter />
     {selected && <VehicleProfileModal vehicle={selected} selectedImage={selectedImage} onSelectImage={setSelectedImage} onRent={() => rent(selected)} onClose={() => setSelected(null)} />}
   </div>;
 }
