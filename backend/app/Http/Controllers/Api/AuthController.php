@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use App\Support\AuditLogger;
 
 class AuthController extends Controller
 {
@@ -18,6 +19,7 @@ class AuthController extends Controller
         abort_unless($user && $user->status === 'active' && Hash::check($data['password'], $user->password), 422, 'The provided credentials are incorrect.');
         abort_if($user->role === 'customer' && ! $user->hasVerifiedEmail(), 403, 'Please verify your email address before signing in.');
         $user->update(['last_login_at' => now()]);
+        AuditLogger::record('account', 'login', "User logged in: {$user->name}", $user, null, $request);
 
         return ['user' => $user, 'token' => $user->createToken($user->role.'-session')->plainTextToken];
     }
@@ -45,6 +47,7 @@ class AuthController extends Controller
             return $user;
         });
 
+        AuditLogger::record('account', 'registered', "Account registered: {$user->name}", $user, null, $request);
         $user->sendEmailVerificationNotification();
 
         return response()->json(['message' => 'Registration successful. Please verify your email before signing in.'], 201);
@@ -52,6 +55,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        AuditLogger::record('account', 'logout', "User logged out: {$request->user()->name}", $request->user(), null, $request);
         $request->user()->currentAccessToken()?->delete();
 
         return response()->noContent();
@@ -101,6 +105,7 @@ class AuthController extends Controller
             'password' => ['required', 'confirmed', 'min:8'],
         ]);
         $user->update(['password' => Hash::make($data['password'])]);
+        AuditLogger::record('account', 'password_changed', "Password changed: {$user->name}", $user, null, $request);
 
         return ['message' => 'Password changed successfully.'];
     }
