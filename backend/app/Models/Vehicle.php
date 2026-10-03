@@ -35,7 +35,7 @@ class Vehicle extends Model
 
     public function getCodingDayAttribute(): ?string
     {
-        if (strtolower($this->type) !== 'car' || $this->isElectricOrHybrid()) {
+        if (strtolower($this->type) !== 'sedan' || $this->isElectricOrHybrid()) {
             return null;
         }
 
