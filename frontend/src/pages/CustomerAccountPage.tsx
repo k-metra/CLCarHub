@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import L from "leaflet";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";
@@ -46,7 +46,8 @@ function DeliveryMap({ center, position, onPin }: { center: [number, number]; po
 
 export default function CustomerAccountPage() {
   const { user, loading } = useAuth(); const signOut = useSignOut(); const { showToast } = useToast();
-  const [tab, setTab] = useState<Tab>("overview"); const [step, setStep] = useState(1);
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => searchParams.get("tab") === "request" ? "request" : "overview"); const [step, setStep] = useState(1);
   const [bookings, setBookings] = useState<BookingRecord[]>([]); const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [fleetSettings, setFleetSettings] = useState<FleetSettings>({ reservation_fee: "0", reservation_fee_deductible: true, default_hour_extension_rate: "200", full_day_extension_threshold_hours: 12, late_return_grace_period_minutes: 60, default_delivery_rate_per_km: "0", garage_location_name: null, garage_location_address: null, garage_location_latitude: null, garage_location_longitude: null });
   const [month, setMonth] = useState(() => new Date()); const [loadingData, setLoadingData] = useState(true); const [submitting, setSubmitting] = useState(false); const [checking, setChecking] = useState(false);
@@ -87,6 +88,12 @@ export default function CustomerAccountPage() {
     // load is intentionally scoped to this page and refreshed when the signed-in user changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+  useEffect(() => {
+    const vehicleId = searchParams.get("vehicle_id");
+    if (!vehicleId || !vehicles.some(vehicle => String(vehicle.id) === vehicleId)) return;
+    setForm(current => ({ ...current, vehicle_id: vehicleId }));
+    setTab("request");
+  }, [searchParams, vehicles]);
 
   const upcoming = bookings.filter(booking => !["completed", "cancelled", "rejected"].includes(booking.status) && new Date(booking.return_at) >= new Date()).sort((a, b) => new Date(a.pickup_at).getTime() - new Date(b.pickup_at).getTime());
   const pending = bookings.filter(booking => booking.status === "pending"); const totalSpent = bookings.reduce((sum, booking) => sum + Number(booking.total_amount || 0), 0); const days = useMemo(() => calendarDays(month), [month]);
