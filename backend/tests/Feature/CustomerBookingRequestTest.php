@@ -18,7 +18,7 @@ class CustomerBookingRequestTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'customer']);
         $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
-        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'car', 'plate_number' => 'CUS-123', 'daily_rate' => 2000, 'status' => 'available']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-123', 'daily_rate' => 2000, 'status' => 'available']);
         Sanctum::actingAs($user);
 
         $response = $this->postJson('/api/customer/booking-requests', [
@@ -46,7 +46,7 @@ class CustomerBookingRequestTest extends TestCase
         $user = User::factory()->create(['role' => 'customer']);
         $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
         $otherCustomer = Customer::create(['name' => 'Other', 'phone' => '09170000001']);
-        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'car', 'plate_number' => 'CUS-456', 'daily_rate' => 2000, 'status' => 'available']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-456', 'daily_rate' => 2000, 'status' => 'available']);
         $booking = Booking::create([
             'reference' => 'CLCH-2030-000001', 'customer_id' => $otherCustomer->id, 'vehicle_id' => $vehicle->id,
             'pickup_at' => '2030-02-10 10:00', 'return_at' => '2030-02-11 10:00',
@@ -70,7 +70,7 @@ class CustomerBookingRequestTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'customer']);
         $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
-        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'car', 'plate_number' => 'CUS-789', 'daily_rate' => 2000, 'status' => 'available']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-789', 'daily_rate' => 2000, 'status' => 'available']);
         Sanctum::actingAs($user);
 
         $this->postJson('/api/customer/booking-requests', [
@@ -88,7 +88,7 @@ class CustomerBookingRequestTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'customer']);
         $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
-        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'car', 'plate_number' => 'CUS-790', 'daily_rate' => 2000, 'status' => 'available']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-790', 'daily_rate' => 2000, 'status' => 'available']);
         Sanctum::actingAs($user);
 
         $this->postJson('/api/customer/booking-requests', [
