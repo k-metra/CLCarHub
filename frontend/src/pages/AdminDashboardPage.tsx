@@ -5,7 +5,7 @@ import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { Skeleton } from "../components/Ui";
 import { displayName, useAuth } from "../lib/AuthContext";
-import type { BookingRecord, VehicleRecord } from "../types";
+import { vehicleTypeLabels, vehicleTypes, type BookingRecord, type VehicleRecord, type VehicleType } from "../types";
 
 type DashboardData = {
   year: number;
@@ -37,7 +37,7 @@ export default function AdminDashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
-  const [availabilityType, setAvailabilityType] = useState<"car" | "motorcycle">("car");
+  const [availabilityType, setAvailabilityType] = useState<VehicleType>("sedan");
   const [availabilityDate, setAvailabilityDate] = useState(() => new Date().toISOString().slice(0, 16));
   const [availableVehicles, setAvailableVehicles] = useState<VehicleRecord[]>([]);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
@@ -90,9 +90,9 @@ export default function AdminDashboardPage() {
       </div>
 
       <Card>
-        <h3 className="font-semibold">Car availability</h3>
+        <h3 className="font-semibold">Vehicle availability</h3>
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
-          <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select value={availabilityType} onChange={event => setAvailabilityType(event.target.value as "car" | "motorcycle")} className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm"><option value="car">Car</option><option value="motorcycle">Motorcycle</option></select></label>
+          <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select value={availabilityType} onChange={event => setAvailabilityType(event.target.value as VehicleType)} className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm">{vehicleTypes.map(vehicleType => <option key={vehicleType} value={vehicleType}>{vehicleTypeLabels[vehicleType]}</option>)}</select></label>
           <label className="flex-1 text-xs font-semibold text-[#555]">Date & time<DateTimePicker mode="datetime" value={availabilityDate} onChange={setAvailabilityDate} className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" /></label>
           <button type="button" onClick={checkAvailability} disabled={availabilityLoading} className="bg-[#ff641f] px-5 py-3 text-center text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{availabilityLoading ? "Checking..." : "Check availability"}</button>
         </div>
@@ -128,11 +128,11 @@ export default function AdminDashboardPage() {
   </AdminShell>;
 }
 
-function AvailabilityModal({ vehicles, type, date, onClose }: { vehicles: VehicleRecord[]; type: "car" | "motorcycle"; date: string; onClose: () => void }) {
+function AvailabilityModal({ vehicles, type, date, onClose }: { vehicles: VehicleRecord[]; type: VehicleType; date: string; onClose: () => void }) {
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="availability-title">
     <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded bg-[#1f2a3a] text-white shadow-2xl">
       <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-        <div><h2 id="availability-title" className="font-['Space_Grotesk'] text-xl font-semibold">Available {type === "car" ? "Car" : "Motorcycle"}{vehicles.length ? "" : "s"}</h2><p className="mt-1 text-sm text-slate-300">on {new Date(date).toLocaleString([], { dateStyle: "long", timeStyle: "short" })}</p></div>
+        <div><h2 id="availability-title" className="font-['Space_Grotesk'] text-xl font-semibold">Available {vehicleTypeLabels[type]}{vehicles.length ? "" : "s"}</h2><p className="mt-1 text-sm text-slate-300">on {new Date(date).toLocaleString([], { dateStyle: "long", timeStyle: "short" })}</p></div>
         <button type="button" onClick={onClose} className="text-2xl text-slate-300 hover:text-white" aria-label="Close availability results">×</button>
       </div>
       <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
