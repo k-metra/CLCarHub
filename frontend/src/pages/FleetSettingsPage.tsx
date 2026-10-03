@@ -1,10 +1,29 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import L from "leaflet";
 import { AdminShell } from "../components/AdminShell";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";
 import type { FleetSettings } from "../types";
 
-const defaults: FleetSettings = { reservation_fee: "0", reservation_fee_deductible: true, default_hour_extension_rate: "200", full_day_extension_threshold_hours: 12, late_return_grace_period_minutes: 60 };
+const defaultMapCenter: [number, number] = [14.5995, 120.9842];
+const defaults: FleetSettings = {
+  reservation_fee: "0",
+  reservation_fee_deductible: true,
+  default_hour_extension_rate: "200",
+  full_day_extension_threshold_hours: 12,
+  late_return_grace_period_minutes: 60,
+  garage_location_name: null,
+  garage_location_address: null,
+  garage_location_latitude: null,
+  garage_location_longitude: null,
+};
+
+type SearchResult = {
+  name: string;
+  displayName: string;
+  latitude: number;
+  longitude: number;
+};
 
 const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   reservation_fee: value.reservation_fee ?? defaults.reservation_fee,
@@ -12,23 +31,163 @@ const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   default_hour_extension_rate: value.default_hour_extension_rate === undefined ? defaults.default_hour_extension_rate : value.default_hour_extension_rate,
   full_day_extension_threshold_hours: value.full_day_extension_threshold_hours ?? defaults.full_day_extension_threshold_hours,
   late_return_grace_period_minutes: value.late_return_grace_period_minutes ?? defaults.late_return_grace_period_minutes,
+  garage_location_name: value.garage_location_name ?? defaults.garage_location_name,
+  garage_location_address: value.garage_location_address ?? defaults.garage_location_address,
+  garage_location_latitude: value.garage_location_latitude == null ? null : Number(value.garage_location_latitude),
+  garage_location_longitude: value.garage_location_longitude == null ? null : Number(value.garage_location_longitude),
 });
+
+function GarageMap({
+  center,
+  position,
+  onPin,
+}: {
+  center: [number, number];
+  position: [number, number] | null;
+  onPin: (latitude: number, longitude: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.CircleMarker | null>(null);
+  const initialCenterRef = useRef(center);
+  const onPinRef = useRef(onPin);
+
+  useEffect(() => {
+    onPinRef.current = onPin;
+  }, [onPin]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const map = L.map(containerRef.current, { scrollWheelZoom: true }).setView(initialCenterRef.current, 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    map.on("click", event => onPinRef.current(event.latlng.lat, event.latlng.lng));
+    mapRef.current = map;
+    window.setTimeout(() => map.invalidateSize(), 0);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setView(center, Math.max(map.getZoom(), 15));
+  }, [center]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    markerRef.current?.remove();
+    markerRef.current = position
+      ? L.circleMarker(position, {
+        radius: 10,
+        color: "#ff641f",
+        fillColor: "#ff641f",
+        fillOpacity: 0.85,
+      }).addTo(map)
+      : null;
+  }, [position]);
+
+  return <div ref={containerRef} className="h-80 w-full" />;
+}
 
 export default function FleetSettingsPage() {
   const { showToast } = useToast();
   const [settings, setSettings] = useState(defaults);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [mapCenter, setMapCenter] = useState(defaultMapCenter);
 
   useEffect(() => {
     api.get<FleetSettings>("/fleet-settings")
-      .then(response => setSettings(normalizeSettings(response.data)))
+      .then(response => {
+        const normalized = normalizeSettings(response.data);
+        setSettings(normalized);
+        if (normalized.garage_location_latitude !== null && normalized.garage_location_longitude !== null) {
+          setMapCenter([normalized.garage_location_latitude, normalized.garage_location_longitude]);
+        }
+      })
       .catch(error => showToast(error instanceof Error ? error.message : "Unable to load fleet settings", "error"))
       .finally(() => setLoading(false));
   }, [showToast]);
 
-  const save = async (event: FormEvent) => {
+  const pinLocation = (latitude: number, longitude: number, name: string | null, address: string | null) => {
+    setSettings(current => ({
+      ...current,
+      garage_location_name: name,
+      garage_location_address: address,
+      garage_location_latitude: latitude,
+      garage_location_longitude: longitude,
+    }));
+    setMapCenter([latitude, longitude]);
+    setSearchResults([]);
+  };
+
+  const findLocation = async (event: FormEvent) => {
     event.preventDefault();
+    if (!search.trim()) return;
+    setSearching(true);
+    try {
+      const query = new URLSearchParams({ q: search.trim(), limit: "8", lang: "en" });
+      const response = await fetch(`https://photon.komoot.io/api/?${query.toString()}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("Location search is temporarily unavailable.");
+      const data = await response.json() as {
+        features?: Array<{
+          geometry?: { coordinates?: [number, number] };
+          properties?: {
+            name?: string;
+            street?: string;
+            housenumber?: string;
+            city?: string;
+            state?: string;
+            country?: string;
+          };
+        }>;
+      };
+      const results: SearchResult[] = (data.features ?? []).flatMap(feature => {
+        const coordinates = feature.geometry?.coordinates;
+        if (!coordinates || coordinates.length < 2) return [];
+        const properties = feature.properties ?? {};
+        const name = properties.name ?? "Unnamed location";
+        const address = [
+          properties.housenumber && properties.street
+            ? `${properties.housenumber} ${properties.street}`
+            : properties.street,
+          properties.city,
+          properties.state,
+          properties.country,
+        ].filter(Boolean).join(", ");
+        return [{
+          name,
+          displayName: address ? `${name}, ${address}` : name,
+          latitude: coordinates[1],
+          longitude: coordinates[0],
+        }];
+      });
+      setSearchResults(results);
+      if (results.length === 0) showToast("No matching locations found.", "info");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to search for that location.", "error");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleMapClick = (latitude: number, longitude: number) => {
+    pinLocation(latitude, longitude, "Pinned garage location", null);
+  };
+
+  const persistSettings = async () => {
     setSaving(true);
     try {
       const response = await api.put<FleetSettings>("/fleet-settings", settings);
@@ -39,6 +198,11 @@ export default function FleetSettingsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    await persistSettings();
   };
 
   return (
@@ -100,6 +264,88 @@ export default function FleetSettingsPage() {
               </div>
             </form>
           )}
+        </section>
+        <section className="border border-black/10 bg-white p-5 sm:p-8">
+          <p className="text-xs uppercase tracking-widest text-[#ff641f]">Delivery origin</p>
+          <h2 className="mt-2 text-2xl font-semibold">Garage location</h2>
+          <p className="mt-2 text-sm text-[#777]">
+            Search for the garage, choose a result, or click the map to pin the exact location. This will be used as the starting point for future delivery bookings.
+          </p>
+          <form className="mt-6" onSubmit={findLocation}>
+            <label className="block text-sm font-semibold" htmlFor="garage-location-search">Search for a location</label>
+            <div className="mt-2 flex gap-2">
+              <input
+                id="garage-location-search"
+                className="min-w-0 flex-1 border border-black/10 px-3 py-3 text-sm"
+                placeholder="Search an address, landmark, or business"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+              />
+              <button type="submit" disabled={searching || !search.trim()} className="shrink-0 bg-[#151515] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+                {searching ? "Searching..." : "Search"}
+              </button>
+            </div>
+          </form>
+          {searchResults.length > 0 && (
+            <div className="mt-3 divide-y divide-black/10 border border-black/10" role="listbox" aria-label="Location search results">
+              {searchResults.map(result => (
+                <button
+                  type="button"
+                  className="block w-full px-3 py-3 text-left text-sm hover:bg-[#f8f7f5]"
+                  key={`${result.latitude}:${result.longitude}`}
+                  onClick={() => pinLocation(result.latitude, result.longitude, result.name, result.displayName)}
+                >
+                  {result.displayName}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="garage-map mt-4 overflow-hidden border border-black/10">
+            <GarageMap
+              center={mapCenter}
+              position={settings.garage_location_latitude !== null && settings.garage_location_longitude !== null
+                ? [settings.garage_location_latitude, settings.garage_location_longitude]
+                : null}
+              onPin={handleMapClick}
+            />
+          </div>
+          {settings.garage_location_latitude !== null && settings.garage_location_longitude !== null ? (
+            <div className="mt-4 flex items-start justify-between gap-4 border border-black/10 bg-[#f8f7f5] p-4 text-sm">
+              <div>
+                <p className="font-semibold">{settings.garage_location_name ?? "Pinned garage location"}</p>
+                <p className="mt-1 text-[#777]">{settings.garage_location_address ?? "Selected directly on the map"}</p>
+                <p className="mt-1 text-xs text-[#777]">
+                  {settings.garage_location_latitude.toFixed(7)}, {settings.garage_location_longitude.toFixed(7)}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-semibold text-red-600"
+                onClick={() => setSettings(current => ({
+                  ...current,
+                  garage_location_name: null,
+                  garage_location_address: null,
+                  garage_location_latitude: null,
+                  garage_location_longitude: null,
+                }))}
+              >
+                Clear
+              </button>
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-[#777]">No garage location pinned yet.</p>
+          )}
+          <div className="mt-5 flex justify-end">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void persistSettings()}
+              className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save garage location"}
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-[#777]">Map and place data © OpenStreetMap contributors. Search is provided by Photon.</p>
         </section>
         <section className="border border-dashed border-black/20 p-5 text-sm text-[#777]">
           <p className="font-semibold text-[#151515]">Future fleet settings</p>
