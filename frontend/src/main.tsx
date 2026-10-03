@@ -26,13 +26,26 @@ window.addEventListener("appinstalled", () => {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    let refreshing = false
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return
-      refreshing = true
-      window.location.reload()
+    if (import.meta.env.PROD) {
+      let refreshing = false
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return
+        refreshing = true
+        window.location.reload()
+      })
+      void navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(registration => registration.update())
+      return
+    }
+
+    void navigator.serviceWorker.getRegistrations().then(registrations => {
+      const unregisterTasks = registrations.map(registration => registration.unregister())
+      return Promise.all(unregisterTasks)
+    }).then(() => caches.keys()).then(cacheNames => {
+      const cacheTasks = cacheNames
+        .filter(cacheName => cacheName.startsWith('clcarhub-'))
+        .map(cacheName => caches.delete(cacheName))
+      return Promise.all(cacheTasks)
     })
-    void navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(registration => registration.update())
   })
 }
 
