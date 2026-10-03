@@ -1,35 +1,22 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
+import api from "../lib/api";
+import { vehicleTypeLabels, type VehicleImage, type VehicleRecord } from "../types";
 
-const vehicles = [
-  {
-    name: "Toyota Corolla Cross",
-    type: "SUV · Automatic",
-    price: "₱2,450",
-    image:
-      "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1000&q=85",
-    tags: ["5 seats", "Air conditioning"],
-  },
-  {
-    name: "Honda Civic RS",
-    type: "Sedan · Automatic",
-    price: "₱2,200",
-    image:
-      "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?auto=format&fit=crop&w=1000&q=85",
-    tags: ["5 seats", "Apple CarPlay"],
-  },
-  {
-    name: "Yamaha NMAX",
-    type: "Motorcycle · Automatic",
-    price: "₱850",
-    image:
-      "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=1000&q=85",
-    tags: ["2 seats", "Helmet included"],
-  },
-];
+const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
+const imageUrl = (vehicle: VehicleRecord) => {
+  const image = vehicle.images?.find((item) => item.image_type === "thumbnail");
+  if (!image) return null;
+  return imageUrlFromImage(image);
+};
+const imageUrlFromImage = (image: VehicleImage) => image.url.startsWith("http") ? image.url : `${apiOrigin}/storage/${image.url.replace(/^\/+/, "").replace(/^storage\//, "")}`;
+const imageLabels: Record<string, string> = {
+  thumbnail: "Thumbnail", front: "Front", back: "Back", left: "Left", right: "Right",
+  interior_back: "Interior Back", interior_front: "Interior Front", trunk: "Trunk",
+};
 
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -37,8 +24,39 @@ export default function HomePage() {
   const [pickupDate, setPickupDate] = useState("2026-10-02");
   const [returnDate, setReturnDate] = useState("2026-10-05");
   const [searched, setSearched] = useState(false);
+  const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(true);
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleRecord | null>(null);
+  const [selectedImage, setSelectedImage] = useState<VehicleImage | null>(null);
   const { user, loading } = useAuth();
   const signOut = useSignOut();
+  const navigate = useNavigate();
+  useEffect(() => {
+    api.get<VehicleRecord[]>("/vehicles/featured")
+      .then((response) => setVehicles(response.data))
+      .catch(() => setVehicles([]))
+      .finally(() => setVehiclesLoading(false));
+  }, []);
+  useEffect(() => {
+    if (!selectedVehicle) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedVehicle(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedVehicle]);
+  const openVehicleProfile = (vehicle: VehicleRecord) => {
+    setSelectedVehicle(vehicle);
+    setSelectedImage(null);
+  };
+  const rentVehicle = (vehicle: VehicleRecord) => {
+    setSelectedVehicle(null);
+    if (user?.role === "customer") {
+      navigate(`/account?tab=request&vehicle_id=${vehicle.id}`);
+      return;
+    }
+    navigate(`/admin/login?register=1&vehicle_id=${vehicle.id}`);
+  };
   const scrollToFleet = () => {
     document.getElementById("fleet")?.scrollIntoView({ behavior: "smooth" });
     setMenuOpen(false);
@@ -223,41 +241,40 @@ export default function HomePage() {
             </h2>
           </div>
           <div className="grid gap-[18px] md:grid-cols-3">
-            {vehicles.map((vehicle) => (
-              <article
-                className="border border-white/[.07] bg-[#151515]"
-                key={vehicle.name}
-              >
-                <img
-                  className="h-[240px] w-full object-cover saturate-[.7]"
-                  src={vehicle.image}
-                  alt={vehicle.name}
-                />
-                <div className="p-[22px]">
-                  <small className="text-[9px] uppercase tracking-[1.5px] text-[#ff641f]">
-                    {vehicle.type}
-                  </small>
-                  <h3 className="mt-2 font-['Space_Grotesk'] text-xl">
-                    {vehicle.name}
-                  </h3>
-                  <strong className="mt-4 block font-['Space_Grotesk'] text-lg">
-                    {vehicle.price}
-                    <i className="text-xs text-[#777]">/day</i>
-                  </strong>
-                  <div className="my-5 flex gap-2">
-                    {vehicle.tags.map((tag) => (
-                      <span
-                        className="border border-white/[.12] px-2 py-1.5 text-[10px] text-[#999]"
-                        key={tag}
-                      >
-                        {tag}
-                      </span>
-                    ))}
+            {vehiclesLoading ? Array.from({ length: 3 }, (_, index) => (
+              <div className="animate-pulse border border-white/[.07] bg-[#151515]" key={`vehicle-skeleton-${index}`} aria-hidden="true">
+                <div className="h-[240px] bg-white/[.06]" />
+                <div className="space-y-4 p-[22px]">
+                  <div className="h-3 w-2/5 bg-white/[.08]" />
+                  <div className="h-6 w-4/5 bg-white/[.08]" />
+                  <div className="h-6 w-1/3 bg-white/[.08]" />
+                  <div className="flex gap-2">
+                    <div className="h-6 w-16 bg-white/[.08]" />
+                    <div className="h-6 w-20 bg-white/[.08]" />
                   </div>
                 </div>
-              </article>
-            ))}
+              </div>
+            )) : vehicles.slice(0, 3).map((vehicle) => {
+              const image = imageUrl(vehicle);
+              return (
+                <button type="button" className="group cursor-pointer border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] focus:ring-offset-2 focus:ring-offset-[#0b0b0b]" key={vehicle.id} onClick={() => openVehicleProfile(vehicle)} aria-label={`View profile for ${vehicle.name || `${vehicle.brand} ${vehicle.model}`}`}>
+                  {image && <img className="h-[240px] w-full object-cover saturate-[.7]" src={image} alt={vehicle.name || `${vehicle.brand} ${vehicle.model}`} />}
+                  <div className="p-[22px]">
+                    <small className="text-[9px] uppercase tracking-[1.5px] text-[#ff641f]">{vehicleTypeLabels[vehicle.type]} · {vehicle.transmission}</small>
+                    <h3 className="mt-2 font-['Space_Grotesk'] text-xl">{vehicle.name || `${vehicle.brand} ${vehicle.model}`}</h3>
+                    <strong className="mt-4 block font-['Space_Grotesk'] text-lg">₱{Number(vehicle.daily_rate).toLocaleString()}<i className="text-xs text-[#777]">/day</i></strong>
+                    <div className="my-5 flex flex-wrap gap-2">
+                      <span className="border border-white/[.12] px-2 py-1.5 text-[10px] text-[#999]">{vehicle.seats} seats</span>
+                      {vehicle.mileage_limit !== null && vehicle.mileage_limit !== undefined && <span className="border border-white/[.12] px-2 py-1.5 text-[10px] text-[#999]">{vehicle.mileage_limit.toLocaleString()} km total</span>}
+                    </div>
+                    <span className="text-xs font-semibold text-[#ff641f] opacity-80 transition group-hover:opacity-100">View details <span aria-hidden="true">→</span></span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
+          {!vehiclesLoading && vehicles.length > 3 && <Link to="/vehicles" className="mx-auto mt-8 flex w-fit flex-col items-center gap-2 text-sm font-semibold text-[#ff641f] transition hover:text-[#ff9b73]"><span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#ff641f] text-xl">↓</span>See more vehicles</Link>}
+          {!vehiclesLoading && !vehicles.length && <p className="border border-white/[.07] p-6 text-sm text-[#999]">Our gallery is being refreshed. Check back soon for available vehicles.</p>}
         </section>
         <section
           className="border-y border-white/[.06] bg-[#151515] py-20"
@@ -319,6 +336,66 @@ export default function HomePage() {
       <footer className="border-t border-white/[.08] py-10 text-center text-xs text-[#777]">
         © 2026 CL CarHub. Better rides. Better journeys.
       </footer>
+      {selectedVehicle && <VehicleProfileModal vehicle={selectedVehicle} selectedImage={selectedImage} onSelectImage={setSelectedImage} onRent={() => rentVehicle(selectedVehicle)} onClose={() => setSelectedVehicle(null)} />}
     </div>
   );
+}
+
+export function VehicleProfileModal({
+  vehicle,
+  selectedImage,
+  onSelectImage,
+  onRent,
+  onClose,
+}: {
+  vehicle: VehicleRecord;
+  selectedImage: VehicleImage | null;
+  onSelectImage: (image: VehicleImage) => void;
+  onRent: () => void;
+  onClose: () => void;
+}) {
+  const gallery = vehicle.images?.filter((image) => image.image_type) ?? [];
+  const title = vehicle.name || `${vehicle.brand} ${vehicle.model}`;
+  const heroImage = selectedImage ?? gallery.find((image) => image.image_type === "thumbnail") ?? gallery[0];
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 sm:p-8" role="dialog" aria-modal="true" aria-label={`${title} profile`} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="mx-auto my-4 max-w-5xl border border-white/10 bg-[#111] text-[#f4f3f0] shadow-2xl sm:my-8">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-7">
+          <p className="text-xs font-bold uppercase tracking-[2px] text-[#ff641f]">Vehicle profile</p>
+          <button type="button" className="text-2xl leading-none text-[#aaa] hover:text-white" aria-label="Close vehicle profile" onClick={onClose}>×</button>
+        </div>
+        <div className="grid gap-0 lg:grid-cols-[1.15fr_.85fr]">
+          <section className="border-b border-white/10 p-5 sm:p-7 lg:border-b-0 lg:border-r">
+            <div className="flex h-[280px] items-center justify-center bg-[#191919] sm:h-[390px]">
+              {heroImage ? <img src={imageUrlFromImage(heroImage)} alt={imageLabels[heroImage.image_type ?? ""] ?? title} className="h-full w-full object-contain" /> : <span className="text-sm text-[#777]">No gallery image</span>}
+            </div>
+            <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
+              {gallery.map((image) => <button type="button" key={image.id} className={`overflow-hidden border-2 bg-[#191919] ${selectedImage?.id === image.id ? "border-[#ff641f]" : "border-transparent"}`} onClick={() => onSelectImage(image)}><img src={imageUrlFromImage(image)} alt={imageLabels[image.image_type ?? ""] ?? "Vehicle gallery image"} className="h-16 w-full object-cover" /></button>)}
+            </div>
+          </section>
+          <section className="p-5 sm:p-7">
+            <p className="text-xs uppercase tracking-[1.5px] text-[#ff641f]">{vehicleTypeLabels[vehicle.type]} · {vehicle.transmission}</p>
+            <h2 className="mt-3 font-['Space_Grotesk'] text-3xl font-semibold">{title}</h2>
+            <p className="mt-2 text-sm text-[#888]">{vehicle.brand} {vehicle.model} · {vehicle.year}</p>
+            <p className="mt-7 font-['Space_Grotesk'] text-3xl font-semibold">₱{Number(vehicle.daily_rate).toLocaleString()}<span className="text-sm font-normal text-[#888]"> / day</span></p>
+            <div className="mt-7 grid grid-cols-2 gap-x-4 gap-y-5 border-y border-white/10 py-6 text-sm">
+              <ProfileDetail label="Overall mileage limit" value={vehicle.mileage_limit == null ? "No limit listed" : `${vehicle.mileage_limit.toLocaleString()} km total`} />
+              <ProfileDetail label="Fuel type" value={vehicle.fuel_type.replaceAll("_", " ")} />
+              <ProfileDetail label="Plate number" value={vehicle.plate_number} />
+              <ProfileDetail label="Color" value={vehicle.color} />
+              <ProfileDetail label="Seats" value={String(vehicle.seats)} />
+              <ProfileDetail label="Status" value={vehicle.status} />
+            </div>
+            {vehicle.description && <p className="mt-6 text-sm leading-6 text-[#aaa]">{vehicle.description}</p>}
+            <button type="button" className="mt-8 w-full bg-[#ff641f] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#ff7b42]" onClick={onRent}>Rent this vehicle →</button>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileDetail({ label, value }: { label: string; value: string }) {
+  return <div><p className="text-[10px] uppercase tracking-wider text-[#777]">{label}</p><p className="mt-1 capitalize font-medium text-[#eee]">{value || "—"}</p></div>;
 }
