@@ -90,9 +90,16 @@ export default function CustomerAccountPage() {
   }, [user]);
   useEffect(() => {
     const vehicleId = searchParams.get("vehicle_id");
-    if (!vehicleId || !vehicles.some(vehicle => String(vehicle.id) === vehicleId)) return;
-    setForm(current => ({ ...current, vehicle_id: vehicleId }));
-    setTab("request");
+    const pickupAt = searchParams.get("pickup_at");
+    const returnAt = searchParams.get("return_at");
+    if (!vehicleId && !pickupAt && !returnAt) return;
+    setForm(current => ({
+      ...current,
+      ...(vehicleId && vehicles.some(vehicle => String(vehicle.id) === vehicleId) ? { vehicle_id: vehicleId } : {}),
+      ...(pickupAt ? { pickup_date: pickupAt.slice(0, 10), pickup_time: pickupAt.slice(11, 16) } : {}),
+      ...(returnAt ? { return_date: returnAt.slice(0, 10), return_time: returnAt.slice(11, 16) } : {}),
+    }));
+    if (vehicleId || pickupAt || returnAt) setTab("request");
   }, [searchParams, vehicles]);
 
   const upcoming = bookings.filter(booking => !["completed", "cancelled", "rejected"].includes(booking.status) && new Date(booking.return_at) >= new Date()).sort((a, b) => new Date(a.pickup_at).getTime() - new Date(b.pickup_at).getTime());
