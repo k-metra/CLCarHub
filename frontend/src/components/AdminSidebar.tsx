@@ -37,6 +37,7 @@ const sections: SidebarSection[] = [
       { label: "Partners", path: "/admin/partners", icon: "♧" },
       { label: "Vehicles", path: "/admin/vehicles", icon: "▱" },
       { label: "Fleet Settings", path: "/admin/fleet-settings", icon: "⚙" },
+      { label: "Audit Logs", path: "/admin/audit-logs", icon: "◉" },
     ],
   },
   {
