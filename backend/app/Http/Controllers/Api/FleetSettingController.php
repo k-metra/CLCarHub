@@ -8,6 +8,13 @@ use Illuminate\Http\Request;
 
 class FleetSettingController extends Controller
 {
+    public function legal()
+    {
+        $settings = FleetSetting::firstOrCreate(['id' => 1]);
+
+        return $settings->only(['terms_and_conditions', 'privacy_policy']);
+    }
+
     public function show()
     {
         return FleetSetting::firstOrCreate(['id' => 1], [
@@ -37,6 +44,8 @@ class FleetSettingController extends Controller
             'garage_location_address' => ['nullable', 'string', 'max:1000'],
             'garage_location_latitude' => ['nullable', 'numeric', 'between:-90,90', 'required_with:garage_location_longitude'],
             'garage_location_longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_with:garage_location_latitude'],
+            'terms_and_conditions' => ['nullable', 'string', 'max:1000000'],
+            'privacy_policy' => ['nullable', 'string', 'max:1000000'],
         ]);
 
         $settings = FleetSetting::updateOrCreate(['id' => 1], $data);
