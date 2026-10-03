@@ -50,7 +50,9 @@ export default function AdminLoginPage() {
         user: Parameters<typeof setSession>[1];
       }>("/auth/login", { email, password });
       setSession(data.token, data.user);
-      navigate(data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}` : accountPath(data.user));
+      const pickupAt = new URLSearchParams(window.location.search).get("pickup_at");
+      const returnAt = new URLSearchParams(window.location.search).get("return_at");
+      navigate(data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}&pickup_at=${encodeURIComponent(pickupAt ?? "")}&return_at=${encodeURIComponent(returnAt ?? "")}` : accountPath(data.user));
     } catch (requestError) {
       setError(
         requestError instanceof Error
