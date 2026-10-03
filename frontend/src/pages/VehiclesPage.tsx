@@ -7,7 +7,7 @@ import {
 } from "react";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
-import { vehicleTypeLabels, vehicleTypes, type Paginated, type PartnerRecord, type VehicleRecord } from "../types";
+import { vehicleTypeLabels, vehicleTypes, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";
 import { ImageLightbox, RowActions } from "../components/Ui";
 
 const apiOrigin = (
@@ -54,6 +54,7 @@ type VehicleForm = {
   transmission: string;
   fuel_type: string;
   daily_rate: string;
+  mileage_limit: string;
   hour_extension_rate: string;
   security_deposit_fee: string;
   delivery_rate_per_km: string;
@@ -61,6 +62,25 @@ type VehicleForm = {
   partner_id: string;
   image: File | null;
 };
+
+const galleryImageSlots = [
+  ["back", "Back"],
+  ["front", "Front"],
+  ["left", "Left"],
+  ["right", "Right"],
+  ["interior_back", "Interior Back"],
+  ["interior_front", "Interior Front"],
+  ["trunk", "Trunk"],
+  ["thumbnail", "Thumbnail (for marketing)"],
+] as const;
+type GalleryImageType = (typeof galleryImageSlots)[number][0];
+type GalleryFiles = Record<GalleryImageType, File | null>;
+type GalleryUrls = Record<GalleryImageType, string | null>;
+
+const emptyGalleryFiles = (): GalleryFiles =>
+  Object.fromEntries(galleryImageSlots.map(([slot]) => [slot, null])) as GalleryFiles;
+const emptyGalleryUrls = (): GalleryUrls =>
+  Object.fromEntries(galleryImageSlots.map(([slot]) => [slot, null])) as GalleryUrls;
 
 const emptyForm: VehicleForm = {
   name: "",
@@ -74,6 +94,7 @@ const emptyForm: VehicleForm = {
   transmission: "automatic",
   fuel_type: "regular_unleaded",
   daily_rate: "",
+  mileage_limit: "",
   hour_extension_rate: "",
   security_deposit_fee: "",
   delivery_rate_per_km: "",
@@ -91,6 +112,7 @@ const fields: Array<[keyof VehicleForm, string, string]> = [
   ["plate_number", "Plate number", "text"],
   ["seats", "Seat count", "number"],
   ["daily_rate", "Daily rate", "number"],
+  ["mileage_limit", "Overall mileage limit (km, optional)", "number"],
   ["hour_extension_rate", "Hourly extension rate (optional)", "number"],
   ["security_deposit_fee", "Security deposit fee (optional)", "number"],
   ["delivery_rate_per_km", "Delivery rate per kilometer (optional)", "number"],
@@ -108,6 +130,9 @@ export default function VehiclesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"details" | "images">("details");
+  const [galleryFiles, setGalleryFiles] = useState<GalleryFiles>(emptyGalleryFiles);
+  const [galleryUrls, setGalleryUrls] = useState<GalleryUrls>(emptyGalleryUrls);
   const [form, setForm] = useState(emptyForm);
 
   const loadVehicles = useCallback(() => {
@@ -146,12 +171,29 @@ export default function VehiclesPage() {
   const openCreate = () => {
     setEditing(null);
     setCurrentImageUrl(null);
+    setActiveTab("details");
+    setGalleryFiles(emptyGalleryFiles());
+    setGalleryUrls(emptyGalleryUrls());
     setForm(emptyForm);
     setShowForm(true);
   };
   const openEdit = (vehicle: VehicleRecord) => {
     setEditing(vehicle.id);
-    setCurrentImageUrl(vehicle.images?.[0]?.url ?? null);
+    setCurrentImageUrl(
+      vehicle.images?.find((image) => !image.image_type)?.url ?? null,
+    );
+    setActiveTab("details");
+    setGalleryFiles(emptyGalleryFiles());
+    setGalleryUrls({
+      ...emptyGalleryUrls(),
+      ...Object.fromEntries(
+        (vehicle.images ?? [])
+          .filter((image): image is VehicleImage & { image_type: GalleryImageType } =>
+            galleryImageSlots.some(([slot]) => slot === image.image_type),
+          )
+          .map((image) => [image.image_type, resolveImageUrl(image.url)]),
+      ),
+    });
     setForm({
       ...emptyForm,
       name: vehicle.name ?? "",
@@ -165,6 +207,7 @@ export default function VehiclesPage() {
       transmission: vehicle.transmission ?? "automatic",
       fuel_type: vehicle.fuel_type ?? "regular_unleaded",
       daily_rate: vehicle.daily_rate,
+      mileage_limit: vehicle.mileage_limit?.toString() ?? "",
       hour_extension_rate: vehicle.hour_extension_rate ?? "",
       security_deposit_fee: vehicle.security_deposit_fee ?? "",
       delivery_rate_per_km: vehicle.delivery_rate_per_km ?? "",
@@ -172,6 +215,14 @@ export default function VehiclesPage() {
       partner_id: vehicle.partner_id?.toString() ?? "",
     });
     setShowForm(true);
+  };
+
+  const updateGalleryImage = (slot: GalleryImageType, file: File | null) => {
+    setGalleryFiles((current) => ({ ...current, [slot]: file }));
+    setGalleryUrls((current) => ({
+      ...current,
+      [slot]: file ? URL.createObjectURL(file) : null,
+    }));
   };
 
   const saveVehicle = async (event: FormEvent) => {
@@ -187,6 +238,7 @@ export default function VehiclesPage() {
       }
     });
     try {
+      let vehicleId = editing;
       if (editing) {
         payload.append("_method", "PUT");
         await api.post(`/vehicles/${editing}`, payload, {
@@ -200,13 +252,33 @@ export default function VehiclesPage() {
           });
         }
       } else {
-        await api.post("/vehicles", payload, {
+        const response = await api.post<VehicleRecord>("/vehicles", payload, {
           headers: { "Content-Type": "multipart/form-data" },
         });
+        vehicleId = response.data.id;
+      }
+      if (vehicleId) {
+        await Promise.all(
+          galleryImageSlots.map(async ([slot]) => {
+            const file = galleryFiles[slot];
+            if (file) {
+              const imagePayload = new FormData();
+              imagePayload.append("image", file);
+              imagePayload.append("image_type", slot);
+              await api.post(`/vehicles/${vehicleId}/gallery-image`, imagePayload, {
+                headers: { "Content-Type": "multipart/form-data" },
+              });
+            } else if (editing && !galleryUrls[slot]) {
+              await api.delete(`/vehicles/${vehicleId}/gallery-image/${slot}`);
+            }
+          }),
+        );
       }
       setShowForm(false);
       setEditing(null);
       setCurrentImageUrl(null);
+      setGalleryFiles(emptyGalleryFiles());
+      setGalleryUrls(emptyGalleryUrls());
       setForm(emptyForm);
       loadVehicles();
     } catch (e) {
@@ -303,7 +375,11 @@ export default function VehiclesPage() {
                   ×
                 </button>
               </div>
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="mt-6 flex border-b border-black/10">
+                <button type="button" className={`border-b-2 px-4 py-3 text-sm font-semibold ${activeTab === "details" ? "border-[#ff641f] text-[#151515]" : "border-transparent text-[#888]"}`} onClick={() => setActiveTab("details")}>Details</button>
+                <button type="button" className={`border-b-2 px-4 py-3 text-sm font-semibold ${activeTab === "images" ? "border-[#ff641f] text-[#151515]" : "border-transparent text-[#888]"}`} onClick={() => setActiveTab("images")}>Images</button>
+              </div>
+              {activeTab === "details" ? <div className="mt-6 grid gap-4 md:grid-cols-2">
                 <label className="text-xs text-[#777]">
                   Partner
                   <select
@@ -426,7 +502,16 @@ export default function VehiclesPage() {
                     </a>
                   </span>
                 </label>
-              </div>
+              </div> : <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <p className="text-xs text-[#777] sm:col-span-2">Optional vehicle gallery images. These are separate from the vehicle icon preview.</p>
+                {galleryImageSlots.map(([slot, label]) => (
+                  <label className="text-xs text-[#777]" key={slot}>
+                    {label}
+                    {galleryUrls[slot] && <div className="relative mt-2 h-36 overflow-hidden border border-black/10 bg-[#f8f7f5]"><img src={galleryUrls[slot] ?? ""} alt={`${label} preview`} className="h-full w-full object-contain" /><button type="button" className="absolute right-2 top-2 bg-white px-2 py-1 text-xs text-red-600 shadow" onClick={() => updateGalleryImage(slot, null)}>Remove</button></div>}
+                    <input className="mt-2 block w-full cursor-pointer border border-dashed border-black/20 px-3 py-4 text-sm" type="file" accept="image/*" onChange={(event) => updateGalleryImage(slot, event.target.files?.[0] ?? null)} />
+                  </label>
+                ))}
+              </div>}
               <div className="mt-6 flex justify-end gap-3">
                 <button
                   type="button"
@@ -466,7 +551,7 @@ export default function VehiclesPage() {
               ) : (
                 vehicles.map((vehicle) => {
                   const vehicleImage = resolveImageUrl(
-                    vehicle.images?.[0]?.url ?? null,
+                    vehicle.images?.find((image) => !image.image_type)?.url ?? null,
                   );
                   return (
                     <tr
