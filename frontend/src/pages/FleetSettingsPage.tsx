@@ -12,6 +12,7 @@ const defaults: FleetSettings = {
   default_hour_extension_rate: "200",
   full_day_extension_threshold_hours: 12,
   late_return_grace_period_minutes: 60,
+  default_delivery_rate_per_km: "0",
   garage_location_name: null,
   garage_location_address: null,
   garage_location_latitude: null,
@@ -31,6 +32,7 @@ const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   default_hour_extension_rate: value.default_hour_extension_rate === undefined ? defaults.default_hour_extension_rate : value.default_hour_extension_rate,
   full_day_extension_threshold_hours: value.full_day_extension_threshold_hours ?? defaults.full_day_extension_threshold_hours,
   late_return_grace_period_minutes: value.late_return_grace_period_minutes ?? defaults.late_return_grace_period_minutes,
+  default_delivery_rate_per_km: value.default_delivery_rate_per_km ?? defaults.default_delivery_rate_per_km,
   garage_location_name: value.garage_location_name ?? defaults.garage_location_name,
   garage_location_address: value.garage_location_address ?? defaults.garage_location_address,
   garage_location_latitude: value.garage_location_latitude == null ? null : Number(value.garage_location_latitude),
@@ -318,6 +320,14 @@ export default function FleetSettingsPage() {
                   <span className="font-normal text-[#555]">minutes</span>
                 </div>
                 <span className="mt-1 block text-xs font-normal text-[#777]">Returns within this period after a full rental day do not incur an hourly extension charge. Default: 60 minutes.</span>
+              </label>
+              <label className="block text-sm font-semibold">
+                Default delivery rate per kilometer
+                <div className="relative mt-2">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#777]">₱</span>
+                  <input required min="0" step="0.01" type="number" className="w-full border border-black/10 py-3 pl-8 pr-3 text-sm" value={settings.default_delivery_rate_per_km} onChange={event => setSettings(current => ({ ...current, default_delivery_rate_per_km: event.target.value }))} />
+                </div>
+                <span className="mt-1 block text-xs font-normal text-[#777]">Used for delivery bookings when a vehicle does not have its own delivery rate.</span>
               </label>
               <label className="flex cursor-pointer items-start gap-3 border border-black/10 p-4 text-sm">
                 <input type="checkbox" className="mt-1 h-4 w-4 accent-[#ff641f]" checked={settings.reservation_fee_deductible} onChange={event => setSettings(current => ({ ...current, reservation_fee_deductible: event.target.checked }))} />
