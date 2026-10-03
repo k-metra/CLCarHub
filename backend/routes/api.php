@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::get('/vehicles', [VehicleController::class, 'index']);
+Route::get('/vehicles/featured', [VehicleController::class, 'featured']);
 Route::get('/vehicles/availability', [VehicleController::class, 'available']);
 Route::get('/vehicles/{vehicle}', [VehicleController::class, 'show']);
 Route::get('/vehicles/{vehicle}/availability', [VehicleController::class, 'availability']);
@@ -39,6 +40,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
         Route::apiResource('vehicles', VehicleController::class)->except(['index', 'show']);
         Route::post('/vehicles/{vehicle}/image', [VehicleController::class, 'uploadImage']);
+        Route::post('/vehicles/{vehicle}/gallery-image', [VehicleController::class, 'uploadGalleryImage']);
+        Route::delete('/vehicles/{vehicle}/gallery-image/{imageType}', [VehicleController::class, 'deleteGalleryImage']);
         Route::post('/vehicles/{vehicle}/restore', [VehicleController::class, 'restore']);
         Route::apiResource('partners', PartnerController::class);
         Route::put('/fleet-settings', [FleetSettingController::class, 'update']);
