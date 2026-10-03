@@ -19,6 +19,7 @@ import ProfilePage from "./pages/ProfilePage";
 import FleetSettingsPage from "./pages/FleetSettingsPage";
 import FleetGalleryPage from "./pages/FleetGalleryPage";
 import LegalPage from "./pages/LegalPage";
+import AuditLogsPage from "./pages/AuditLogsPage";
 import { AuthProvider } from "./lib/AuthContext";
 import { ToastProvider } from "./components/Ui";
 
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin/vehicles" element={<VehiclesPage />} />
           <Route path="/admin/fleet-settings" element={<FleetSettingsPage />} />
+          <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
           <Route path="/admin/bookings" element={<BookingsPage />} />
           <Route path="/admin/calendar" element={<CalendarPage />} />
           <Route
