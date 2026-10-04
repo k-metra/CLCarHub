@@ -68,16 +68,20 @@ export function AdminSidebar({
   mobile?: boolean;
 }) {
   const { user } = useAuth();
-  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
+    () => window.__clcarhubInstallPrompt ?? null,
+  );
+  const [isInstalled, setIsInstalled] = useState(
+    () =>
+      window.matchMedia("(display-mode: standalone)").matches
+      || Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+  );
   useEffect(() => {
     const handleInstallAvailable = () => setInstallPrompt(window.__clcarhubInstallPrompt ?? null);
     const handleAppInstalled = () => {
       setInstallPrompt(null);
       setIsInstalled(true);
     };
-    setIsInstalled(window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
-    setInstallPrompt(window.__clcarhubInstallPrompt ?? null);
     window.addEventListener("clcarhubinstallavailable", handleInstallAvailable);
     window.addEventListener("appinstalled", handleAppInstalled);
     return () => {
