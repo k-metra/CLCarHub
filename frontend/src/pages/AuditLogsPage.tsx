@@ -20,7 +20,7 @@ type AuditResponse = {
   total: number;
 };
 
-const actions = ["login", "password_changed", "created", "updated", "deleted"];
+const actions = ["login", "registered", "password_changed", "created", "updated", "deleted"];
 const actionLabel = (action: string) => action.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
 
 export default function AuditLogsPage() {
@@ -34,8 +34,6 @@ export default function AuditLogsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setLoading(true);
-    setError("");
     api.get<AuditResponse>("/audit-logs", { params: { category: category || undefined, action: action || undefined, search: search || undefined, sort, page, per_page: 20 } })
       .then(response => setResult(response.data))
       .catch(requestError => setError(requestError instanceof Error ? requestError.message : "Unable to load audit logs"))
@@ -45,6 +43,14 @@ export default function AuditLogsPage() {
   const updateFilter = (setter: (value: string) => void, value: string) => {
     setter(value);
     setPage(1);
+    setLoading(true);
+    setError("");
+  };
+
+  const updatePage = (nextPage: number) => {
+    setPage(nextPage);
+    setLoading(true);
+    setError("");
   };
 
   return (
@@ -97,7 +103,7 @@ export default function AuditLogsPage() {
               </div>
               <div className="flex items-center justify-between border-t border-black/10 px-5 py-4 text-sm">
                 <span className="text-[#777]">{result.total} total entries</span>
-                <div className="flex items-center gap-3"><button disabled={page <= 1} className="border border-black/10 px-3 py-2 disabled:opacity-40" onClick={() => setPage(current => current - 1)}>← Previous</button><span>Page {result.current_page} of {result.last_page}</span><button disabled={page >= result.last_page} className="border border-black/10 px-3 py-2 disabled:opacity-40" onClick={() => setPage(current => current + 1)}>Next →</button></div>
+                <div className="flex items-center gap-3"><button disabled={page <= 1} className="border border-black/10 px-3 py-2 disabled:opacity-40" onClick={() => updatePage(page - 1)}>← Previous</button><span>Page {result.current_page} of {result.last_page}</span><button disabled={page >= result.last_page} className="border border-black/10 px-3 py-2 disabled:opacity-40" onClick={() => updatePage(page + 1)}>Next →</button></div>
               </div>
             </>
           ) : <p className="p-8 text-center text-sm text-[#777]">No audit activity matches these filters.</p>}
