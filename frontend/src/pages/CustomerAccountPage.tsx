@@ -17,7 +17,7 @@ type PlaceResult = { name: string; displayName: string; latitude: number; longit
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 const dateTime = (value?: string) => value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
 const monthTitle = (date: Date) => date.toLocaleDateString([], { month: "long", year: "numeric" });
-const statusClass = (status: string) => ["reserved", "confirmed", "paid", "active"].includes(status) ? "bg-emerald-50 text-emerald-700" : ["cancelled", "rejected"].includes(status) ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700";
+const statusClass = (status: string) => ["upcoming", "ongoing"].includes(status) ? "bg-emerald-50 text-emerald-700" : ["cancelled", "rejected"].includes(status) ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700";
 const calendarDays = (month: Date) => { const first = new Date(month.getFullYear(), month.getMonth(), 1); const start = new Date(first); start.setDate(first.getDate() - first.getDay()); return Array.from({ length: 42 }, (_, index) => { const day = new Date(start); day.setDate(start.getDate() + index); return day; }); };
 const emptyForm = { vehicle_id: "", pickup_date: "", pickup_time: "09:00", return_date: "", return_time: "09:00", destination: "", delivery_address: "", return_location_mode: "garage" as "garage" | "location", return_address: "", notes: "", payment_method: "cash_on_pickup" as PaymentMethod };
 
@@ -105,7 +105,7 @@ export default function CustomerAccountPage() {
     if (vehicleId || pickupAt || returnAt) setTab("request");
   }, [searchParams, vehicles]);
 
-  const upcoming = bookings.filter(booking => !["completed", "cancelled", "rejected"].includes(booking.status) && new Date(booking.return_at) >= new Date()).sort((a, b) => new Date(a.pickup_at).getTime() - new Date(b.pickup_at).getTime());
+  const upcoming = bookings.filter(booking => !["complete", "cancelled", "rejected"].includes(booking.status) && new Date(booking.return_at) >= new Date()).sort((a, b) => new Date(a.pickup_at).getTime() - new Date(b.pickup_at).getTime());
   const pending = bookings.filter(booking => booking.status === "pending"); const totalSpent = bookings.reduce((sum, booking) => sum + Number(booking.total_amount || 0), 0); const days = useMemo(() => calendarDays(month), [month]);
   const bookingOnDay = (day: Date) => bookings.filter(booking => { const start = new Date(booking.pickup_at); const end = new Date(booking.return_at); return day >= new Date(start.getFullYear(), start.getMonth(), start.getDate()) && day <= new Date(end.getFullYear(), end.getMonth(), end.getDate()); });
   const selectedVehicle = vehicles.find(vehicle => String(vehicle.id) === form.vehicle_id);
