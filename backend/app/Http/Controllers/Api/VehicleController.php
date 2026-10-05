@@ -40,7 +40,7 @@ class VehicleController extends Controller
             ->where('type', $data['type'])
             ->where('status', 'available')
             ->whereDoesntHave('bookings', fn ($query) => $query
-                ->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid', 'active'])
+                ->whereIn('status', \App\Models\Booking::ACTIVE_STATUSES)
                 ->where('pickup_at', '<', $data['return_at'])
                 ->where('return_at', '>', $data['pickup_at']))
             ->latest()
@@ -127,7 +127,7 @@ class VehicleController extends Controller
     {
         $data = $request->validate(['pickup_at' => ['required', 'date'], 'return_at' => ['required', 'date', 'after:pickup_at']]);
         $conflicts = $vehicle->bookings()
-            ->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid', 'active'])
+            ->whereIn('status', \App\Models\Booking::ACTIVE_STATUSES)
             ->where('pickup_at', '<', $data['return_at'])
             ->where('return_at', '>', $data['pickup_at'])
             ->get(['pickup_at', 'return_at'])
