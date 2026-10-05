@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\FleetSetting;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -116,5 +118,86 @@ class CustomerBookingRequestTest extends TestCase
             'payment_method' => 'cash_on_pickup',
         ])->assertCreated()
             ->assertJsonPath('extension_fees', '400.00');
+    }
+
+    public function test_customer_booking_calculates_delivery_and_round_trip_return_fees_using_vehicle_rate(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-791',
+            'daily_rate' => 2000, 'delivery_rate_per_km' => 50, 'status' => 'available',
+        ]);
+        FleetSetting::findOrFail(1)->update([
+            'default_delivery_rate_per_km' => 25,
+            'garage_location_latitude' => 14.5,
+            'garage_location_longitude' => 121.0,
+        ]);
+        Http::fake([
+            'https://router.project-osrm.org/*' => Http::response([
+                'code' => 'Ok',
+                'routes' => [['distance' => 10000]],
+            ]),
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-09-10 10:00',
+            'return_at' => '2030-09-12 10:00',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Delivery label',
+            'delivery_latitude' => 14.6,
+            'delivery_longitude' => 121.1,
+            'return_address' => 'Return label',
+            'return_latitude' => 14.7,
+            'return_longitude' => 121.2,
+        ])->assertCreated()
+            ->assertJsonPath('delivery_distance_km', '10.00')
+            ->assertJsonPath('delivery_rate_per_km', '50.00')
+            ->assertJsonPath('delivery_fee', '500.00')
+            ->assertJsonPath('return_distance_km', '10.00')
+            ->assertJsonPath('return_pickup_fee', '1000.00')
+            ->assertJsonPath('rental_amount', '4000.00')
+            ->assertJsonPath('total_amount', '5500.00');
+    }
+
+    public function test_admin_booking_uses_custom_rental_rate_and_fleet_delivery_rate_fallback(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $customer = Customer::create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'ADM-791',
+            'daily_rate' => 2000, 'delivery_rate_per_km' => 0, 'status' => 'available',
+        ]);
+        FleetSetting::findOrFail(1)->update([
+            'default_delivery_rate_per_km' => 25,
+            'garage_location_latitude' => 14.5,
+            'garage_location_longitude' => 121.0,
+        ]);
+        Http::fake([
+            'https://router.project-osrm.org/*' => Http::response([
+                'code' => 'Ok',
+                'routes' => [['distance' => 10000]],
+            ]),
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-10-10 10:00',
+            'return_at' => '2030-10-12 10:00',
+            'rental_rate' => 1500,
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Delivery label',
+            'delivery_latitude' => 14.6,
+            'delivery_longitude' => 121.1,
+        ])->assertCreated()
+            ->assertJsonPath('rental_rate', '1500.00')
+            ->assertJsonPath('rental_amount', '3000.00')
+            ->assertJsonPath('delivery_rate_per_km', '25.00')
+            ->assertJsonPath('delivery_fee', '250.00')
+            ->assertJsonPath('total_amount', '3250.00');
     }
 }
