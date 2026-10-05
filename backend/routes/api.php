@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/resend-verification', [AuthController::class, 'resendVerificationForEmail'])->middleware('throttle:6,1');
 Route::get('/vehicles', [VehicleController::class, 'index']);
 Route::get('/vehicles/featured', [VehicleController::class, 'featured']);
 Route::get('/vehicles/availability', [VehicleController::class, 'available']);
