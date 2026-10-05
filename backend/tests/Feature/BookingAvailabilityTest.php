@@ -44,7 +44,7 @@ class BookingAvailabilityTest extends TestCase
             'vehicle_id' => $vehicle->id,
             'pickup_at' => '2030-01-10 10:00',
             'return_at' => '2030-01-12 10:00',
-            'status' => 'confirmed',
+            'status' => 'ongoing',
             'payment_status' => 'unpaid',
             'rental_amount' => 4000,
             'total_amount' => 4000,
@@ -78,14 +78,18 @@ class BookingAvailabilityTest extends TestCase
     {
         [$vehicle, $customer] = $this->authenticate();
 
-        foreach (['cancelled', 'rejected'] as $status) {
-            $this->postJson('/api/bookings', [
+        foreach (['cancelled', 'rejected'] as $index => $status) {
+            Booking::create([
+                'reference' => 'CLCH-2030-00000'.($index + 1),
                 'customer_id' => $customer->id,
                 'vehicle_id' => $vehicle->id,
                 'pickup_at' => '2030-01-10 10:00',
                 'return_at' => '2030-01-11 10:00',
                 'status' => $status,
-            ])->assertCreated();
+                'payment_status' => 'unpaid',
+                'rental_amount' => 2000,
+                'total_amount' => 2000,
+            ]);
         }
 
         $this->assertCount(2, Booking::all());
@@ -98,8 +102,8 @@ class BookingAvailabilityTest extends TestCase
         foreach ([
             ['reference' => 'CANCELLED', 'status' => 'cancelled', 'pickup_at' => '2026-10-02 10:00'],
             ['reference' => 'REJECTED', 'status' => 'rejected', 'pickup_at' => '2026-10-02 09:00'],
-            ['reference' => 'COMPLETED', 'status' => 'completed', 'pickup_at' => '2026-10-05 09:00'],
-            ['reference' => 'RESERVED-FAR', 'status' => 'reserved', 'pickup_at' => '2026-10-10 09:00'],
+            ['reference' => 'COMPLETE', 'status' => 'complete', 'pickup_at' => '2026-10-05 09:00'],
+            ['reference' => 'UPCOMING-FAR', 'status' => 'upcoming', 'pickup_at' => '2026-10-10 09:00'],
             ['reference' => 'PENDING-FAR', 'status' => 'pending', 'pickup_at' => '2026-10-10 10:00'],
             ['reference' => 'PENDING-CLOSE', 'status' => 'pending', 'pickup_at' => '2026-10-02 08:00'],
         ] as $data) {
@@ -118,8 +122,8 @@ class BookingAvailabilityTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.reference', 'PENDING-CLOSE')
             ->assertJsonPath('data.1.reference', 'PENDING-FAR')
-            ->assertJsonPath('data.2.reference', 'RESERVED-FAR')
-            ->assertJsonPath('data.3.reference', 'COMPLETED')
+            ->assertJsonPath('data.2.reference', 'UPCOMING-FAR')
+            ->assertJsonPath('data.3.reference', 'COMPLETE')
             ->assertJsonPath('data.4.reference', 'REJECTED')
             ->assertJsonPath('data.5.reference', 'CANCELLED');
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
@@ -154,15 +158,30 @@ class BookingAvailabilityTest extends TestCase
             'return_at' => '2030-01-11 10:00',
         ])->assertCreated()->json();
 
-        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'confirmed'])->assertOk();
-        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'active'])->assertOk();
-        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'completed'])->assertOk();
-        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'pending'])
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'cancelled', 'status_reason' => 'Customer cancelled.'])
+            ->assertOk()
+            ->assertJsonPath('status', 'cancelled');
+        $pending = Booking::create([
+            'reference' => 'CLCH-2030-000099',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+        $this->patchJson("/api/bookings/{$pending->id}", ['status' => 'upcoming'])->assertOk();
+        $this->patchJson("/api/bookings/{$pending->id}", ['status' => 'ongoing'])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'A completed booking cannot be changed to pending.');
+            ->assertJsonPath('message', 'A upcoming booking cannot be changed to ongoing.');
+        $this->patchJson("/api/bookings/{$pending->id}", ['status' => 'pending'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'A upcoming booking cannot be changed to pending.');
     }
 
-    public function test_pending_booking_cannot_become_active_directly(): void
+    public function test_pending_booking_cannot_become_ongoing_directly(): void
     {
         [$vehicle, $customer] = $this->authenticate();
 
@@ -173,9 +192,9 @@ class BookingAvailabilityTest extends TestCase
             'return_at' => '2030-01-11 10:00',
         ])->assertCreated()->json();
 
-        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'active'])
+        $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'ongoing'])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'A pending booking cannot be changed to active.');
+            ->assertJsonPath('message', 'A upcoming booking cannot be changed to ongoing.');
     }
 
     public function test_terminal_status_change_requires_a_reason_and_records_history(): void
