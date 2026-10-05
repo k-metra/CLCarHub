@@ -11,25 +11,25 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [registering, setRegistering] = useState(false);
+  const [registering, setRegistering] = useState(() => new URLSearchParams(window.location.search).get("register") === "1");
   const [phone, setPhone] = useState("");
   const [username, setUsername] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
-  const [verified, setVerified] = useState(false);
-  const [vehicleId, setVehicleId] = useState("");
+  const [verified] = useState(() => new URLSearchParams(window.location.search).get("verified") === "1");
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationResent, setVerificationResent] = useState(false);
+  const [vehicleId] = useState(() => new URLSearchParams(window.location.search).get("vehicle_id") ?? "");
   const [legalConsent, setLegalConsent] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setRegistering(params.get("register") === "1");
-    setVehicleId(params.get("vehicle_id") ?? "");
     if (params.get("verified") === "1") {
-      setVerified(true);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    setVerificationResent(false);
     setLoading(true);
     try {
       if (registering) {
@@ -66,6 +66,22 @@ export default function AdminLoginPage() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+  async function resendVerification() {
+    setResendingVerification(true);
+    setVerificationResent(false);
+    try {
+      await api.post("/auth/resend-verification", { email });
+      setVerificationResent(true);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to resend the verification email",
+      );
+    } finally {
+      setResendingVerification(false);
     }
   }
   if (authLoading) return null;
@@ -188,6 +204,20 @@ export default function AdminLoginPage() {
             </label>
           )}
           {error && <p className="text-xs text-[#ff8b68]">{error}</p>}
+          {!registering && error.toLowerCase().includes("verify your email") && (
+            <div className="space-y-2 border border-[#ff641f]/30 bg-[#ff641f]/10 p-3 text-sm">
+              <p className="text-[#f5c1ad]">Need another verification link?</p>
+              <button
+                type="button"
+                className="font-semibold text-[#ff9b73] underline disabled:opacity-50"
+                disabled={resendingVerification || !email}
+                onClick={() => void resendVerification()}
+              >
+                {resendingVerification ? "Sending..." : "Resend verification email"}
+              </button>
+              {verificationResent && <p className="text-xs text-emerald-300">If your account is eligible, a new verification email is on its way.</p>}
+            </div>
+          )}
           <Button disabled={registering && !legalConsent}>
             {loading
               ? "Please wait..."
