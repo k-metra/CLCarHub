@@ -14,18 +14,20 @@ class ReportController extends Controller
 {
     public function revenue(Request $request)
     {
-        $bookings = Booking::whereIn('status', ['paid', 'active', 'completed'])->when($request->from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))->when($request->to, fn ($q, $v) => $q->whereDate('created_at', '<=', $v));
+        Booking::synchronizeAutomaticStatuses();
+        $bookings = Booking::whereIn('status', [Booking::ONGOING, Booking::COMPLETE])->when($request->from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))->when($request->to, fn ($q, $v) => $q->whereDate('created_at', '<=', $v));
 
         return ['total_revenue' => (float) $bookings->sum('total_amount'), 'booking_count' => $bookings->count()];
     }
 
     public function utilization(Request $request)
     {
+        Booking::synchronizeAutomaticStatuses();
         $periodStart = Carbon::parse($request->input('from', now()->startOfMonth()->toDateString()))->startOfDay();
         $periodEnd = Carbon::parse($request->input('to', now()->endOfMonth()->toDateString()))->endOfDay();
         abort_if($periodEnd->lt($periodStart), 422, 'The end date must be on or after the start date.');
 
-        $statuses = ['reserved', 'confirmed', 'awaiting_payment', 'paid', 'active', 'completed'];
+        $statuses = [Booking::UPCOMING, Booking::ONGOING, Booking::COMPLETE];
         $vehicles = Vehicle::with(['partner', 'images', 'bookings' => function ($query) use ($periodStart, $periodEnd, $statuses) {
             $query->whereIn('status', $statuses)
                 ->where('pickup_at', '<', $periodEnd)
@@ -127,7 +129,8 @@ class ReportController extends Controller
 
     public function vehicleRevenue(Request $request)
     {
-        $activeStatuses = ['reserved', 'confirmed', 'awaiting_payment', 'paid', 'active', 'completed'];
+        Booking::synchronizeAutomaticStatuses();
+        $activeStatuses = [Booking::UPCOMING, Booking::ONGOING, Booking::COMPLETE];
         $status = $request->input('status');
         $bookings = Booking::with(['vehicle.partner', 'vehicle.images', 'payments', 'customer'])
             ->whereIn('status', $status ? [$status] : $activeStatuses)
