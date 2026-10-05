@@ -221,7 +221,7 @@ export default function BookingsPage() {
 
   const setField = (key: keyof BookingForm, value: string) => setForm(current => ({ ...current, [key]: value }))
   const openCreate = () => { setEditing(null); setForm(emptyForm); setPaymentsTouched(false); setAddCustomer(false); setShowForm(true) }
-  const openDetails = async (booking: BookingRecord) => {
+  const openDetails = useCallback(async (booking: BookingRecord) => {
     setSelectedBooking(booking); setDetailTab('details'); setShowActions(false); setDetailLoading(true)
     try {
       const result = await api.get<BookingRecord>(`/bookings/${booking.id}`)
@@ -231,8 +231,8 @@ export default function BookingsPage() {
     } finally {
       setDetailLoading(false)
     }
-  }
-  const openDetailsById = async (bookingId: number) => {
+  }, [showToast])
+  const openDetailsById = useCallback(async (bookingId: number) => {
     setDetailTab('details'); setShowActions(false); setDetailLoading(true)
     try {
       const result = await api.get<BookingRecord>(`/bookings/${bookingId}`)
@@ -242,33 +242,39 @@ export default function BookingsPage() {
     } finally {
       setDetailLoading(false)
     }
-  }
-  const openEdit = (booking: BookingRecord) => {
+  }, [showToast])
+  const openEdit = useCallback((booking: BookingRecord) => {
     setEditing(booking.id)
     setPaymentsTouched(false)
     setForm({ ...emptyForm, vehicle_id: String(booking.vehicle?.id ?? ''), customer_id: String(booking.customer?.id ?? ''), pickup_at: dateTimeLocalValue(booking.pickup_at), return_at: dateTimeLocalValue(booking.return_at), destination: booking.destination ?? '', rental_rate: booking.rental_rate ?? '', delivery_address: booking.delivery_address ?? '', delivery_latitude: booking.delivery_latitude ?? '', delivery_longitude: booking.delivery_longitude ?? '', delivery_fee: booking.delivery_fee ?? '', return_location_mode: booking.return_latitude && booking.return_longitude ? 'location' : 'garage', return_address: booking.return_address ?? '', return_latitude: booking.return_latitude ?? '', return_longitude: booking.return_longitude ?? '', return_distance_km: booking.return_distance_km ?? '', return_pickup_fee: booking.return_pickup_fee ?? '', payment_method: booking.payment_method ?? 'cash_on_pickup', notes: booking.notes ?? '', fuel_charge: booking.fuel_charge ?? '', rfid_charge: booking.rfid_charge ?? '', damage_fees: booking.damage_fees ?? '', car_wash_fees: booking.car_wash_fees ?? '', extension_fees: booking.extension_fees ?? '', payments: booking.payments?.map(payment => ({ amount: payment.amount, notes: payment.notes ?? '', paid_at: payment.paid_at.slice(0, 10), fund_id: payment.fund_id ? String(payment.fund_id) : '' })) ?? [] })
     setShowForm(true)
-  }
+  }, [])
 
   useEffect(() => {
     const editId = Number(searchParams.get('edit'))
     const booking = bookings.find(item => item.id === editId)
-    if (booking && !showForm) {
+    if (!booking || showForm) return
+    const timer = window.setTimeout(() => {
       openEdit(booking)
-      searchParams.delete('edit')
-      setSearchParams(searchParams, { replace: true })
-    }
-  }, [bookings, searchParams, setSearchParams, showForm])
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('edit')
+      setSearchParams(nextParams, { replace: true })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [bookings, openEdit, searchParams, setSearchParams, showForm])
   useEffect(() => {
     const bookingId = Number(searchParams.get('booking'))
     const booking = bookings.find(item => item.id === bookingId)
-    if (bookingId > 0 && !selectedBooking && !showForm) {
+    if (bookingId <= 0 || selectedBooking || showForm) return
+    const timer = window.setTimeout(() => {
       if (booking) void openDetails(booking)
       else void openDetailsById(bookingId)
-      searchParams.delete('booking')
-      setSearchParams(searchParams, { replace: true })
-    }
-  }, [bookings, searchParams, setSearchParams, selectedBooking, showForm])
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('booking')
+      setSearchParams(nextParams, { replace: true })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [bookings, openDetails, openDetailsById, searchParams, setSearchParams, selectedBooking, showForm])
 
   const saveCustomer = async () => {
     const payload = new FormData()
