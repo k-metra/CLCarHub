@@ -9,7 +9,7 @@ import { vehicleTypeLabels, vehicleTypes, type BookingRecord, type VehicleRecord
 
 type DashboardData = {
   year: number;
-  summary: Record<"upcoming" | "ongoing" | "finished", { count: number; receivables: number }>;
+  summary: Record<"upcoming" | "ongoing" | "complete", { count: number; receivables: number }>;
   financial: { total_bookings: number; total_revenue: number; total_expenses: number; total_profit: number };
   monthly: { month: number; revenue: number; bookings: number }[];
   top_vehicles: (Pick<VehicleRecord, "id" | "name" | "brand" | "model" | "year"> & { revenue: number })[];
@@ -86,7 +86,7 @@ export default function AdminDashboardPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard label="Upcoming bookings" value={data?.summary.upcoming.count} amount={data?.summary.upcoming.receivables} color="orange" loading={loading} />
         <MetricCard label="Ongoing bookings" value={data?.summary.ongoing.count} amount={data?.summary.ongoing.receivables} color="amber" loading={loading} />
-        <MetricCard label="Finished bookings" value={data?.summary.finished.count} amount={data?.summary.finished.receivables} color="green" loading={loading} />
+        <MetricCard label="Completed bookings" value={data?.summary.complete.count} amount={data?.summary.complete.receivables} color="green" loading={loading} />
       </div>
 
       <Card>
