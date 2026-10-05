@@ -96,13 +96,16 @@ export default function CustomerAccountPage() {
     const pickupAt = searchParams.get("pickup_at");
     const returnAt = searchParams.get("return_at");
     if (!vehicleId && !pickupAt && !returnAt) return;
-    setForm(current => ({
-      ...current,
-      ...(vehicleId && vehicles.some(vehicle => String(vehicle.id) === vehicleId) ? { vehicle_id: vehicleId } : {}),
-      ...(pickupAt ? { pickup_date: pickupAt.slice(0, 10), pickup_time: pickupAt.slice(11, 16) } : {}),
-      ...(returnAt ? { return_date: returnAt.slice(0, 10), return_time: returnAt.slice(11, 16) } : {}),
-    }));
-    if (vehicleId || pickupAt || returnAt) setTab("request");
+    const timer = window.setTimeout(() => {
+      setForm(current => ({
+        ...current,
+        ...(vehicleId && vehicles.some(vehicle => String(vehicle.id) === vehicleId) ? { vehicle_id: vehicleId } : {}),
+        ...(pickupAt ? { pickup_date: pickupAt.slice(0, 10), pickup_time: pickupAt.slice(11, 16) } : {}),
+        ...(returnAt ? { return_date: returnAt.slice(0, 10), return_time: returnAt.slice(11, 16) } : {}),
+      }));
+      setTab("request");
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [searchParams, vehicles]);
 
   const upcoming = bookings.filter(booking => !["complete", "cancelled", "rejected"].includes(booking.status) && new Date(booking.return_at) >= new Date()).sort((a, b) => new Date(a.pickup_at).getTime() - new Date(b.pickup_at).getTime());
