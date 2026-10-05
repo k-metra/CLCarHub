@@ -256,8 +256,8 @@ export default function CustomersPage() {
     ["first_name", "First name", "text"],
     ["middle_name", "Middle name (optional)", "text"],
     ["last_name", "Last name", "text"],
-    ["email", "Email", "email"],
-    ["phone", "Phone", "text"],
+    ["email", "Email (optional)", "email"],
+    ["phone", "Phone (optional)", "text"],
     ["date_of_birth", "Date of birth", "date"],
     ["license_number", "License number", "text"],
     ["license_expiry", "License expiry", "date"],
@@ -331,7 +331,7 @@ export default function CustomersPage() {
                       <input
                         className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
                         type={type}
-                        required={key === "first_name" || key === "last_name" || key === "phone"}
+                        required={key === "first_name" || key === "last_name"}
                         value={form[key] ?? ""}
                         onChange={(event) => setField(key, event.target.value)}
                       />
@@ -339,7 +339,7 @@ export default function CustomersPage() {
                   </label>
                 ))}
                 <label className="text-xs text-[#777] md:col-span-2">
-                  Address
+                  Address (optional)
                   <textarea
                     className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
                     value={form.address ?? ""}
