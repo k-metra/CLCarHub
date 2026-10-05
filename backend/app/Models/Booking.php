@@ -14,7 +14,7 @@ class Booking extends Model
 
     protected function casts(): array
     {
-        return ['pickup_at' => 'datetime', 'return_at' => 'datetime', 'rental_amount' => 'decimal:2', 'additional_charges' => 'decimal:2', 'discount' => 'decimal:2', 'deposit' => 'decimal:2', 'total_amount' => 'decimal:2', 'fuel_charge' => 'decimal:2', 'rfid_charge' => 'decimal:2', 'damage_fees' => 'decimal:2', 'car_wash_fees' => 'decimal:2', 'extension_fees' => 'decimal:2', 'delivery_distance_km' => 'decimal:2', 'delivery_rate_per_km' => 'decimal:2', 'delivery_fee' => 'decimal:2', 'delivery_latitude' => 'decimal:7', 'delivery_longitude' => 'decimal:7', 'return_latitude' => 'decimal:7', 'return_longitude' => 'decimal:7', 'return_distance_km' => 'decimal:2', 'return_pickup_fee' => 'decimal:2'];
+        return ['pickup_at' => 'datetime', 'return_at' => 'datetime', 'rental_amount' => 'decimal:2', 'rental_rate' => 'decimal:2', 'additional_charges' => 'decimal:2', 'discount' => 'decimal:2', 'deposit' => 'decimal:2', 'total_amount' => 'decimal:2', 'fuel_charge' => 'decimal:2', 'rfid_charge' => 'decimal:2', 'damage_fees' => 'decimal:2', 'car_wash_fees' => 'decimal:2', 'extension_fees' => 'decimal:2', 'delivery_distance_km' => 'decimal:2', 'delivery_rate_per_km' => 'decimal:2', 'delivery_fee' => 'decimal:2', 'delivery_latitude' => 'decimal:7', 'delivery_longitude' => 'decimal:7', 'return_latitude' => 'decimal:7', 'return_longitude' => 'decimal:7', 'return_distance_km' => 'decimal:2', 'return_pickup_fee' => 'decimal:2'];
     }
 
     public function customer(): BelongsTo
