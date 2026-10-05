@@ -12,17 +12,18 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        Booking::synchronizeAutomaticStatuses();
         $year = now()->year;
-        $revenueStatuses = ['paid', 'active', 'completed'];
+        $revenueStatuses = [Booking::ONGOING, Booking::COMPLETE];
         $bookings = Booking::query();
         $monthExpression = DB::connection()->getDriverName() === 'sqlite'
             ? "CAST(strftime('%m', created_at) AS INTEGER)"
             : 'MONTH(created_at)';
 
         $summary = [
-            'upcoming' => $this->statusSummary($bookings, ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid'], 'pickup_at', '>='),
-            'ongoing' => $this->statusSummary($bookings, ['active'], 'pickup_at', '<='),
-            'finished' => $this->statusSummary($bookings, ['completed'], 'return_at', '<'),
+            'upcoming' => $this->statusSummary($bookings, [Booking::UPCOMING], 'pickup_at', '>='),
+            'ongoing' => $this->statusSummary($bookings, [Booking::ONGOING], 'pickup_at', '<='),
+            'complete' => $this->statusSummary($bookings, [Booking::COMPLETE], 'return_at', '<'),
         ];
 
         $monthlyRevenue = Booking::query()
@@ -49,7 +50,7 @@ class DashboardController extends Controller
             ->get();
 
         $upcomingBookings = Booking::with(['customer', 'vehicle.images'])
-            ->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid'])
+            ->whereIn('status', [Booking::PENDING, Booking::UPCOMING])
             ->where('pickup_at', '>=', now())
             ->orderBy('pickup_at')
             ->limit(5)
