@@ -8,6 +8,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Booking extends Model
 {
+    public const PENDING = 'pending';
+    public const UPCOMING = 'upcoming';
+    public const ONGOING = 'ongoing';
+    public const COMPLETE = 'complete';
+    public const REJECTED = 'rejected';
+    public const CANCELLED = 'cancelled';
+
+    public const ACTIVE_STATUSES = [self::PENDING, self::UPCOMING, self::ONGOING];
+
     protected $guarded = ['id'];
 
     protected $appends = ['balance', 'status_reason'];
@@ -67,5 +76,43 @@ class Booking extends Model
         }
 
         return $history?->reason;
+    }
+
+    public static function synchronizeAutomaticStatuses(): void
+    {
+        $now = now();
+
+        self::query()
+            ->where('status', self::UPCOMING)
+            ->where('return_at', '<=', $now)
+            ->each(function (self $booking): void {
+                $booking->transitionAutomatically(self::COMPLETE);
+            });
+
+        self::query()
+            ->where('status', self::UPCOMING)
+            ->where('pickup_at', '<=', $now)
+            ->where('return_at', '>', $now)
+            ->each(function (self $booking): void {
+                $booking->transitionAutomatically(self::ONGOING);
+            });
+
+        self::query()
+            ->where('status', self::ONGOING)
+            ->where('return_at', '<=', $now)
+            ->each(function (self $booking): void {
+                $booking->transitionAutomatically(self::COMPLETE);
+            });
+    }
+
+    private function transitionAutomatically(string $status): void
+    {
+        $oldStatus = $this->status;
+        $this->update(['status' => $status]);
+        $this->statusHistory()->create([
+            'from_status' => $oldStatus,
+            'to_status' => $status,
+            'reason' => 'Automatically updated based on the booking schedule.',
+        ]);
     }
 }
