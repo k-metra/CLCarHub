@@ -17,6 +17,7 @@ class BookingController extends Controller
 {
     public function customerIndex(Request $request)
     {
+        Booking::synchronizeAutomaticStatuses();
         $customer = $this->authenticatedCustomer($request);
 
         return Booking::with(['vehicle.images'])
@@ -55,7 +56,7 @@ class BookingController extends Controller
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
             abort_if(
                 $vehicle->status !== 'available'
-                    || $vehicle->bookings()->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid', 'active'])
+                    || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)
                         ->where('pickup_at', '<', $data['return_at'])
                         ->where('return_at', '>', $data['pickup_at'])
                         ->exists(),
@@ -73,7 +74,7 @@ class BookingController extends Controller
                 ...$data,
                 'customer_id' => $customer->id,
                 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT),
-                'status' => 'pending',
+                'status' => Booking::PENDING,
                 'payment_status' => 'unpaid',
                 'rental_amount' => $rental,
                 'additional_charges' => 0,
@@ -97,8 +98,9 @@ class BookingController extends Controller
 
     public function index(Request $request)
     {
+        Booking::synchronizeAutomaticStatuses();
         $now = now();
-        $query = Booking::with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user'])
+        $query = Booking::with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'creator'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('reference', 'like', "%{$search}%")
@@ -108,12 +110,12 @@ class BookingController extends Controller
             })
             ->when($request->filter, function ($query, $filter) use ($now) {
                 match ($filter) {
-                    'upcoming' => $query->where('pickup_at', '>', $now)->whereNotIn('status', ['cancelled', 'rejected', 'completed']),
-                    'ongoing' => $query->where('pickup_at', '<=', $now)->where('return_at', '>=', $now)->whereNotIn('status', ['cancelled', 'rejected', 'completed']),
-                    'reserved' => $query->where('status', 'reserved'),
-                    'pending' => $query->where('status', 'pending'),
-                    'rejected' => $query->where('status', 'rejected'),
-                    'cancelled' => $query->where('status', 'cancelled'),
+                    'upcoming' => $query->where('status', Booking::UPCOMING),
+                    'ongoing' => $query->where('status', Booking::ONGOING),
+                    'complete' => $query->where('status', Booking::COMPLETE),
+                    'pending' => $query->where('status', Booking::PENDING),
+                    'rejected' => $query->where('status', Booking::REJECTED),
+                    'cancelled' => $query->where('status', Booking::CANCELLED),
                     default => null,
                 };
             });
@@ -129,11 +131,12 @@ class BookingController extends Controller
         return $query
             ->orderByRaw("CASE
                 WHEN status = 'pending' THEN 0
-                WHEN status IN ('reserved', 'confirmed', 'awaiting_payment', 'paid', 'active') THEN 1
-                WHEN status = 'completed' THEN 2
-                WHEN status = 'rejected' THEN 3
-                WHEN status = 'cancelled' THEN 4
-                ELSE 1
+                WHEN status = 'upcoming' THEN 1
+                WHEN status = 'ongoing' THEN 2
+                WHEN status = 'complete' THEN 3
+                WHEN status = 'rejected' THEN 4
+                WHEN status = 'cancelled' THEN 5
+                ELSE 6
             END")
             ->orderBy('pickup_at', 'asc')
             ->orderBy('id', 'asc')
@@ -148,7 +151,7 @@ class BookingController extends Controller
 
         return DB::transaction(function () use ($data, $payments, $request) {
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
-            abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', ['pending', 'reserved', 'confirmed', 'awaiting_payment', 'paid', 'active'])->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
+            abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
             $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null);
             $rental = $rentalBreakdown['rental'];
             $fleetSettings = FleetSetting::findOrFail(1);
@@ -159,13 +162,13 @@ class BookingController extends Controller
             $extensionFees = array_key_exists('extension_fees', $data) ? (float) $data['extension_fees'] : $rentalBreakdown['extension'];
             $delivery = $this->deliveryBreakdown($data, $vehicle, $fleetSettings);
             $total = $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) ($data['additional_charges'] ?? 0), $fees, $extensionFees, (float) $delivery['delivery_fee'] + (float) $delivery['return_pickup_fee'], $fleetSettings) - (float) ($data['discount'] ?? 0);
-            $booking = Booking::create([...$data, ...$delivery, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
+            $booking = Booking::create([...$data, ...$delivery, 'status' => Booking::UPCOMING, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
             $this->syncPayments($booking, $payments);
-            $booking->load('customer');
+            $booking->load(['customer', 'creator']);
             $customerName = $booking->customer?->name ?? 'A customer';
             app(PushNotificationService::class)->sendToAdmins(
-                'New booking',
-                "{$customerName} submitted {$booking->reference}.",
+                'Booking created',
+                sprintf('%s created %s.', $booking->creator?->name ?? 'A staff member', $booking->reference),
                 "/admin/bookings?booking={$booking->id}",
                 "booking-created-{$booking->id}",
             );
@@ -176,7 +179,8 @@ class BookingController extends Controller
 
     public function show(Booking $booking)
     {
-        return $booking->load([
+        Booking::synchronizeAutomaticStatuses();
+        return $booking->fresh()->load([
             'customer.attachments',
             'customer.user:id,name,first_name,middle_name,last_name,date_of_birth,username,email',
             'vehicle.images',
@@ -188,20 +192,13 @@ class BookingController extends Controller
 
     public function update(Request $request, Booking $booking)
     {
+        Booking::synchronizeAutomaticStatuses();
         $data = $request->validate($this->rules(true));
         $oldStatus = $booking->status;
         $reason = $data['status_reason'] ?? null;
         if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
             abort_unless(in_array($data['status'], $this->allowedStatusTransitions()[$booking->status] ?? [], true), 422, "A {$booking->status} booking cannot be changed to {$data['status']}.");
-            if ($data['status'] === 'reserved') {
-                $reservationFee = (float) FleetSetting::findOrFail(1)->reservation_fee;
-                $incomingPayments = $data['payments'] ?? null;
-                $paidAmount = $incomingPayments === null
-                    ? (float) $booking->payments()->where('status', 'paid')->sum('amount')
-                    : collect($incomingPayments)->sum(fn (array $payment) => (float) $payment['amount']);
-                abort_if($reservationFee > 0 && $paidAmount < $reservationFee, 422, 'The reservation fee must be paid before the booking can be reserved.');
-            }
-            if (in_array($data['status'], ['cancelled', 'rejected'], true)) {
+            if (in_array($data['status'], [Booking::CANCELLED, Booking::REJECTED], true)) {
                 abort_if(blank($reason), 422, 'A reason is required when cancelling or rejecting a booking.');
             }
         }
@@ -251,7 +248,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,reserved,confirmed,awaiting_payment,paid,active,completed,cancelled,rejected'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function authenticatedCustomer(Request $request)
@@ -265,15 +262,12 @@ class BookingController extends Controller
     private function allowedStatusTransitions(): array
     {
         return [
-            'pending' => ['reserved', 'confirmed', 'cancelled', 'rejected'],
-            'reserved' => ['paid', 'active', 'cancelled', 'rejected'],
-            'confirmed' => ['reserved', 'awaiting_payment', 'paid', 'active', 'cancelled', 'rejected'],
-            'awaiting_payment' => ['paid', 'cancelled', 'rejected'],
-            'paid' => ['active', 'cancelled'],
-            'active' => ['completed', 'cancelled'],
-            'completed' => [],
-            'cancelled' => [],
-            'rejected' => [],
+            Booking::PENDING => [Booking::UPCOMING, Booking::CANCELLED, Booking::REJECTED],
+            Booking::UPCOMING => [Booking::CANCELLED],
+            Booking::ONGOING => [],
+            Booking::COMPLETE => [],
+            Booking::CANCELLED => [],
+            Booking::REJECTED => [],
         ];
     }
 
