@@ -117,4 +117,16 @@ class AuthController extends Controller
 
         return ['message' => 'Verification email sent.'];
     }
+
+    public function resendVerificationForEmail(Request $request)
+    {
+        $data = $request->validate(['email' => ['required', 'email']]);
+        $user = User::where('email', $data['email'])->where('role', 'customer')->first();
+
+        if ($user && ! $user->hasVerifiedEmail()) {
+            $user->sendEmailVerificationNotification();
+        }
+
+        return ['message' => 'If an unverified customer account exists for that email, a verification email has been sent.'];
+    }
 }
