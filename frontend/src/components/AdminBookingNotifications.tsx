@@ -18,7 +18,7 @@ type Notice = {
   url: string;
 };
 type Snapshot = {
-  bookings: Record<number, { status: string; paymentIds: number[] }>;
+  bookings: Record<number, { status: string; paymentIds: number[]; creatorRole?: string; creatorName?: string }>;
   vehicles: number[];
   transactions: number[];
   expenses: number[];
@@ -72,7 +72,7 @@ function playNotificationSound() {
 }
 
 function snapshotBookings(bookings: BookingRecord[]) {
-  return Object.fromEntries(bookings.map(booking => [booking.id, { status: booking.status, paymentIds: (booking.payments ?? []).map(payment => payment.id) }]));
+  return Object.fromEntries(bookings.map(booking => [booking.id, { status: booking.status, paymentIds: (booking.payments ?? []).map(payment => payment.id), creatorRole: booking.creator?.role, creatorName: booking.creator?.name }]));
 }
 
 export function AdminBookingNotifications() {
@@ -171,7 +171,16 @@ export function AdminBookingNotifications() {
         };
         bookings.forEach(booking => {
           const previous = snapshot.current.bookings[booking.id];
-          if (!previous) addNotice({ key: `booking-created-${booking.id}`, title: "New booking", body: `${booking.customer?.name ?? "A customer"} submitted ${booking.reference}.`, receivedAt: Date.now(), url: `/admin/bookings?booking=${booking.id}` });
+          if (!previous) {
+            const customerSubmitted = booking.creator?.role === "customer";
+            addNotice({
+              key: `booking-created-${booking.id}`,
+              title: customerSubmitted ? "New customer booking" : "Booking created",
+              body: customerSubmitted ? `${booking.customer?.name ?? "A customer"} submitted ${booking.reference}.` : `${booking.creator?.name ?? "A staff member"} created ${booking.reference}.`,
+              receivedAt: Date.now(),
+              url: `/admin/bookings?booking=${booking.id}`,
+            });
+          }
           if (previous && previous.status !== booking.status && ["cancelled", "rejected"].includes(booking.status)) addNotice({ key: `booking-${booking.status}-${booking.id}`, title: `Booking ${booking.status}`, body: `${booking.reference} was marked ${booking.status}.`, receivedAt: Date.now(), url: `/admin/bookings?booking=${booking.id}` });
           (booking.payments ?? []).filter(payment => !previous?.paymentIds.includes(payment.id)).forEach(payment => addNotice({ key: `payment-${payment.id}`, title: "New payment", body: `${booking.reference} received a payment of ₱${Number(payment.amount).toLocaleString()}.`, receivedAt: Date.now(), url: `/admin/bookings?booking=${booking.id}` }));
         });
