@@ -124,7 +124,7 @@ export default function CustomerAccountPage() {
   const extensionHours = Math.ceil(Math.max(0, (rentalMinutes % (24 * 60)) - fleetSettings.late_return_grace_period_minutes) / 60);
   const hourlyRate = Number(selectedVehicle?.hour_extension_rate ?? fleetSettings.default_hour_extension_rate);
   const extensionAmount = extensionHours === 0 ? 0 : extensionHours >= fleetSettings.full_day_extension_threshold_hours ? Number(selectedVehicle?.daily_rate ?? 0) : extensionHours * hourlyRate;
-  const rentalAmount = rentalDays * Number(selectedVehicle?.daily_rate ?? 0) + extensionAmount; const reservationFee = Number(fleetSettings.reservation_fee); const attachmentLimit = (category: AttachmentCategory) => attachmentRequirements.find(([requiredCategory]) => requiredCategory === category)?.[2] ?? 0; const existingAttachmentCount = (category: AttachmentCategory) => customer?.attachments?.filter(item => item.category === category).length ?? 0; const requirementComplete = (category: AttachmentCategory) => existingAttachmentCount(category) >= attachmentLimit(category);
+  const rentalAmount = rentalDays * Number(selectedVehicle?.daily_rate ?? 0) + extensionAmount; const reservationFee = Number(fleetSettings.reservation_fee); const existingAttachmentCount = (category: AttachmentCategory) => customer?.attachments?.filter(item => item.category === category).length ?? 0; const requirementComplete = (category: AttachmentCategory) => existingAttachmentCount(category) + files[category].length >= 1;
   const deliveryRate = Number(selectedVehicle?.delivery_rate_per_km ?? fleetSettings.default_delivery_rate_per_km);
   const deliveryFee = deliveryDistance === null ? 0 : Math.round(deliveryDistance * deliveryRate * 100) / 100;
 
@@ -232,7 +232,7 @@ export default function CustomerAccountPage() {
   };
   const proceedDetails = async () => {
     if (form.payment_method === "cash_on_delivery" && (!deliveryPosition || deliveryDistance === null)) { showToast("Please select a delivery location and wait for the road distance to be calculated.", "error"); return; }
-    const missing = attachmentRequirements.filter(([category, , limit]) => existingAttachmentCount(category) + files[category].length < limit);
+    const missing = attachmentRequirements.filter(([category]) => existingAttachmentCount(category) + files[category].length < 1);
     if (missing.length) { showToast(`Please provide: ${missing.map(([, label]) => label).join(", ")}.`, "error"); return; }
     try { setSubmitting(true); await uploadAttachments(); setStep(3); } catch (error) { showToast(error instanceof Error ? error.message : "Unable to upload identity attachments", "error"); } finally { setSubmitting(false); }
   };
