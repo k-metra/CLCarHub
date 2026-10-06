@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { useToast } from "../components/Ui";
@@ -14,8 +14,9 @@ export default function IncomeFlowReportPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [search, setSearch] = useState(""); const [from, setFrom] = useState(""); const [to, setTo] = useState(""); const [fundId, setFundId] = useState(""); const [direction, setDirection] = useState(""); const [source, setSource] = useState(""); const [category, setCategory] = useState(""); const [sort, setSort] = useState("date_latest");
   const query = useMemo(() => { const params = new URLSearchParams({ sort }); if (search.trim()) params.set("search", search.trim()); if (from) params.set("from", from); if (to) params.set("to", to); if (fundId) params.set("fund_id", fundId); if (direction) params.set("direction", direction); if (source) params.set("source", source); if (category) params.set("category", category); return params; }, [search, from, to, fundId, direction, source, category, sort]);
-  const load = () => api.get<ReportData>(`/reports/income-flow?${query}`).then(result => setData(result.data)).catch(error => showToast(error instanceof Error ? error.message : "Unable to load income flow report", "error"));
-  useEffect(() => { const timer = window.setTimeout(load, 250); return () => window.clearTimeout(timer); }, [query.toString()]);
+  const queryString = query.toString();
+  const load = useCallback(() => api.get<ReportData>(`/reports/income-flow?${queryString}`).then(result => setData(result.data)).catch(error => showToast(error instanceof Error ? error.message : "Unable to load income flow report", "error")), [queryString, showToast]);
+  useEffect(() => { const timer = window.setTimeout(load, 250); return () => window.clearTimeout(timer); }, [load]);
   const downloadCsv = async () => { try { const response = await api.get(`/reports/income-flow?${query}&csv=1`, { responseType: "blob" }); const url = URL.createObjectURL(response.data); const link = document.createElement("a"); link.href = url; link.download = "income-flow.csv"; link.click(); URL.revokeObjectURL(url); } catch (error) { showToast(error instanceof Error ? error.message : "Unable to export report", "error"); } };
   return <AdminShell title="Income Flow Report" reportsOnly><div className="mt-8 space-y-6">
     <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><p className="text-sm text-[#777]">Review money coming into and leaving your operation.</p><button className="bg-[#151515] px-4 py-3 text-sm font-bold text-white" onClick={() => void downloadCsv()}>Export CSV</button></div>

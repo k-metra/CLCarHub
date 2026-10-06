@@ -59,16 +59,16 @@ export default function LegalPage() {
   const { pathname } = useLocation();
   const content = legalContent[pathname as keyof typeof legalContent] ?? legalContent["/terms"];
   const [customContent, setCustomContent] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadedPathname, setLoadedPathname] = useState<string | null>(null);
+  const loading = loadedPathname !== pathname;
 
   useEffect(() => {
-    setLoading(true);
     api.get<{ terms_and_conditions: string | null; privacy_policy: string | null }>("/legal-settings")
       .then(response => {
         setCustomContent(pathname === "/privacy" ? response.data.privacy_policy : response.data.terms_and_conditions);
       })
       .catch(() => setCustomContent(null))
-      .finally(() => setLoading(false));
+      .finally(() => setLoadedPathname(pathname));
   }, [pathname]);
 
   return (

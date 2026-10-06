@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell";
 import { RowActions, useToast } from "../components/Ui";
@@ -22,8 +22,9 @@ export default function AccountsPage() {
   const [editing, setEditing] = useState<Account | null>(null);
   const [form, setForm] = useState({ name: "", username: "", email: "", password: "", role: "staff", status: "active" });
   const query = useMemo(() => new URLSearchParams({ ...(search ? { search } : {}), ...(roleFilter ? { role: roleFilter } : {}), ...(customerSearch ? { customer_search: customerSearch } : {}) }), [customerSearch, roleFilter, search]);
-  const load = () => api.get<{ data: Account[]; customers: CustomerAccount[] }>(`/accounts?${query}`).then(response => { setAccounts(response.data.data); setCustomers(response.data.customers); }).catch(error => showToast(error instanceof Error ? error.message : "Unable to load accounts", "error"));
-  useEffect(() => { void load(); }, [query.toString()]);
+  const queryString = query.toString();
+  const load = useCallback(() => api.get<{ data: Account[]; customers: CustomerAccount[] }>(`/accounts?${queryString}`).then(response => { setAccounts(response.data.data); setCustomers(response.data.customers); }).catch(error => showToast(error instanceof Error ? error.message : "Unable to load accounts", "error")), [queryString, showToast]);
+  useEffect(() => { void load(); }, [load]);
   const openCreate = () => { setEditing(null); setForm({ name: "", username: "", email: "", password: "", role: rolesFor(user?.role ?? "staff")[0], status: "active" }); setFormOpen(true); };
   const openEdit = (account: Account) => { setEditing(account); setForm({ name: account.name, username: account.username ?? "", email: account.email, password: "", role: account.role, status: account.status }); setFormOpen(true); };
   const submit = async (event: FormEvent) => {

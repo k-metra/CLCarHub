@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { RowActions, useToast } from "../components/Ui";
@@ -25,8 +25,8 @@ export default function FundsPage() {
   const [accountName, setAccountName] = useState(""); const [accountNumber, setAccountNumber] = useState(""); const [qrCode, setQrCode] = useState<File | null>(null);
   const [transactionType, setTransactionType] = useState<"inflow" | "outflow">("inflow"); const [transactionFund, setTransactionFund] = useState(""); const [transactedAt, setTransactedAt] = useState(dateNow()); const [amount, setAmount] = useState(""); const [description, setDescription] = useState(""); const [transactionNotes, setTransactionNotes] = useState(""); const [saving, setSaving] = useState(false);
 
-  const load = () => { const params = new URLSearchParams({ sort }); if (search.trim()) params.set("search", search.trim()); if (fundId) params.set("fund_id", fundId); if (type) params.set("type", type); api.get<Response>(`/funds?${params}`).then(result => setData(result.data)).catch(error => showToast(error instanceof Error ? error.message : "Unable to load funds", "error")); };
-  useEffect(() => { const timer = window.setTimeout(load, 250); return () => window.clearTimeout(timer); }, [search, sort, fundId, type]);
+  const load = useCallback(() => { const params = new URLSearchParams({ sort }); if (search.trim()) params.set("search", search.trim()); if (fundId) params.set("fund_id", fundId); if (type) params.set("type", type); api.get<Response>(`/funds?${params}`).then(result => setData(result.data)).catch(error => showToast(error instanceof Error ? error.message : "Unable to load funds", "error")); }, [fundId, search, showToast, sort, type]);
+  useEffect(() => { const timer = window.setTimeout(load, 250); return () => window.clearTimeout(timer); }, [load]);
   const resetFund = () => { setEditingFund(null); setName(""); setFundType("cash"); setOpening("0"); setFundNotes(""); setAccountName(""); setAccountNumber(""); setQrCode(null); };
   const resetTransaction = () => { setEditingTransaction(null); setTransactionType("inflow"); setTransactionFund(data?.funds[0] ? String(data.funds[0].id) : ""); setTransactedAt(dateNow()); setAmount(""); setDescription(""); setTransactionNotes(""); };
   const submitFund = async (event: FormEvent) => { event.preventDefault(); setSaving(true); try { const payload = new FormData(); payload.append("name", name); payload.append("type", fundType); payload.append("opening_balance", opening); payload.append("notes", fundNotes); payload.append("account_name", accountName); payload.append("account_number", accountNumber); if (qrCode) payload.append("qr_code", qrCode); if (editingFund) { payload.append("_method", "PATCH"); await api.post(`/funds/${editingFund.id}`, payload); } else await api.post("/funds", payload); showToast(editingFund ? "Fund updated." : "Fund created.", "success"); setModal(null); resetFund(); load(); } catch (error) { showToast(error instanceof Error ? error.message : "Unable to save fund", "error"); } finally { setSaving(false); } };

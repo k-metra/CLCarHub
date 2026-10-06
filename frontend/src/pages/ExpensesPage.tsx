@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { RowActions, useToast } from "../components/Ui";
@@ -79,7 +79,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams({ sort });
     if (search.trim()) params.set("search", search.trim());
@@ -88,11 +88,11 @@ export default function ExpensesPage() {
       .then(([expenses, vehicleResult, fundResult]) => { setData(expenses.data); setVehicles(vehicleResult.data.data); setFunds(fundResult.data.funds); })
       .catch(error => showToast(error instanceof Error ? error.message : "Unable to load expenses", "error"))
       .finally(() => setLoading(false));
-  };
+  }, [categoryFilter, search, showToast, sort]);
   useEffect(() => {
     const timer = window.setTimeout(load, 250);
     return () => window.clearTimeout(timer);
-  }, [search, sort, categoryFilter]);
+  }, [load]);
   const resetForm = () => { setEditingId(null); setVehicleId(""); setExpenseType(""); setFundId(""); setSpentAt(new Date().toISOString().slice(0, 16)); setDescription(""); setAmount(""); };
   const editExpense = (expense: ExpenseRecord) => {
     setEditingId(expense.id);

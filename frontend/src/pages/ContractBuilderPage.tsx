@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "../components/AdminShell";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";
@@ -63,13 +63,17 @@ export default function ContractBuilderPage() {
   const bookingsPerPage = 6;
   const bookingPageCount = Math.max(1, Math.ceil(filteredBookings.length / bookingsPerPage));
   const visibleBookings = filteredBookings.slice((bookingPage - 1) * bookingsPerPage, bookingPage * bookingsPerPage);
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [bookingResponse, contractResponse] = await Promise.all([api.get<Paginated<BookingRecord>>("/bookings?per_page=100"), api.get<Contract[]>("/contracts")]);
       setBookings(bookingResponse.data.data); setContracts(contractResponse.data);
     } catch (error) { showToast(error instanceof Error ? error.message : "Unable to load contracts", "error"); }
-  };
-  useEffect(() => { void load(); }, []);
+  }, [showToast]);
+  // Loading remote contract data is an external synchronization effect.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
+  // Search changes should show the first matching booking.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setBookingPage(1); }, [search]);
   const chooseBooking = (bookingId: string) => {
     setSelectedBookingId(bookingId);

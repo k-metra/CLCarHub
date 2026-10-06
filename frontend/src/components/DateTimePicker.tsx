@@ -62,9 +62,12 @@ export function DateTimePicker({
   }, []);
 
   useEffect(() => {
+    // Prop changes must move the visible calendar to the selected date.
+    // This is synchronization with the controlled value, not derived render state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (selected) setMonth(selected);
     if (mode === "datetime" && value.includes("T")) setTime(value.slice(11, 16));
-  }, [value, mode]);
+  }, [selected, value, mode]);
 
   const days = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);

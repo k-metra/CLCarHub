@@ -39,6 +39,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   </ToastContext.Provider>;
 }
 
+// The hook is intentionally colocated with its provider so consumers share one context.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
   const context = useContext(ToastContext);
   if (!context) throw new Error("useToast must be used within ToastProvider");
