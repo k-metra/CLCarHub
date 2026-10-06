@@ -264,7 +264,7 @@ class BookingController extends Controller
         return [
             Booking::PENDING => [Booking::UPCOMING, Booking::CANCELLED, Booking::REJECTED],
             Booking::UPCOMING => [Booking::CANCELLED],
-            Booking::ONGOING => [],
+            Booking::ONGOING => [Booking::COMPLETE],
             Booking::COMPLETE => [],
             Booking::CANCELLED => [],
             Booking::REJECTED => [],
