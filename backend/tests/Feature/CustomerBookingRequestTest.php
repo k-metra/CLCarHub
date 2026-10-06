@@ -9,12 +9,45 @@ use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class CustomerBookingRequestTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_customer_attachment_limits_allow_four_ltms_two_secondary_ids_and_one_selfie(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['role' => 'customer']);
+        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        Sanctum::actingAs($user);
+
+        $attachments = [];
+        foreach (range(1, 4) as $index) {
+            $attachments[] = ["category" => "ltms", "file" => UploadedFile::fake()->create("ltms-{$index}.jpg", 100, "image/jpeg")];
+        }
+        foreach (range(1, 2) as $index) {
+            $attachments[] = ["category" => "secondary_id", "file" => UploadedFile::fake()->create("secondary-{$index}.jpg", 100, "image/jpeg")];
+        }
+        $attachments[] = ["category" => "selfie_license", "file" => UploadedFile::fake()->create("selfie.jpg", 100, "image/jpeg")];
+
+        $this->patch("/api/customers/{$customer->id}", [
+            'name' => $customer->name,
+            'phone' => $customer->phone,
+            'attachments' => $attachments,
+        ])->assertOk();
+
+        $this->assertDatabaseCount('customer_attachments', 7);
+
+        $this->patch("/api/customers/{$customer->id}", [
+            'name' => $customer->name,
+            'phone' => $customer->phone,
+            'attachments' => [["category" => "ltms", "file" => UploadedFile::fake()->create('ltms-extra.jpg', 100, 'image/jpeg')]],
+        ])->assertUnprocessable();
+    }
 
     public function test_customer_can_create_a_pending_unpaid_request_without_setting_pricing(): void
     {

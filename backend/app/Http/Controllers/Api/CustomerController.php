@@ -147,7 +147,7 @@ class CustomerController extends Controller
 
     private function storeAttachments(Customer $customer, array $attachments): void
     {
-        $limits = ['license' => 2, 'ltms' => 4, 'proof_of_billing' => 5, 'secondary_id' => 3, 'selfie_license' => 1];
+        $limits = ['license' => 2, 'ltms' => 4, 'proof_of_billing' => 5, 'secondary_id' => 2, 'selfie_license' => 1];
         foreach ($attachments as $attachment) {
             $category = $attachment['category'];
             abort_if($customer->attachments()->where('category', $category)->count() >= $limits[$category], 422, "The {$category} attachment limit has been reached.");

@@ -9,9 +9,9 @@ import type { CustomerAttachment } from "../types";
 
 type Profile = { id: number; name: string; first_name?: string | null; middle_name?: string | null; last_name?: string | null; date_of_birth?: string | null; username?: string | null; email: string; role: string; email_verified_at?: string | null };
 type CustomerProfile = Profile & { phone?: string | null; attachments?: CustomerAttachment[] };
-type Category = "license" | "secondary_id" | "ltms";
+type Category = "license" | "secondary_id" | "ltms" | "selfie_license";
 
-const categories: Array<[Category, string, number]> = [["license", "Physical driver's license (front & back)", 2], ["secondary_id", "Secondary ID", 1], ["ltms", "LTMS portal photos", 1]];
+const categories: Array<[Category, string, number]> = [["license", "Physical driver's license (front & back)", 2], ["secondary_id", "Secondary ID", 2], ["ltms", "LTMS portal photos", 4], ["selfie_license", "Selfie with driver's license", 1]];
 const maxUploadBytes = 20 * 1024 * 1024;
 
 export default function ProfilePage() {

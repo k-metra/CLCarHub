@@ -67,7 +67,7 @@ const attachmentFields: Array<[AttachmentCategory, string, number]> = [
   ["license", "Physical driver's license (front & back)", 2],
   ["ltms", "LTMS portal screenshots", 4],
   ["proof_of_billing", "Proof of billing & address", 5],
-  ["secondary_id", "Secondary ID", 3],
+  ["secondary_id", "Secondary ID", 2],
   ["selfie_license", "Selfie with driver's license (optional)", 1],
 ];
 
