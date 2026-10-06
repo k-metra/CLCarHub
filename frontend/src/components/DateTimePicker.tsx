@@ -47,7 +47,7 @@ export function DateTimePicker({
   placeholder = "Choose a date",
 }: DateTimePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const selected = parseDate(value);
+  const selected = useMemo(() => parseDate(value), [value]);
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(() => selected ?? new Date());
   const currentTime = mode === "datetime" && value.includes("T") ? value.slice(11, 16) : "09:00";
