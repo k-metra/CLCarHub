@@ -1,35 +1,38 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import AdminDashboardPage from "./pages/AdminDashboardPage";
-import AdminLoginPage from "./pages/AdminLoginPage";
-import BookingsPage from "./pages/BookingsPage";
-import HomePage from "./pages/HomePage";
-import VehiclesPage from "./pages/VehiclesPage";
-import CustomerAccountPage from "./pages/CustomerAccountPage";
-import PartnersPage from "./pages/PartnersPage";
-import CalendarPage from "./pages/CalendarPage";
-import CustomersPage from "./pages/CustomersPage";
-import ExpensesPage from "./pages/ExpensesPage";
-import FundsPage from "./pages/FundsPage";
-import IncomeFlowReportPage from "./pages/IncomeFlowReportPage";
-import VehicleRevenueReportPage from "./pages/VehicleRevenueReportPage";
-import FleetUtilizationReportPage from "./pages/FleetUtilizationReportPage";
-import AccountsPage from "./pages/AccountsPage";
-import ContractBuilderPage from "./pages/ContractBuilderPage";
-import ProfilePage from "./pages/ProfilePage";
-import FleetSettingsPage from "./pages/FleetSettingsPage";
-import FleetGalleryPage from "./pages/FleetGalleryPage";
-import LegalPage from "./pages/LegalPage";
-import AuditLogsPage from "./pages/AuditLogsPage";
-import RentalOperationsPage from "./pages/RentalOperationsPage";
 import { AuthProvider } from "./lib/AuthContext";
-import { ToastProvider } from "./components/Ui";
+import { LoadingScreen, ToastProvider } from "./components/Ui";
+
+const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
+const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
+const BookingsPage = lazy(() => import("./pages/BookingsPage"));
+const HomePage = lazy(() => import("./pages/HomePage"));
+const VehiclesPage = lazy(() => import("./pages/VehiclesPage"));
+const CustomerAccountPage = lazy(() => import("./pages/CustomerAccountPage"));
+const PartnersPage = lazy(() => import("./pages/PartnersPage"));
+const CalendarPage = lazy(() => import("./pages/CalendarPage"));
+const CustomersPage = lazy(() => import("./pages/CustomersPage"));
+const ExpensesPage = lazy(() => import("./pages/ExpensesPage"));
+const FundsPage = lazy(() => import("./pages/FundsPage"));
+const IncomeFlowReportPage = lazy(() => import("./pages/IncomeFlowReportPage"));
+const VehicleRevenueReportPage = lazy(() => import("./pages/VehicleRevenueReportPage"));
+const FleetUtilizationReportPage = lazy(() => import("./pages/FleetUtilizationReportPage"));
+const AccountsPage = lazy(() => import("./pages/AccountsPage"));
+const ContractBuilderPage = lazy(() => import("./pages/ContractBuilderPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const FleetSettingsPage = lazy(() => import("./pages/FleetSettingsPage"));
+const FleetGalleryPage = lazy(() => import("./pages/FleetGalleryPage"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
+const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
+const RentalOperationsPage = lazy(() => import("./pages/RentalOperationsPage"));
 
 export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
-          <Routes>
+          <Suspense fallback={<LoadingScreen />}>
+            <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/vehicles" element={<FleetGalleryPage />} />
           <Route path="/terms" element={<LegalPage />} />
@@ -72,7 +75,8 @@ export default function App() {
             element={<VehicleRevenueReportPage />}
           />
           <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            </Routes>
+          </Suspense>
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>
