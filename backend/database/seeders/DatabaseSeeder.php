@@ -17,12 +17,12 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::factory()->create([
+        User::query()->updateOrCreate(['email' => 'owner@clcarhub.com'], [
             'name' => 'CL CarHub Owner',
-            'email' => 'owner@clcarhub.com',
             'password' => 'password',
             'role' => 'owner',
             'status' => 'active',
+            'email_verified_at' => now(),
         ]);
     }
 }
