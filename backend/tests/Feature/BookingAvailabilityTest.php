@@ -197,6 +197,37 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonPath('message', 'A upcoming booking cannot be changed to ongoing.');
     }
 
+    public function test_ongoing_booking_can_be_completed_after_return_processing(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000100',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'ongoing',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        $response = $this->patchJson("/api/bookings/{$booking->id}", [
+            'status' => 'complete',
+            'fuel_charge' => 150,
+            'damage_fees' => 500,
+            'status_reason' => 'Vehicle returned and inspected.',
+        ])->assertOk();
+
+        $response->assertJsonPath('status', 'complete')
+            ->assertJsonPath('status_history.0.to_status', 'complete')
+            ->assertJsonPath('status_history.0.reason', 'Vehicle returned and inspected.')
+            ->assertJsonPath('fuel_charge', '150.00')
+            ->assertJsonPath('damage_fees', '500.00')
+            ->assertJsonPath('total_amount', '2650.00');
+    }
+
     public function test_terminal_status_change_requires_a_reason_and_records_history(): void
     {
         [$vehicle, $customer] = $this->authenticate();
