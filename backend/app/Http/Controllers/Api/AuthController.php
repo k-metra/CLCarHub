@@ -18,7 +18,7 @@ class AuthController extends Controller
         $user = User::where('email', $data['email'])->first();
         abort_unless($user && $user->status === 'active' && Hash::check($data['password'], $user->password), 422, 'The provided credentials are incorrect.');
         abort_if($user->role === 'customer' && ! $user->hasVerifiedEmail(), 403, 'Please verify your email address before signing in.');
-        $user->update(['last_login_at' => now()]);
+        $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
         AuditLogger::record('account', 'login', "User logged in: {$user->name}", $user, null, $request);
 
         return ['user' => $user, 'token' => $user->createToken($user->role.'-session')->plainTextToken];
