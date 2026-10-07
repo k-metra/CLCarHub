@@ -9,7 +9,7 @@ import { useRef } from "react";
 import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
-import { vehicleTypeLabels, vehicleTypes, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";
+import { vehicleTypeLabels, vehicleTypes, type FleetGpsLocation, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";
 import { ImageLightbox, RowActions } from "../components/Ui";
 
 const apiOrigin = (
@@ -140,6 +140,7 @@ export default function VehiclesPage() {
   const [error, setError] = useState("");
   const [locationVehicle, setLocationVehicle] = useState<VehicleRecord | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number; speed: number | null; position_time: string | null; fetched_at: string } | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationRefreshing, setLocationRefreshing] = useState(false);
   const locationMapRef = useRef<HTMLDivElement>(null);
@@ -151,6 +152,14 @@ export default function VehiclesPage() {
   const [galleryFiles, setGalleryFiles] = useState<GalleryFiles>(emptyGalleryFiles);
   const [galleryUrls, setGalleryUrls] = useState<GalleryUrls>(emptyGalleryUrls);
   const [form, setForm] = useState(emptyForm);
+  const [view, setView] = useState<"units" | "gps-map">("units");
+  const [fleetLocations, setFleetLocations] = useState<FleetGpsLocation[]>([]);
+  const [fleetLocationErrors, setFleetLocationErrors] = useState<Array<{ vehicle_id: number; name: string; message: string }>>([]);
+  const [fleetMapLoading, setFleetMapLoading] = useState(false);
+  const [selectedFleetVehicleId, setSelectedFleetVehicleId] = useState<number | null>(null);
+  const fleetMapRef = useRef<HTMLDivElement>(null);
+  const fleetLeafletRef = useRef<L.Map | null>(null);
+  const fleetMarkerRefs = useRef<Map<number, L.Marker>>(new Map());
 
   const loadVehicles = useCallback(() => {
     setLoading(true);
@@ -177,6 +186,27 @@ export default function VehiclesPage() {
         setError(e instanceof Error ? e.message : "Unable to load partners"),
       );
   }, []);
+  const loadFleetLocations = useCallback(async () => {
+    setFleetMapLoading(true);
+    try {
+      const result = await api.get<{ data: FleetGpsLocation[]; errors: Array<{ vehicle_id: number; name: string; message: string }> }>("/vehicles/locations");
+      setFleetLocations(result.data.data);
+      setFleetLocationErrors(result.data.errors);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load fleet GPS locations");
+    } finally {
+      setFleetMapLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (view !== "gps-map") return;
+    const initialLoad = window.setTimeout(() => void loadFleetLocations(), 0);
+    const timer = window.setInterval(() => void loadFleetLocations(), GPS_REFRESH_INTERVAL_MS);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(timer);
+    };
+  }, [view, loadFleetLocations]);
 
   const updateField = (key: keyof VehicleForm, value: string | boolean | File | null) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -360,6 +390,7 @@ export default function VehiclesPage() {
     if (!locationVehicle) return;
     const timer = window.setInterval(() => {
       void refreshLocation(locationVehicle);
+      setCurrentTime(Date.now());
     }, GPS_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [locationVehicle, refreshLocation]);
@@ -373,10 +404,89 @@ export default function VehiclesPage() {
     window.setTimeout(() => map.invalidateSize(), 0);
     return () => { map.remove(); locationLeafletRef.current = null; };
   }, [locationVehicle, location]);
+  useEffect(() => {
+    if (view !== "gps-map" || !fleetMapRef.current) return;
+    fleetLeafletRef.current?.remove();
+    fleetMarkerRefs.current = new Map();
+    const locations = fleetLocations;
+    const map = L.map(fleetMapRef.current).setView(
+      locations.length ? [locations[0].latitude, locations[0].longitude] : [14.5995, 120.9842],
+      locations.length ? 12 : 6,
+    );
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+    const bounds = L.latLngBounds([]);
+    locations.forEach((item) => {
+      const imageUrl = resolveImageUrl(item.image_url ?? null);
+      const marker = L.marker([item.latitude, item.longitude], imageUrl ? {
+        icon: L.divIcon({
+          className: "fleet-vehicle-marker",
+          html: `<img src="${imageUrl}" alt="" style="width:42px;height:42px;object-fit:cover;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35);background:#fff;" />`,
+          iconSize: [42, 42],
+          iconAnchor: [21, 21],
+          popupAnchor: [0, -21],
+        }),
+      } : undefined).addTo(map);
+      const freshness = item.position_time && Date.now() - new Date(item.position_time).getTime() <= GPS_STALE_AFTER_MS ? "Fresh" : "Stale";
+      marker.bindPopup(`<strong>${item.name}</strong><br>${item.plate_number}<br>${freshness} · ${item.speed ?? 0} km/h<br>Last position: ${item.position_time ?? "Unknown"}`);
+      fleetMarkerRefs.current.set(item.vehicle_id, marker);
+      bounds.extend([item.latitude, item.longitude]);
+    });
+    if (locations.length > 1) map.fitBounds(bounds.pad(0.15));
+    fleetLeafletRef.current = map;
+    window.setTimeout(() => map.invalidateSize(), 0);
+    return () => {
+      map.remove();
+      fleetLeafletRef.current = null;
+      fleetMarkerRefs.current = new Map();
+    };
+  }, [view, fleetLocations]);
+  useEffect(() => {
+    if (view !== "gps-map" || selectedFleetVehicleId === null) return;
+    const map = fleetLeafletRef.current;
+    const marker = fleetMarkerRefs.current.get(selectedFleetVehicleId);
+    if (!map || !marker) return;
+    map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 15), { duration: 0.6 });
+    marker.openPopup();
+  }, [view, selectedFleetVehicleId, fleetLocations]);
 
   return (
     <AdminShell title="Vehicle management">
-      <div className="mt-8 border border-black/10 bg-white p-4 md:p-6">
+      <div className="mt-8 flex border-b border-black/10">
+        <button type="button" className={`border-b-2 px-5 py-3 text-sm font-semibold ${view === "units" ? "border-[#ff641f] text-[#151515]" : "border-transparent text-[#888]"}`} onClick={() => setView("units")}>All units</button>
+        <button type="button" className={`border-b-2 px-5 py-3 text-sm font-semibold ${view === "gps-map" ? "border-[#ff641f] text-[#151515]" : "border-transparent text-[#888]"}`} onClick={() => setView("gps-map")}>Fleet GPS map</button>
+      </div>
+      {view === "gps-map" && <section className="mt-6 border border-black/10 bg-white p-4 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Aika GPS</p><h2 className="mt-1 text-xl font-semibold">Fleet live locations</h2><p className="mt-1 text-sm text-[#777]">Configured trackers refresh every 30 seconds. Individual vehicle GPS remains available from the unit list.</p></div><button type="button" className="border border-black/10 px-4 py-2 text-sm font-semibold" onClick={() => void loadFleetLocations()} disabled={fleetMapLoading}>{fleetMapLoading ? "Refreshing..." : "Refresh map"}</button></div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+          <aside className="order-2 border border-black/10 bg-[#f8f7f5] p-3 lg:order-1">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">Active GPS units</h3>
+              <span className="text-xs text-[#777]">{fleetLocations.filter((item) => item.status !== "archived").length}</span>
+            </div>
+            {fleetLocations.filter((item) => item.status !== "archived").length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {fleetLocations.filter((item) => item.status !== "archived").map((item) => (
+                  <button
+                    key={item.vehicle_id}
+                    type="button"
+                    className={`w-full border px-3 py-2 text-left transition-colors ${selectedFleetVehicleId === item.vehicle_id ? "border-[#ff641f] bg-white" : "border-transparent bg-white/60 hover:border-black/20"}`}
+                    onClick={() => setSelectedFleetVehicleId(item.vehicle_id)}
+                  >
+                    <span className="block truncate text-sm font-semibold text-[#151515]">{item.name}</span>
+                    <span className="mt-1 block text-xs text-[#777]">{item.plate_number} · {formatStatus(item.status)}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs leading-5 text-[#777]">No active configured GPS units have a usable location.</p>
+            )}
+          </aside>
+          {fleetMapLoading && fleetLocations.length === 0 ? <p className="order-1 flex h-[32rem] items-center justify-center text-sm text-[#777] lg:order-2">Loading fleet GPS locations...</p> : <div ref={fleetMapRef} className="order-1 h-[32rem] w-full lg:order-2" />}
+        </div>
+        {fleetLocations.length === 0 && !fleetMapLoading && <p className="mt-4 text-sm text-[#777]">No configured Aika GPS units returned a usable location.</p>}
+        {fleetLocationErrors.length > 0 && <div className="mt-4 border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">Some trackers could not be loaded.</p><ul className="mt-2 list-disc pl-5">{fleetLocationErrors.map((item) => <li key={item.vehicle_id}>{item.name}: {item.message}</li>)}</ul></div>}
+      </section>}
+      {view === "units" && <div className="mt-8 border border-black/10 bg-white p-4 md:p-6">
         <div className="flex flex-col gap-3 md:flex-row">
           <input
             className="flex-1 border border-black/10 bg-[#f8f7f5] px-4 py-3 text-sm outline-none focus:border-[#ff641f]"
@@ -720,10 +830,10 @@ export default function VehiclesPage() {
         {locationVehicle && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
           <section className="w-full max-w-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Aika GPS</p><h2 className="mt-1 text-xl font-semibold">{locationVehicle.name || `${locationVehicle.brand} ${locationVehicle.model}`}</h2></div><button type="button" className="text-2xl text-[#777]" onClick={() => setLocationVehicle(null)}>×</button></div>
-            {locationLoading ? <p className="flex h-72 items-center justify-center text-sm text-[#777]">Loading latest location...</p> : location ? <><div ref={locationMapRef} className="mt-5 h-72 w-full" /><div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#777]"><span className={location.position_time && Date.now() - new Date(location.position_time).getTime() <= GPS_STALE_AFTER_MS ? "text-emerald-700" : "text-amber-700"}>{location.position_time && Date.now() - new Date(location.position_time).getTime() <= GPS_STALE_AFTER_MS ? "Fresh location" : "Stale location"}</span><span>Last position: {location.position_time || "Unknown"}</span><span>Retrieved {new Date(location.fetched_at).toLocaleString()}</span><span>Speed {location.speed ?? 0} km/h</span>{locationRefreshing && <span>Refreshing...</span>}</div></> : <p className="mt-5 text-sm text-red-600">Unable to load a location for this tracker.</p>}
+            {locationLoading ? <p className="flex h-72 items-center justify-center text-sm text-[#777]">Loading latest location...</p> : location ? <><div ref={locationMapRef} className="mt-5 h-72 w-full" /><div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#777]"><span className={location.position_time && currentTime - new Date(location.position_time).getTime() <= GPS_STALE_AFTER_MS ? "text-emerald-700" : "text-amber-700"}>{location.position_time && currentTime - new Date(location.position_time).getTime() <= GPS_STALE_AFTER_MS ? "Fresh location" : "Stale location"}</span><span>Last position: {location.position_time || "Unknown"}</span><span>Retrieved {new Date(location.fetched_at).toLocaleString()}</span><span>Speed {location.speed ?? 0} km/h</span>{locationRefreshing && <span>Refreshing...</span>}</div></> : <p className="mt-5 text-sm text-red-600">Unable to load a location for this tracker.</p>}
           </section>
         </div>}
-      </div>
+      </div>}
     </AdminShell>
   );
 }
