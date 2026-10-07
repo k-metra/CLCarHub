@@ -176,6 +176,7 @@ export default function BookingsPage() {
   const [fleetSettings, setFleetSettings] = useState<FleetSettings>({ reservation_fee: '0', reservation_fee_deductible: true, default_hour_extension_rate: '200', full_day_extension_threshold_hours: 12, late_return_grace_period_minutes: 60, default_delivery_rate_per_km: '0', garage_location_name: null, garage_location_address: null, garage_location_latitude: null, garage_location_longitude: null, terms_and_conditions: null, privacy_policy: null })
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
+  const [includeArchived, setIncludeArchived] = useState(false)
   const [sort, setSort] = useState<'priority' | 'latest' | 'oldest'>('priority')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -201,6 +202,7 @@ export default function BookingsPage() {
     const params = new URLSearchParams({ per_page: '100', sort })
     if (search.trim()) params.set('search', search.trim())
     if (filter) params.set('filter', filter)
+    if (includeArchived) params.set('include_archived', '1')
     try {
       const result = await api.get<Paginated<BookingRecord>>(`/bookings?${params.toString()}`)
       setBookings(result.data.data)
@@ -211,7 +213,7 @@ export default function BookingsPage() {
     } finally {
       setLoading(false)
     }
-  }, [filter, search, sort])
+  }, [filter, search, sort, includeArchived])
   useEffect(() => { const timer = window.setTimeout(loadBookings, 250); return () => window.clearTimeout(timer) }, [loadBookings])
   useEffect(() => {
     Promise.all([api.get<Paginated<VehicleRecord>>('/vehicles?per_page=100'), api.get<Paginated<Customer>>('/customers?per_page=100'), api.get<{ funds: FundRecord[] }>('/funds'), api.get<FleetSettings>('/fleet-settings')])
@@ -224,7 +226,7 @@ export default function BookingsPage() {
   const openDetails = useCallback(async (booking: BookingRecord) => {
     setSelectedBooking(booking); setDetailTab('details'); setShowActions(false); setDetailLoading(true)
     try {
-      const result = await api.get<BookingRecord>(`/bookings/${booking.id}`)
+      const result = await api.get<BookingRecord>(`/bookings/${booking.id}${includeArchived ? '?include_archived=1' : ''}`)
       setSelectedBooking(result.data)
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to load booking details', 'error')
@@ -235,7 +237,7 @@ export default function BookingsPage() {
   const openDetailsById = useCallback(async (bookingId: number) => {
     setDetailTab('details'); setShowActions(false); setDetailLoading(true)
     try {
-      const result = await api.get<BookingRecord>(`/bookings/${bookingId}`)
+      const result = await api.get<BookingRecord>(`/bookings/${bookingId}${includeArchived ? '?include_archived=1' : ''}`)
       setSelectedBooking(result.data)
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to load booking details', 'error')
@@ -409,6 +411,7 @@ export default function BookingsPage() {
         <option value="">All bookings</option><option value="pending">Pending</option><option value="upcoming">Upcoming</option><option value="ongoing">Ongoing</option><option value="complete">Complete</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option>
       </select>
       <select className="w-full border border-black/10 bg-white px-3 py-2.5 text-sm" value={sort} onChange={event => setSort(event.target.value as 'priority' | 'latest' | 'oldest')}><option value="priority">Priority &amp; closest departure</option><option value="latest">Latest departure</option><option value="oldest">Oldest departure</option></select>
+      <label className="flex items-center gap-2 text-xs text-[#777] md:col-span-3"><input type="checkbox" checked={includeArchived} onChange={event => setIncludeArchived(event.target.checked)} /> Show archived customer bookings</label>
     </div>
     <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[1000px] text-left text-sm"><thead className="border-b border-black/10 text-[10px] uppercase tracking-widest text-[#888]"><tr><th className="pb-3">Reference</th><th className="pb-3">Customer</th><th className="pb-3">Vehicle</th><th className="pb-3">Dates</th><th className="pb-3">Balance</th><th className="pb-3">Status</th><th /></tr></thead><tbody>{loading ? <tr><td className="py-8 text-[#888]" colSpan={7}>Loading bookings...</td></tr> : bookings.map(booking => { const isPending = booking.status === 'pending'; const isTerminal = ['cancelled', 'rejected', 'complete'].includes(booking.status); const rowClass = `${isPending ? 'border-b border-black/[.06] bg-yellow-100/70' : booking.status === 'rejected' ? 'border-b border-red-200 bg-red-100/60 text-red-900 opacity-75' : booking.status === 'cancelled' ? 'border-b border-black/[.06] bg-gray-100 text-gray-500 opacity-75' : 'border-b border-black/[.06]'} cursor-pointer transition hover:bg-orange-50`; return <tr className={rowClass} key={booking.id} onClick={() => openDetails(booking)}><td className="py-4 font-semibold text-[#ff641f]">{booking.reference}</td><td className="py-4">{booking.customer?.name ?? '—'}</td><td className="py-4 text-[#777]">{booking.vehicle ? (booking.vehicle.name || `${booking.vehicle.brand} ${booking.vehicle.model}`) : '—'}</td><td className="py-4 text-xs"><div className="flex items-start gap-2"><div><span className={`block ${isToday(booking.pickup_at) ? 'font-bold text-[#ff641f]' : 'text-[#777]'}`}>Departure: {bookingDatePart(booking.pickup_at)} {bookingTimePart(booking.pickup_at)}</span><span className={`mt-1 block ${isToday(booking.return_at) ? 'font-bold text-[#ff641f]' : 'text-[#777]'}`}>Return: {bookingDatePart(booking.return_at)} {bookingTimePart(booking.return_at)}</span></div><span className="whitespace-nowrap rounded-full bg-orange-50 px-2 py-1 text-[10px] font-semibold text-[#d94f12]">{rentalDurationLabel(booking.pickup_at, booking.return_at)}</span></div></td><td className="py-4">₱{Number(booking.balance ?? 0).toLocaleString()}</td><td className="py-4"><span className="rounded-full bg-orange-50 px-2 py-1 text-xs font-semibold text-[#d94f12]">{statusLabel(booking.status)}</span></td><td className="py-4 text-right" onClick={event => event.stopPropagation()}><RowActions actions={[{ label: 'View Details', onClick: () => openDetails(booking) }, ...(booking.status === 'pending' ? [{ label: 'Accept booking', onClick: () => requestStatusChange(booking, 'upcoming') }, { label: 'Reject booking', onClick: () => requestStatusChange(booking, 'rejected') }] : []), ...(!isTerminal ? [{ label: 'Edit', onClick: () => openEdit(booking) }, { label: 'Add payment', onClick: () => openQuickPayment(booking) }] : []), ...(['pending', 'upcoming'].includes(booking.status) ? [{ label: 'Cancel booking', onClick: () => requestStatusChange(booking, 'cancelled'), danger: true }] : [])]} /></td></tr> })}</tbody></table></div>
   </div></AdminShell></>
