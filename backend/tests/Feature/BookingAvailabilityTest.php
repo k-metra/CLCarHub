@@ -147,6 +147,39 @@ class BookingAvailabilityTest extends TestCase
         $this->assertSame(1500.0, Booking::firstOrFail()->balance);
     }
 
+    public function test_booking_invoice_contains_itemized_totals_and_payments(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000123',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-12 10:00',
+            'status' => 'upcoming',
+            'payment_status' => 'partial',
+            'rental_amount' => 6990,
+            'delivery_distance_km' => 22.98,
+            'delivery_rate_per_km' => 50,
+            'delivery_fee' => 1149,
+            'return_distance_km' => 10,
+            'return_pickup_fee' => 1000,
+            'total_amount' => 9139,
+        ]);
+        $booking->payments()->create(['amount' => 500, 'paid_at' => '2030-01-01', 'notes' => 'Deposit']);
+
+        $this->get("/api/bookings/{$booking->id}/invoice")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/html; charset=UTF-8')
+            ->assertSee('INV-CLCH-2030-000123')
+            ->assertSee('Rental fees (₱2,000.00 daily rate × 2 days)')
+            ->assertSee('Delivery fee (₱50.00/km × 22.98 km)')
+            ->assertSee('Return pickup fee (₱50.00/km × 10.00 km × 2)')
+            ->assertSee('₱9,139.00')
+            ->assertSee('₱500.00')
+            ->assertSee('₱8,639.00');
+    }
+
     public function test_status_transitions_follow_the_booking_lifecycle(): void
     {
         [$vehicle, $customer] = $this->authenticate();
