@@ -5,6 +5,8 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import { useRef } from "react";
+import L from "leaflet";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
 import { vehicleTypeLabels, vehicleTypes, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";
@@ -36,6 +38,9 @@ function statusTagClass(status: string): string {
   return "bg-blue-100 text-blue-700";
 }
 
+const GPS_REFRESH_INTERVAL_MS = 30_000;
+const GPS_STALE_AFTER_MS = 5 * 60_000;
+
 function formatStatus(status: string): string {
   return status === "maintenance"
     ? "In Maintenance"
@@ -60,6 +65,9 @@ type VehicleForm = {
   delivery_rate_per_km: string;
   status: string;
   partner_id: string;
+  aika_enabled: boolean;
+  aika_device_id: string;
+  aika_device_password: string;
   image: File | null;
 };
 
@@ -100,6 +108,9 @@ const emptyForm: VehicleForm = {
   delivery_rate_per_km: "",
   status: "available",
   partner_id: "",
+  aika_enabled: false,
+  aika_device_id: "",
+  aika_device_password: "",
   image: null,
 };
 
@@ -127,6 +138,12 @@ export default function VehiclesPage() {
   const [partnerId, setPartnerId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [locationVehicle, setLocationVehicle] = useState<VehicleRecord | null>(null);
+  const [location, setLocation] = useState<{ latitude: number; longitude: number; speed: number | null; position_time: string | null; fetched_at: string } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationRefreshing, setLocationRefreshing] = useState(false);
+  const locationMapRef = useRef<HTMLDivElement>(null);
+  const locationLeafletRef = useRef<L.Map | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
@@ -161,7 +178,7 @@ export default function VehiclesPage() {
       );
   }, []);
 
-  const updateField = (key: keyof VehicleForm, value: string | File | null) => {
+  const updateField = (key: keyof VehicleForm, value: string | boolean | File | null) => {
     setForm((current) => ({ ...current, [key]: value }));
     if (key === "image") {
       setCurrentImageUrl(value instanceof File ? URL.createObjectURL(value) : null);
@@ -213,6 +230,9 @@ export default function VehiclesPage() {
       delivery_rate_per_km: vehicle.delivery_rate_per_km ?? "",
       status: vehicle.status,
       partner_id: vehicle.partner_id?.toString() ?? "",
+      aika_enabled: Boolean(vehicle.aika_device_id),
+      aika_device_id: vehicle.aika_device_id ?? "",
+      aika_device_password: "",
     });
     setShowForm(true);
   };
@@ -230,13 +250,23 @@ export default function VehiclesPage() {
     setError("");
     const payload = new FormData();
     Object.entries(form).forEach(([key, value]) => {
-      if (editing && key === "image") return;
+      if (key === "image" || key === "aika_enabled" || key === "aika_device_id" || key === "aika_device_password") return;
+      if (typeof value === "boolean") return;
       if (key === "partner_id" || key === "delivery_rate_per_km") {
         payload.append(key, value || "");
       } else if (value !== null && value !== "") {
         payload.append(key, value instanceof File ? value : value);
       }
     });
+    if (form.aika_enabled) {
+      payload.append("aika_device_id", form.aika_device_id);
+      if (form.aika_device_password !== "") {
+        payload.append("aika_device_password", form.aika_device_password);
+      }
+    } else if (editing) {
+      payload.append("aika_device_id", "");
+      payload.append("aika_device_password", "");
+    }
     try {
       let vehicleId = editing;
       if (editing) {
@@ -308,6 +338,41 @@ export default function VehiclesPage() {
       );
     }
   };
+  const refreshLocation = useCallback(async (vehicle: VehicleRecord, initial = false) => {
+    if (initial) setLocationLoading(true);
+    else setLocationRefreshing(true);
+    try {
+      const response = await api.get<typeof location>("/vehicles/" + vehicle.id + "/location");
+      setLocation(response.data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load vehicle location");
+    } finally {
+      if (initial) setLocationLoading(false);
+      else setLocationRefreshing(false);
+    }
+  }, []);
+  const showLocation = async (vehicle: VehicleRecord) => {
+    setLocationVehicle(vehicle);
+    setLocation(null);
+    await refreshLocation(vehicle, true);
+  };
+  useEffect(() => {
+    if (!locationVehicle) return;
+    const timer = window.setInterval(() => {
+      void refreshLocation(locationVehicle);
+    }, GPS_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [locationVehicle, refreshLocation]);
+  useEffect(() => {
+    if (!locationVehicle || !location || !locationMapRef.current) return;
+    locationLeafletRef.current?.remove();
+    const map = L.map(locationMapRef.current).setView([location.latitude, location.longitude], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    L.marker([location.latitude, location.longitude]).addTo(map).bindPopup(`${locationVehicle.name || `${locationVehicle.brand} ${locationVehicle.model}`}<br>${location.speed ?? 0} km/h`).openPopup();
+    locationLeafletRef.current = map;
+    window.setTimeout(() => map.invalidateSize(), 0);
+    return () => { map.remove(); locationLeafletRef.current = null; };
+  }, [locationVehicle, location]);
 
   return (
     <AdminShell title="Vehicle management">
@@ -467,6 +532,42 @@ export default function VehiclesPage() {
                     <option value="maintenance">In Maintenance</option>
                   </select>
                 </label>
+                <label className="flex items-center gap-3 text-sm text-[#333] sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={form.aika_enabled}
+                    onChange={(e) => updateField("aika_enabled", e.target.checked)}
+                  />
+                  <span>Toggle Aika GPS</span>
+                </label>
+                {form.aika_enabled && <>
+                  <label className="text-xs text-[#777]">
+                    Aika device ID
+                    <input
+                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm text-[#151515]"
+                      type="text"
+                      value={form.aika_device_id}
+                      onChange={(e) => updateField("aika_device_id", e.target.value)}
+                      placeholder="e.g. 9175749144"
+                      required
+                    />
+                  </label>
+                  <label className="text-xs text-[#777]">
+                    Aika device password
+                    <input
+                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm text-[#151515]"
+                      type="password"
+                      value={form.aika_device_password}
+                      onChange={(e) => updateField("aika_device_password", e.target.value)}
+                      placeholder={editing && form.aika_device_id ? "Leave blank to keep current password" : "Enter tracker password"}
+                      autoComplete="new-password"
+                      required={!editing || !form.aika_device_id}
+                    />
+                    <span className="mt-1 block text-[11px] text-[#888]">
+                      Stored encrypted and never shown in vehicle responses.
+                    </span>
+                  </label>
+                </>}
                 <label
                   className="text-xs text-[#777] md:col-span-2"
                   onDragOver={(e) => e.preventDefault()}
@@ -608,7 +709,7 @@ export default function VehiclesPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-4 text-right"><RowActions actions={[{ label: "Edit", onClick: () => openEdit(vehicle) }, { label: vehicle.status === "archived" ? "Restore" : "Archive", danger: vehicle.status !== "archived", onClick: () => void archiveVehicle(vehicle) }]} /></td>
+                      <td className="py-4 text-right"><RowActions actions={[{ label: "Show GPS location", disabled: !vehicle.aika_device_id, onClick: () => void showLocation(vehicle) }, { label: "Edit", onClick: () => openEdit(vehicle) }, { label: vehicle.status === "archived" ? "Restore" : "Archive", danger: vehicle.status !== "archived", onClick: () => void archiveVehicle(vehicle) }]} /></td>
                     </tr>
                   );
                 })
@@ -616,6 +717,12 @@ export default function VehiclesPage() {
             </tbody>
           </table>
         </div>
+        {locationVehicle && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+          <section className="w-full max-w-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Aika GPS</p><h2 className="mt-1 text-xl font-semibold">{locationVehicle.name || `${locationVehicle.brand} ${locationVehicle.model}`}</h2></div><button type="button" className="text-2xl text-[#777]" onClick={() => setLocationVehicle(null)}>×</button></div>
+            {locationLoading ? <p className="flex h-72 items-center justify-center text-sm text-[#777]">Loading latest location...</p> : location ? <><div ref={locationMapRef} className="mt-5 h-72 w-full" /><div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#777]"><span className={location.position_time && Date.now() - new Date(location.position_time).getTime() <= GPS_STALE_AFTER_MS ? "text-emerald-700" : "text-amber-700"}>{location.position_time && Date.now() - new Date(location.position_time).getTime() <= GPS_STALE_AFTER_MS ? "Fresh location" : "Stale location"}</span><span>Last position: {location.position_time || "Unknown"}</span><span>Retrieved {new Date(location.fetched_at).toLocaleString()}</span><span>Speed {location.speed ?? 0} km/h</span>{locationRefreshing && <span>Refreshing...</span>}</div></> : <p className="mt-5 text-sm text-red-600">Unable to load a location for this tracker.</p>}
+          </section>
+        </div>}
       </div>
     </AdminShell>
   );

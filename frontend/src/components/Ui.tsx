@@ -124,7 +124,7 @@ export function Button({
   );
 }
 
-export function RowActions({ actions }: { actions: Array<{ label: string; onClick: () => void; danger?: boolean }> }) {
+export function RowActions({ actions }: { actions: Array<{ label: string; onClick: () => void; danger?: boolean; disabled?: boolean }> }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -160,6 +160,6 @@ export function RowActions({ actions }: { actions: Array<{ label: string; onClic
   }, [open, updatePosition]);
   return <div className="inline-block" ref={ref}>
     <button type="button" aria-label="More actions" className="rounded px-2 py-1 text-xl leading-none text-[#777] hover:bg-black/5 hover:text-[#151515]" onClick={() => setOpen(current => !current)}>⋯</button>
-    {open && createPortal(<div ref={menuRef} className="fixed z-[130] min-w-36 border border-black/10 bg-white p-1 text-left shadow-xl" style={{ top: position.top, right: position.right }}>{actions.map(action => <button type="button" key={action.label} className={`block w-full whitespace-nowrap px-3 py-2 text-sm hover:bg-[#f8f7f5] ${action.danger ? "text-red-600" : ""}`} onClick={() => { setOpen(false); action.onClick(); }}>{action.label}</button>)}</div>, document.body)}
+    {open && createPortal(<div ref={menuRef} className="fixed z-[130] min-w-36 border border-black/10 bg-white p-1 text-left shadow-xl" style={{ top: position.top, right: position.right }}>{actions.map(action => <button type="button" key={action.label} disabled={action.disabled} className={`block w-full whitespace-nowrap px-3 py-2 text-sm ${action.disabled ? "cursor-not-allowed text-[#aaa]" : `hover:bg-[#f8f7f5] ${action.danger ? "text-red-600" : ""}`}`} onClick={() => { if (action.disabled) return; setOpen(false); action.onClick(); }}>{action.label}</button>)}</div>, document.body)}
   </div>;
 }

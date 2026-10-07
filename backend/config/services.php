@@ -1,6 +1,15 @@
 <?php
 
 return [
+    'aika' => [
+        'server' => env('AIKA_SERVER', 'https://en.aika168.com'),
+        'ca_bundle' => env('AIKA_CA_BUNDLE'),
+        'devices' => [
+            '9175749144' => [
+                'password' => env('AIKA_DEVICE_9175749144_PASSWORD'),
+            ],
+        ],
+    ],
 
     /*
     |--------------------------------------------------------------------------

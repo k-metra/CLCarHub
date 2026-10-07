@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/push/subscriptions', [PushSubscriptionController::class, 'store']);
     Route::delete('/push/subscriptions', [PushSubscriptionController::class, 'destroy']);
     Route::get('/fleet-settings', [FleetSettingController::class, 'show']);
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->get('/vehicles/{vehicle}/location', [VehicleController::class, 'location']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->get('/audit-logs', [AuditLogController::class, 'index']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
