@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import L from "leaflet";
+import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";

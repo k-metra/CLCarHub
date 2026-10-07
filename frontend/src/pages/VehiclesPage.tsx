@@ -6,7 +6,7 @@ import {
   type FormEvent,
 } from "react";
 import { useRef } from "react";
-import L from "leaflet";
+import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
 import { vehicleTypeLabels, vehicleTypes, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";

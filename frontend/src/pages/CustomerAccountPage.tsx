@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import L from "leaflet";
+import L from "../lib/leaflet";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { useToast } from "../components/Ui";

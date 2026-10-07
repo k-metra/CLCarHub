@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import L from "leaflet";
+import L from "../lib/leaflet";
 
 export type LocationValue = {
   address: string;
