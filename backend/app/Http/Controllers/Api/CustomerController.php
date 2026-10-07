@@ -25,6 +25,7 @@ class CustomerController extends Controller
             ->whereNotIn('status', ['cancelled', 'rejected'])
             ->with('payments')])
             ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'rejected'])])
+            ->when(! $request->boolean('include_archived'), fn ($query) => $query->whereNull('archived_at'))
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%")->orWhere('phone', 'like', "%$s%")))
             ->latest()
             ->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
@@ -43,9 +44,10 @@ class CustomerController extends Controller
     public function summary()
     {
         $customers = Customer::query()
+            ->whereNull('archived_at')
             ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'rejected'])])
             ->get(['id', 'name']);
-        $balances = Customer::with(['bookings' => fn ($query) => $query
+        $balances = Customer::whereNull('archived_at')->with(['bookings' => fn ($query) => $query
             ->whereNotIn('status', ['cancelled', 'rejected'])
             ->with('payments')])
             ->get();
@@ -54,7 +56,7 @@ class CustomerController extends Controller
         $totalReceivable = $balances->sum(fn (Customer $customer) => $customer->bookings->sum(fn ($booking) => $booking->balance));
 
         return [
-            'total_customers' => Customer::count(),
+            'total_customers' => Customer::whereNull('archived_at')->count(),
             'top_customer' => $topCustomer ? [
                 'id' => $topCustomer->id,
                 'name' => $topCustomer->name,
@@ -81,7 +83,7 @@ class CustomerController extends Controller
     {
         $customer->load([
             'user:id,last_login_ip',
-            'bookings' => fn ($query) => $query->latest('pickup_at'),
+            'bookings' => fn ($query) => $query->when(! request()->boolean('include_archived') && $customer->archived_at, fn ($query) => $query->whereRaw('1 = 0'))->latest('pickup_at'),
             'bookings.vehicle',
             'bookings.payments',
             'attachments',
@@ -110,9 +112,16 @@ class CustomerController extends Controller
 
     public function destroy(Customer $customer)
     {
-        $customer->delete();
+        $customer->update(['archived_at' => now()]);
 
         return response()->noContent();
+    }
+
+    public function restore(Customer $customer)
+    {
+        $customer->update(['archived_at' => null]);
+
+        return response()->json($customer->fresh());
     }
 
     public function blockIp(Request $request, Customer $customer)
