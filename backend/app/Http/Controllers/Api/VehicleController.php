@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 use App\Services\AikaGpsService;
 
 class VehicleController extends Controller
@@ -148,6 +150,43 @@ class VehicleController extends Controller
     public function location(Vehicle $vehicle, AikaGpsService $aikaGps)
     {
         return $aikaGps->location($vehicle);
+    }
+
+    public function fleetLocations(AikaGpsService $aikaGps)
+    {
+        $locations = [];
+        $errors = [];
+
+        Vehicle::query()
+            ->with('images')
+            ->whereNotNull('aika_device_id')
+            ->where('aika_device_id', '!=', '')
+            ->get()
+            ->each(function (Vehicle $vehicle) use ($aikaGps, &$locations, &$errors): void {
+                try {
+                    $locations[] = [
+                        ...$aikaGps->location($vehicle),
+                        'name' => $vehicle->name ?: trim($vehicle->brand.' '.$vehicle->model),
+                        'plate_number' => $vehicle->plate_number,
+                        'status' => $vehicle->status,
+                        'image_url' => ($vehicle->images->firstWhere('image_type', 'thumbnail') ?: $vehicle->images->first())?->url,
+                    ];
+                } catch (Throwable $exception) {
+                    Log::warning('Aika fleet GPS request failed', [
+                        'vehicle_id' => $vehicle->id,
+                        'operation' => 'fleet_locations',
+                        'exception' => get_class($exception),
+                        'message' => $exception->getMessage(),
+                    ]);
+                    $errors[] = [
+                        'vehicle_id' => $vehicle->id,
+                        'name' => $vehicle->name ?: trim($vehicle->brand.' '.$vehicle->model),
+                        'message' => $exception->getMessage(),
+                    ];
+                }
+            });
+
+        return ['data' => $locations, 'errors' => $errors, 'fetched_at' => now()->toIso8601String()];
     }
 
     private function rules(): array
