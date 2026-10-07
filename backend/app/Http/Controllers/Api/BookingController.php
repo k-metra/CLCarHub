@@ -193,6 +193,56 @@ class BookingController extends Controller
         ]);
     }
 
+    public function invoice(Request $request, Booking $booking)
+    {
+        Booking::synchronizeAutomaticStatuses();
+        $booking->load(['customer', 'vehicle', 'payments']);
+
+        $authenticatedCustomer = $request->user()?->customer;
+        abort_unless(! $authenticatedCustomer || $booking->customer_id === $authenticatedCustomer->id, 403);
+
+        $escape = static fn (?string $value): string => e($value ?? '—');
+        $money = static fn (float $value): string => '₱'.number_format($value, 2);
+        $paid = (float) $booking->payments->sum(fn ($payment) => (float) $payment->amount);
+        $balance = max(0, (float) $booking->total_amount - $paid);
+        $vehicleName = $booking->vehicle
+            ? trim(($booking->vehicle->name ? $booking->vehicle->name.' - ' : '').$booking->vehicle->brand.' '.$booking->vehicle->model)
+            : '—';
+        $rentalDays = max(1, intdiv($booking->pickup_at->diffInMinutes($booking->return_at), 24 * 60));
+        $dailyRate = (float) ($booking->rental_rate ?? $booking->vehicle?->daily_rate ?? 0);
+        $deliveryRate = (float) ($booking->delivery_rate_per_km ?? 0);
+        $deliveryDistance = (float) ($booking->delivery_distance_km ?? 0);
+        $returnDistance = (float) ($booking->return_distance_km ?? 0);
+        $lineItems = [
+            ['Rental fees ('.$money($dailyRate).' daily rate × '.$rentalDays.' '.($rentalDays === 1 ? 'day' : 'days').')', (float) $booking->rental_amount],
+            ['Additional charges', (float) $booking->additional_charges],
+            ['Delivery fee ('.$money($deliveryRate).'/km × '.number_format($deliveryDistance, 2).' km)', (float) $booking->delivery_fee],
+            ['Return pickup fee ('.$money($deliveryRate).'/km × '.number_format($returnDistance, 2).' km × 2)', (float) $booking->return_pickup_fee],
+            ['Fuel charge', (float) $booking->fuel_charge],
+            ['RFID charge', (float) $booking->rfid_charge],
+            ['Damage fees', (float) $booking->damage_fees],
+            ['Car wash fees', (float) $booking->car_wash_fees],
+            ['Extension fees (additional rental time)', (float) $booking->extension_fees],
+            ['Discount', -((float) $booking->discount)],
+            ['Security deposit', (float) $booking->deposit],
+        ];
+        $lineItemsHtml = collect($lineItems)
+            ->filter(fn (array $item) => $item[1] != 0)
+            ->map(fn (array $item) => '<tr><td>'.e($item[0]).'</td><td class="amount">'.($item[1] < 0 ? '-' : '').$money(abs($item[1])).'</td></tr>')
+            ->implode('');
+        $paymentsHtml = $booking->payments
+            ->sortBy('paid_at')
+            ->map(fn ($payment) => '<tr><td>'.e($payment->paid_at?->format('M j, Y') ?? '—').'</td><td>'.e($payment->notes ?: 'Payment').'</td><td class="amount">'.$money((float) $payment->amount).'</td></tr>')
+            ->implode('');
+        $invoiceNumber = 'INV-'.$booking->reference;
+
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'.e($invoiceNumber).' · CL CarHub</title><style>
+            :root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f5f5f3;color:#171717;font:14px Arial,sans-serif}.sheet{max-width:820px;margin:32px auto;background:#fff;padding:48px;box-shadow:0 8px 30px #00000012}.header{display:flex;justify-content:space-between;gap:24px;border-bottom:2px solid #ff641f;padding-bottom:24px}.brand{font-size:24px;font-weight:700}.muted{color:#666}.label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#777}.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:28px 0}.details{line-height:1.7}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{padding:10px 0;border-bottom:1px solid #e5e5e5;text-align:left}th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#777}.amount{text-align:right;white-space:nowrap}.totals{margin-left:auto;max-width:300px;margin-top:24px}.totals div{display:flex;justify-content:space-between;padding:7px 0}.grand{border-top:2px solid #171717;font-size:18px;font-weight:700;margin-top:6px;padding-top:12px!important}.balance{color:#d94f12}.actions{display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px}.button{border:1px solid #ddd;background:#fff;padding:10px 16px;cursor:pointer}.button.primary{background:#ff641f;border-color:#ff641f;color:#fff;font-weight:700}@media print{body{background:#fff}.sheet{margin:0;max-width:none;padding:0;box-shadow:none}.actions{display:none}}@media(max-width:600px){.sheet{margin:0;padding:24px}.header,.grid{display:block}.header>div+div{margin-top:20px}.totals{max-width:none}}
+        </style></head><body><main class="sheet"><div class="actions"><button class="button" onclick="window.close()">Close</button><button class="button primary" onclick="window.print()">Print / Save PDF</button></div><header class="header"><div><div class="brand">CL CarHub</div><div class="muted">Vehicle rental invoice</div></div><div><div class="label">Invoice</div><strong>'.e($invoiceNumber).'</strong><div class="muted">'.e(now()->format('M j, Y')).'</div></div></header><section class="grid"><div class="details"><div class="label">Bill to</div><strong>'.e($booking->customer?->name).'</strong><br>'.($booking->customer?->email ? e($booking->customer->email).'<br>' : '').e($booking->customer?->phone ?? '').'</div><div class="details"><div class="label">Booking</div><strong>'.e($booking->reference).'</strong><br>'.e($vehicleName).'<br>'.e($booking->vehicle?->plate_number).'<br>'.e($booking->pickup_at?->format('M j, Y g:i A')).' – '.e($booking->return_at?->format('M j, Y g:i A')).'</div></section><section><div class="label">Charges</div><table><thead><tr><th>Description</th><th class="amount">Amount</th></tr></thead><tbody>'.$lineItemsHtml.'</tbody></table><div class="totals"><div><span>Total</span><strong>'.$money((float) $booking->total_amount).'</strong></div><div><span>Paid</span><span>'.$money($paid).'</span></div><div class="grand balance"><span>Balance due</span><span>'.$money($balance).'</span></div></div></section><section style="margin-top:34px"><div class="label">Payments received</div><table><thead><tr><th>Date</th><th>Notes</th><th class="amount">Amount</th></tr></thead><tbody>'.($paymentsHtml ?: '<tr><td colspan="3" class="muted">No payments recorded.</td></tr>').'</tbody></table></section><p class="muted" style="margin-top:36px">Thank you for choosing CL CarHub.</p></main></body></html>';
+
+        return response($html)->header('Content-Type', 'text/html; charset=UTF-8')->header('Content-Disposition', 'inline; filename="'.$invoiceNumber.'.html"')->header('Cache-Control', 'no-store');
+    }
+
     public function update(Request $request, Booking $booking)
     {
         Booking::synchronizeAutomaticStatuses();
@@ -313,8 +363,8 @@ class BookingController extends Controller
     {
         $originLat = $settings->garage_location_latitude;
         $originLon = $settings->garage_location_longitude;
-        $hasDelivery = isset($data['delivery_latitude'], $data['delivery_longitude']);
-        $hasReturnPickup = isset($data['return_latitude'], $data['return_longitude']);
+        $hasDelivery = $this->hasCoordinates($data, 'delivery_latitude', 'delivery_longitude');
+        $hasReturnPickup = $this->hasCoordinates($data, 'return_latitude', 'return_longitude');
         if (! $hasDelivery && ! $hasReturnPickup) {
             return ['delivery_distance_km' => null, 'delivery_rate_per_km' => null, 'delivery_fee' => 0, 'delivery_latitude' => null, 'delivery_longitude' => null, 'return_distance_km' => null, 'return_pickup_fee' => 0];
         }
@@ -340,6 +390,14 @@ class BookingController extends Controller
             : null;
 
         return ['delivery_distance_km' => $deliveryDistance, 'delivery_rate_per_km' => $rate, 'delivery_fee' => $deliveryDistance === null ? 0 : round($deliveryDistance * $rate, 2), 'delivery_latitude' => $hasDelivery ? (float) $data['delivery_latitude'] : null, 'delivery_longitude' => $hasDelivery ? (float) $data['delivery_longitude'] : null, 'return_distance_km' => $returnDistance, 'return_pickup_fee' => $returnDistance === null ? 0 : round($returnDistance * 2 * $rate, 2)];
+    }
+
+    private function hasCoordinates(array $data, string $latitudeKey, string $longitudeKey): bool
+    {
+        return array_key_exists($latitudeKey, $data)
+            && array_key_exists($longitudeKey, $data)
+            && is_numeric($data[$latitudeKey])
+            && is_numeric($data[$longitudeKey]);
     }
 
     private function rentalBreakdown(Carbon|string $pickupAt, Carbon|string $returnAt, Vehicle $vehicle, float|string|null $rentalRate = null): array
