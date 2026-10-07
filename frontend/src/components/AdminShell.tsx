@@ -25,7 +25,7 @@ export function AdminShell({
 
   return (
     <div className="min-h-screen bg-[#f4f3f0] text-[#151515]">
-      <header className="sticky top-0 z-40 flex h-20 min-w-0 items-center justify-between border-b border-black/10 bg-[#111] px-4 text-white print:hidden sm:px-6 md:px-10">
+      <header className="sticky top-0 z-[200] flex h-20 min-w-0 items-center justify-between border-b border-black/10 bg-[#111] px-4 text-white print:hidden sm:px-6 md:px-10">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             className="text-xl text-[#bbb] lg:hidden"
