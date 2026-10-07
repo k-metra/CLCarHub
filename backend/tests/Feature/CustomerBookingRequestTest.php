@@ -19,6 +19,43 @@ class CustomerBookingRequestTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_customer_with_booking_history_is_archived_and_can_be_restored(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'ARC-123', 'daily_rate' => 2000, 'status' => 'available']);
+        Booking::create([
+            'reference' => 'CLCH-2030-009999', 'customer_id' => $customer->id, 'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00', 'return_at' => '2030-01-11 10:00',
+            'status' => Booking::COMPLETE, 'payment_status' => 'unpaid', 'rental_amount' => 2000, 'total_amount' => 2000,
+        ]);
+        $staff = User::factory()->create(['role' => 'owner']);
+        Sanctum::actingAs($staff);
+
+        $this->deleteJson("/api/customers/{$customer->id}")->assertNoContent();
+        $this->assertDatabaseHas('customers', ['id' => $customer->id]);
+        $this->getJson('/api/customers')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/customers?include_archived=1')->assertOk()->assertJsonCount(1, 'data');
+        $this->postJson("/api/customers/{$customer->id}/restore")->assertOk();
+        $this->getJson('/api/customers')->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_archived_customer_bookings_are_hidden_from_admin_booking_list_by_default(): void
+    {
+        $customer = Customer::create(['name' => 'Archived', 'phone' => '09170000000', 'archived_at' => now()]);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'ARC-124', 'daily_rate' => 2000, 'status' => 'available']);
+        Booking::create([
+            'reference' => 'CLCH-2030-009998', 'customer_id' => $customer->id, 'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00', 'return_at' => '2030-01-11 10:00',
+            'status' => Booking::CANCELLED, 'payment_status' => 'unpaid', 'rental_amount' => 2000, 'total_amount' => 2000,
+        ]);
+        $staff = User::factory()->create(['role' => 'owner']);
+        Sanctum::actingAs($staff);
+
+        $this->getJson('/api/bookings')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/bookings?include_archived=1')->assertOk()->assertJsonCount(1, 'data');
+    }
+
     public function test_booking_only_ip_blocks_prevent_booking_submission_but_not_customer_listing(): void
     {
         $user = User::factory()->create(['role' => 'customer', 'last_login_ip' => '203.0.113.10']);
