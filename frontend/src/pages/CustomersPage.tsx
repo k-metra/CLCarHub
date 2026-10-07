@@ -27,6 +27,7 @@ type Customer = {
   bookings?: BookingRecord[];
   user?: { last_login_ip?: string | null };
   ip_block_scopes?: string[];
+  archived_at?: string | null;
 };
 type CustomerSummary = {
   total_customers: number;
@@ -77,6 +78,7 @@ export default function CustomersPage() {
   const { showToast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState<CustomerForm>(emptyForm);
@@ -91,14 +93,14 @@ export default function CustomersPage() {
     setLoading(true);
     api
       .get<Paginated<Customer>>(
-        `/customers?per_page=100${search ? `&search=${encodeURIComponent(search)}` : ""}`,
+        `/customers?per_page=100${showArchived ? "&include_archived=1" : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`,
       )
       .then((result) => setCustomers(result.data.data))
       .catch((e) =>
         setError(e instanceof Error ? e.message : "Unable to load customers"),
       )
       .finally(() => setLoading(false));
-  }, [search]);
+  }, [search, showArchived]);
 
   useEffect(() => {
     const timer = window.setTimeout(loadCustomers, 250);
@@ -115,7 +117,7 @@ export default function CustomersPage() {
     setProfileLoading(true);
     setProfile(customer);
     try {
-      const result = await api.get<Customer>(`/customers/${customer.id}`);
+      const result = await api.get<Customer>(`/customers/${customer.id}?include_archived=1`);
       setProfile(result.data);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Unable to load customer profile", "error");
@@ -215,18 +217,27 @@ export default function CustomersPage() {
     }
   };
 
-  const deleteCustomer = async (customer: Customer) => {
-    if (!window.confirm(`Delete ${customer.name}? This cannot be undone.`))
+  const archiveCustomer = async (customer: Customer) => {
+    if (!window.confirm(`Archive ${customer.name}? Their bookings and history will be kept.`))
       return;
     try {
       await api.delete(`/customers/${customer.id}`);
       loadCustomers();
-      showToast("Customer deleted successfully.", "success");
+      showToast("Customer archived. Their history was kept.", "success");
     } catch (e) {
       showToast(
-        e instanceof Error ? e.message : "Unable to delete customer",
+        e instanceof Error ? e.message : "Unable to archive customer",
         "error",
       );
+    }
+  };
+  const restoreCustomer = async (customer: Customer) => {
+    try {
+      await api.post(`/customers/${customer.id}/restore`);
+      loadCustomers();
+      showToast("Customer restored.", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Unable to restore customer", "error");
     }
   };
   const removeAttachment = async (customerId: number, attachmentId: number) => {
@@ -293,7 +304,9 @@ export default function CustomersPage() {
     ...(customer.ip_block_scopes?.length
       ? [{ label: "Unblock IP", onClick: () => void unblockCustomerIp(customer) }]
       : [{ label: "Block last IP", danger: true, onClick: () => void blockCustomerIp(customer) }]),
-    { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) },
+    customer.archived_at
+      ? { label: "Restore", onClick: () => void restoreCustomer(customer) }
+      : { label: "Archive", danger: true, onClick: () => void archiveCustomer(customer) },
   ];
 
   type CustomerTextField = Exclude<keyof CustomerForm, "attachments">;
@@ -339,6 +352,10 @@ export default function CustomersPage() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
+            <label className="mt-3 flex items-center gap-2 text-xs text-[#777]">
+              <input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />
+              Show archived customers
+            </label>
           </div>
           <button
             className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white"
@@ -503,7 +520,7 @@ export default function CustomersPage() {
                 <article className="rounded border border-black/[.06] p-4" key={customer.id}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="break-words font-semibold">{customer.name}</h3>
+                      <h3 className="break-words font-semibold">{customer.name}{customer.archived_at && <span className="ml-2 text-xs font-normal text-[#999]">(Archived)</span>}</h3>
                       <p className="mt-1 break-words text-sm text-[#777]">{customer.email || "—"}</p>
                       <p className="break-words text-sm text-[#777]">{customer.phone || "—"}</p>
                     </div>
@@ -541,7 +558,7 @@ export default function CustomersPage() {
               ) : (
                 customers.map((customer) => (
                   <tr className="border-b border-black/[.06]" key={customer.id}>
-                    <td className="py-4 font-semibold">{customer.name}</td>
+                    <td className="py-4 font-semibold">{customer.name}{customer.archived_at && <span className="ml-2 text-xs font-normal text-[#999]">(Archived)</span>}</td>
                     <td className="py-4 text-[#777]">
                       {customer.email || "—"}
                       <br />
