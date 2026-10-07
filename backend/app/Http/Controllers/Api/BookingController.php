@@ -100,7 +100,8 @@ class BookingController extends Controller
     {
         Booking::synchronizeAutomaticStatuses();
         $now = now();
-        $query = Booking::with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'creator'])
+        $query = Booking::query()->visibleToAdmin($request->boolean('include_archived'))
+            ->with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'creator'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('reference', 'like', "%{$search}%")
@@ -180,7 +181,9 @@ class BookingController extends Controller
     public function show(Booking $booking)
     {
         Booking::synchronizeAutomaticStatuses();
-        return $booking->fresh()->load([
+        $booking = $booking->fresh();
+        abort_unless(request()->boolean('include_archived') || ! $booking->customer?->archived_at, 404);
+        return $booking->load([
             'customer.attachments',
             'customer.user:id,name,first_name,middle_name,last_name,date_of_birth,username,email',
             'vehicle.images',
