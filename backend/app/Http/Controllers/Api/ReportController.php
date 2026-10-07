@@ -28,8 +28,9 @@ class ReportController extends Controller
         abort_if($periodEnd->lt($periodStart), 422, 'The end date must be on or after the start date.');
 
         $statuses = [Booking::UPCOMING, Booking::ONGOING, Booking::COMPLETE];
-        $vehicles = Vehicle::with(['partner', 'images', 'bookings' => function ($query) use ($periodStart, $periodEnd, $statuses) {
-            $query->visibleToAdmin($request->boolean('include_archived'))->whereIn('status', $statuses)
+        $includeArchived = $request->boolean('include_archived');
+        $vehicles = Vehicle::with(['partner', 'images', 'bookings' => function ($query) use ($periodStart, $periodEnd, $statuses, $includeArchived) {
+            $query->visibleToAdmin($includeArchived)->whereIn('status', $statuses)
                 ->where('pickup_at', '<', $periodEnd)
                 ->where('return_at', '>', $periodStart)
                 ->orderBy('pickup_at');
