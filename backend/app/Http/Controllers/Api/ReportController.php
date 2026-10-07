@@ -15,7 +15,7 @@ class ReportController extends Controller
     public function revenue(Request $request)
     {
         Booking::synchronizeAutomaticStatuses();
-        $bookings = Booking::whereIn('status', [Booking::ONGOING, Booking::COMPLETE])->when($request->from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))->when($request->to, fn ($q, $v) => $q->whereDate('created_at', '<=', $v));
+        $bookings = Booking::visibleToAdmin($request->boolean('include_archived'))->whereIn('status', [Booking::ONGOING, Booking::COMPLETE])->when($request->from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))->when($request->to, fn ($q, $v) => $q->whereDate('created_at', '<=', $v));
 
         return ['total_revenue' => (float) $bookings->sum('total_amount'), 'booking_count' => $bookings->count()];
     }
@@ -29,7 +29,7 @@ class ReportController extends Controller
 
         $statuses = [Booking::UPCOMING, Booking::ONGOING, Booking::COMPLETE];
         $vehicles = Vehicle::with(['partner', 'images', 'bookings' => function ($query) use ($periodStart, $periodEnd, $statuses) {
-            $query->whereIn('status', $statuses)
+            $query->visibleToAdmin($request->boolean('include_archived'))->whereIn('status', $statuses)
                 ->where('pickup_at', '<', $periodEnd)
                 ->where('return_at', '>', $periodStart)
                 ->orderBy('pickup_at');
@@ -132,7 +132,7 @@ class ReportController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $activeStatuses = [Booking::UPCOMING, Booking::ONGOING, Booking::COMPLETE];
         $status = $request->input('status');
-        $bookings = Booking::with(['vehicle.partner', 'vehicle.images', 'payments', 'customer'])
+        $bookings = Booking::visibleToAdmin($request->boolean('include_archived'))->with(['vehicle.partner', 'vehicle.images', 'payments', 'customer'])
             ->whereIn('status', $status ? [$status] : $activeStatuses)
             ->when($request->from, fn ($q, $value) => $q->whereDate('pickup_at', '>=', $value))
             ->when($request->to, fn ($q, $value) => $q->whereDate('pickup_at', '<=', $value))
