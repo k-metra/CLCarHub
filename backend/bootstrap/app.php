@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use App\Http\Middleware\NoStoreApiResponses;
+use App\Http\Middleware\RejectBlockedIp;
 use Symfony\Component\HttpKernel\Exception\RequestEntityTooLargeHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -16,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->appendToGroup('api', [NoStoreApiResponses::class]);
+        $middleware->alias(['blocked.ip' => RejectBlockedIp::class]);
+        $middleware->appendToGroup('api', ['blocked.ip:all']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (RequestEntityTooLargeHttpException $exception, Request $request) {
