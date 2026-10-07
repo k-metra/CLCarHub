@@ -77,6 +77,9 @@ export function AdminSidebar({
       window.matchMedia("(display-mode: standalone)").matches
       || Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
   );
+  const [showIosInstructions, setShowIosInstructions] = useState(false);
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   useEffect(() => {
     const handleInstallAvailable = () => setInstallPrompt(window.__clcarhubInstallPrompt ?? null);
     const handleAppInstalled = () => {
@@ -95,6 +98,13 @@ export function AdminSidebar({
     await installPrompt.prompt();
     const choice = await installPrompt.userChoice;
     if (choice.outcome === "accepted") setInstallPrompt(null);
+  };
+  const openInstallInstructions = () => {
+    if (isIos) {
+      setShowIosInstructions((current) => !current);
+      return;
+    }
+    void installApp();
   };
   const visibleSections = sections.map(section => ({
     ...section,
@@ -119,16 +129,27 @@ export function AdminSidebar({
         >
           {collapsed ? "CL" : "ADMIN MENU"}
         </div>
-        {installPrompt && !isInstalled && (
+        {((installPrompt && !isInstalled) || (isIos && !isInstalled)) && (
           <button
             type="button"
             className={`mb-6 flex w-full items-center justify-center gap-2 rounded bg-[#e85b00] px-3 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#ff641f] ${collapsed ? "px-2" : ""}`}
-            onClick={() => void installApp()}
-            title="Install CLCarHub App"
+            onClick={openInstallInstructions}
+            title={isIos ? "Add CLCarHub to your Home Screen" : "Install CLCarHub App"}
           >
             <span aria-hidden="true">▣</span>
-            {!collapsed && "Install CLCarHub App"}
+            {!collapsed && (isIos ? "Add to Home Screen" : "Install CLCarHub App")}
           </button>
+        )}
+        {isIos && showIosInstructions && !isInstalled && !collapsed && (
+          <div className="mb-6 rounded border border-white/10 bg-white/[.06] p-3 text-xs leading-5 text-[#ddd]">
+            <p className="font-semibold text-white">Install CLCarHub on iOS</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-4">
+              <li>Tap the Share button in Safari.</li>
+              <li>Select <span className="font-semibold text-white">Add to Home Screen</span>.</li>
+              <li>Tap <span className="font-semibold text-white">Add</span>.</li>
+            </ol>
+            <p className="mt-2 text-[#aaa]">If you are using another browser on iPhone or iPad, open this page in Safari first.</p>
+          </div>
         )}
         {visibleSections.map((section) => (
           <div className="mb-5" key={section.title}>
