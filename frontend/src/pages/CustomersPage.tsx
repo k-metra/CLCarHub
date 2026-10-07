@@ -25,6 +25,8 @@ type Customer = {
   outstanding_balance?: number;
   attachments?: CustomerAttachment[];
   bookings?: BookingRecord[];
+  user?: { last_login_ip?: string | null };
+  ip_block_scopes?: string[];
 };
 type CustomerSummary = {
   total_customers: number;
@@ -38,7 +40,7 @@ type AttachmentCategory =
   | "proof_of_billing"
   | "secondary_id"
   | "selfie_license";
-type CustomerForm = Omit<Customer, "id" | "bookings_count" | "outstanding_balance" | "bookings" | "attachments"> & {
+type CustomerForm = Omit<Customer, "id" | "bookings_count" | "outstanding_balance" | "bookings" | "attachments" | "user" | "ip_block_scopes"> & {
   attachments: Record<AttachmentCategory, File[]>;
 };
 const emptyAttachments = (): Record<AttachmentCategory, File[]> => ({
@@ -250,6 +252,49 @@ export default function CustomersPage() {
       );
     }
   };
+
+  const blockCustomerIp = async (customer: Customer) => {
+    const ip = customer.user?.last_login_ip;
+    if (!ip) {
+      showToast("This customer has no recorded login IP address.", "error");
+      return;
+    }
+    const allAccess = window.confirm(`Block ${ip} from all website/API access?\n\nChoose Cancel to block booking submissions only.`);
+    const deleteBookings = window.confirm("Also delete this customer's pending, rejected, and cancelled bookings? This cannot be undone.");
+    try {
+      await api.post(`/customers/${customer.id}/ip-block`, {
+        scope: allAccess ? "all" : "bookings",
+        delete_bookings: deleteBookings,
+        reason: "Staff action from customer management",
+      });
+      loadCustomers();
+      if (profile?.id === customer.id) void openProfile(customer);
+      showToast(`IP ${ip} blocked.`, "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Unable to block customer IP", "error");
+    }
+  };
+
+  const unblockCustomerIp = async (customer: Customer) => {
+    if (!window.confirm(`Unblock ${customer.user?.last_login_ip ?? "this customer's IP"}?`)) return;
+    try {
+      await api.delete(`/customers/${customer.id}/ip-block`);
+      loadCustomers();
+      if (profile?.id === customer.id) void openProfile(customer);
+      showToast("Customer IP unblocked.", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Unable to unblock customer IP", "error");
+    }
+  };
+
+  const customerActions = (customer: Customer) => [
+    { label: "View Profile", onClick: () => void openProfile(customer) },
+    { label: "Edit", onClick: () => openEdit(customer) },
+    ...(customer.ip_block_scopes?.length
+      ? [{ label: "Unblock IP", onClick: () => void unblockCustomerIp(customer) }]
+      : [{ label: "Block last IP", danger: true, onClick: () => void blockCustomerIp(customer) }]),
+    { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) },
+  ];
 
   type CustomerTextField = Exclude<keyof CustomerForm, "attachments">;
   const fields: Array<[CustomerTextField, string, string]> = [
@@ -468,7 +513,7 @@ export default function CustomersPage() {
                     License: {customer.license_number || "—"}
                     {customer.license_expiry && ` · Expires ${new Date(customer.license_expiry).toLocaleDateString()}`}
                   </p>
-                  <div className="mt-4 flex justify-end text-sm"><RowActions actions={[{ label: "View Profile", onClick: () => void openProfile(customer) }, { label: "Edit", onClick: () => openEdit(customer) }, { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) }]} /></div>
+                  <div className="mt-4 flex justify-end text-sm"><RowActions actions={customerActions(customer)} /></div>
                 </article>
               ))}
             </div>
@@ -516,7 +561,7 @@ export default function CustomersPage() {
                     </td>
                     <td className="py-4">{customer.bookings_count ?? 0}</td>
                     <td className="py-4 font-semibold text-amber-600">{money.format(customer.outstanding_balance ?? 0)}</td>
-                    <td className="py-4 text-right"><RowActions actions={[{ label: "View Profile", onClick: () => void openProfile(customer) }, { label: "Edit", onClick: () => openEdit(customer) }, { label: "Delete", danger: true, onClick: () => void deleteCustomer(customer) }]} /></td>
+                    <td className="py-4 text-right"><RowActions actions={customerActions(customer)} /></td>
                   </tr>
                 ))
               )}
@@ -531,6 +576,7 @@ export default function CustomersPage() {
                   <p className="text-xs uppercase tracking-widest text-[#ff641f]">Customer profile</p>
                   <h2 className="mt-2 text-2xl font-semibold">{profile.name}</h2>
                   <p className="mt-1 text-sm text-[#777]">{profile.email || "No email"} · {profile.phone || "No phone"}</p>
+                  <p className="mt-1 text-xs text-[#777]">Last login IP: {profile.user?.last_login_ip || "Not recorded"}{profile.ip_block_scopes?.length ? ` · Blocked: ${profile.ip_block_scopes.join(", ")}` : ""}</p>
                 </div>
                 <button type="button" className="text-2xl text-[#777]" onClick={() => setProfile(null)}>×</button>
               </div>
