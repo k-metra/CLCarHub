@@ -7,6 +7,9 @@ use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use App\Models\Booking;
+use App\Models\IpBlock;
 
 class CustomerController extends Controller
 {
@@ -18,7 +21,7 @@ class CustomerController extends Controller
 
     public function index(Request $request)
     {
-        $customers = Customer::with(['attachments', 'bookings' => fn ($query) => $query
+        $customers = Customer::with(['user:id,last_login_ip', 'attachments', 'bookings' => fn ($query) => $query
             ->whereNotIn('status', ['cancelled', 'rejected'])
             ->with('payments')])
             ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'rejected'])])
@@ -28,6 +31,7 @@ class CustomerController extends Controller
 
         $customers->getCollection()->transform(function (Customer $customer) {
             $customer->setAttribute('outstanding_balance', $customer->bookings->sum(fn ($booking) => $booking->balance));
+            $customer->setAttribute('ip_block_scopes', IpBlock::where('ip_address', $customer->user?->last_login_ip)->pluck('scope')->values());
             $customer->unsetRelation('bookings');
 
             return $customer;
@@ -75,12 +79,15 @@ class CustomerController extends Controller
 
     public function show(Customer $customer)
     {
-        return $customer->load([
+        $customer->load([
+            'user:id,last_login_ip',
             'bookings' => fn ($query) => $query->latest('pickup_at'),
             'bookings.vehicle',
             'bookings.payments',
             'attachments',
-        ]);
+        ])->setAttribute('ip_block_scopes', IpBlock::where('ip_address', $customer->user?->last_login_ip)->pluck('scope')->values());
+
+        return $customer;
     }
 
     public function update(Request $request, Customer $customer)
@@ -106,6 +113,51 @@ class CustomerController extends Controller
         $customer->delete();
 
         return response()->noContent();
+    }
+
+    public function blockIp(Request $request, Customer $customer)
+    {
+        $data = $request->validate([
+            'scope' => ['required', 'in:all,bookings'],
+            'reason' => ['nullable', 'string', 'max:255'],
+            'delete_bookings' => ['sometimes', 'boolean'],
+        ]);
+        $ip = $customer->user?->last_login_ip;
+        abort_unless($ip, 422, 'This customer has no recorded login IP address.');
+
+        IpBlock::updateOrCreate(
+            ['ip_address' => $ip, 'scope' => $data['scope']],
+            ['reason' => $data['reason'] ?? null, 'blocked_by' => $request->user()->id],
+        );
+
+        if ($request->boolean('delete_bookings')) {
+            $this->deleteRemovableBookings($customer);
+        }
+
+        return response()->json(['message' => 'The customer IP address has been blocked.', 'ip_address' => $ip]);
+    }
+
+    public function unblockIp(Customer $customer)
+    {
+        $ip = $customer->user?->last_login_ip;
+        abort_unless($ip, 422, 'This customer has no recorded login IP address.');
+        IpBlock::where('ip_address', $ip)->delete();
+
+        return response()->noContent();
+    }
+
+    public function purgeBookings(Customer $customer)
+    {
+        $deleted = $this->deleteRemovableBookings($customer);
+
+        return response()->json(['deleted' => $deleted]);
+    }
+
+    private function deleteRemovableBookings(Customer $customer): int
+    {
+        return DB::transaction(function () use ($customer) {
+            return $customer->bookings()->whereIn('status', [Booking::PENDING, Booking::REJECTED, Booking::CANCELLED])->delete();
+        });
     }
 
     public function destroyAttachment(Customer $customer, \App\Models\CustomerAttachment $attachment)
