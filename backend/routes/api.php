@@ -50,6 +50,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('partners', PartnerController::class);
         Route::put('/fleet-settings', [FleetSettingController::class, 'update']);
     });
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->group(function () {
+        Route::post('/customers/{customer}/ip-block', [CustomerController::class, 'blockIp']);
+        Route::delete('/customers/{customer}/ip-block', [CustomerController::class, 'unblockIp']);
+        Route::post('/customers/{customer}/purge-bookings', [CustomerController::class, 'purgeBookings']);
+    });
     Route::get('/customers/summary', [CustomerController::class, 'summary']);
     Route::apiResource('customers', CustomerController::class);
     Route::middleware(EnsureRole::class.':customer')->get('/customer/profile', [CustomerController::class, 'profile']);
@@ -59,7 +64,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('bookings', BookingController::class);
     Route::middleware(EnsureRole::class.':customer')->prefix('customer/booking-requests')->group(function () {
         Route::get('/', [BookingController::class, 'customerIndex']);
-        Route::post('/', [BookingController::class, 'customerStore']);
+        Route::post('/', [BookingController::class, 'customerStore'])
+            ->middleware(['blocked.ip:bookings', 'throttle:customer-booking-submissions']);
         Route::get('/{booking}', [BookingController::class, 'customerShow']);
     });
     Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
