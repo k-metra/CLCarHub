@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 type Toast = { id: number; message: string; tone: "success" | "error" | "info" };
@@ -132,11 +132,15 @@ export function RowActions({ actions }: { actions: Array<{ label: string; onClic
   const updatePosition = useCallback(() => {
     const bounds = ref.current?.getBoundingClientRect();
     if (!bounds) return;
-    setPosition({ top: bounds.bottom + 4, right: Math.max(8, window.innerWidth - bounds.right) });
+    const menuHeight = menuRef.current?.offsetHeight ?? 0;
+    const belowTop = bounds.bottom + 4;
+    const top = belowTop + menuHeight > window.innerHeight
+      ? Math.max(8, bounds.top - menuHeight - 4)
+      : belowTop;
+    setPosition({ top, right: Math.max(8, window.innerWidth - bounds.right) });
   }, []);
   useEffect(() => {
     if (!open) return;
-    updatePosition();
     const handlePointer = (event: PointerEvent) => {
       const target = event.target as Node;
       if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
@@ -150,6 +154,9 @@ export function RowActions({ actions }: { actions: Array<{ label: string; onClic
       window.removeEventListener("resize", handleViewportChange);
       window.removeEventListener("scroll", handleViewportChange, true);
     };
+  }, [open, updatePosition]);
+  useLayoutEffect(() => {
+    if (open) updatePosition();
   }, [open, updatePosition]);
   return <div className="inline-block" ref={ref}>
     <button type="button" aria-label="More actions" className="rounded px-2 py-1 text-xl leading-none text-[#777] hover:bg-black/5 hover:text-[#151515]" onClick={() => setOpen(current => !current)}>⋯</button>
