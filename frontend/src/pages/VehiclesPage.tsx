@@ -6,6 +6,7 @@ import {
   type FormEvent,
 } from "react";
 import { useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
@@ -130,6 +131,8 @@ const fields: Array<[keyof VehicleForm, string, string]> = [
 ];
 
 export default function VehiclesPage() {
+  const [searchParams] = useSearchParams();
+  const isFleetMapPopout = searchParams.get("fleetMap") === "popout";
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
   const [search, setSearch] = useState("");
@@ -152,14 +155,37 @@ export default function VehiclesPage() {
   const [galleryFiles, setGalleryFiles] = useState<GalleryFiles>(emptyGalleryFiles);
   const [galleryUrls, setGalleryUrls] = useState<GalleryUrls>(emptyGalleryUrls);
   const [form, setForm] = useState(emptyForm);
-  const [view, setView] = useState<"units" | "gps-map">("units");
+  const [view, setView] = useState<"units" | "gps-map">(isFleetMapPopout ? "gps-map" : "units");
   const [fleetLocations, setFleetLocations] = useState<FleetGpsLocation[]>([]);
   const [fleetLocationErrors, setFleetLocationErrors] = useState<Array<{ vehicle_id: number; name: string; message: string }>>([]);
   const [fleetMapLoading, setFleetMapLoading] = useState(false);
+  const [fleetMapPopoutOpen, setFleetMapPopoutOpen] = useState(false);
   const [selectedFleetVehicleId, setSelectedFleetVehicleId] = useState<number | null>(null);
   const fleetMapRef = useRef<HTMLDivElement>(null);
   const fleetLeafletRef = useRef<L.Map | null>(null);
   const fleetMarkerRefs = useRef<Map<number, L.Marker>>(new Map());
+  const fleetMapPopoutRef = useRef<Window | null>(null);
+  const openFleetMapPopout = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("fleetMap", "popout");
+    const popout = window.open(url.toString(), "_blank", "popup=yes,width=1440,height=900");
+    if (!popout) {
+      setError("Unable to open the fleet map pop-out. Please allow pop-ups for this site.");
+      return;
+    }
+    fleetMapPopoutRef.current = popout;
+    setFleetMapPopoutOpen(true);
+  };
+  useEffect(() => {
+    if (isFleetMapPopout || !fleetMapPopoutOpen) return;
+    const timer = window.setInterval(() => {
+      if (fleetMapPopoutRef.current?.closed !== false) {
+        fleetMapPopoutRef.current = null;
+        setFleetMapPopoutOpen(false);
+      }
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [isFleetMapPopout, fleetMapPopoutOpen]);
 
   const loadVehicles = useCallback(() => {
     setLoading(true);
@@ -199,14 +225,14 @@ export default function VehiclesPage() {
     }
   }, []);
   useEffect(() => {
-    if (view !== "gps-map") return;
+    if (view !== "gps-map" || fleetMapPopoutOpen) return;
     const initialLoad = window.setTimeout(() => void loadFleetLocations(), 0);
     const timer = window.setInterval(() => void loadFleetLocations(), GPS_REFRESH_INTERVAL_MS);
     return () => {
       window.clearTimeout(initialLoad);
       window.clearInterval(timer);
     };
-  }, [view, loadFleetLocations]);
+  }, [view, fleetMapPopoutOpen, loadFleetLocations]);
 
   const updateField = (key: keyof VehicleForm, value: string | boolean | File | null) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -405,7 +431,7 @@ export default function VehiclesPage() {
     return () => { map.remove(); locationLeafletRef.current = null; };
   }, [locationVehicle, location]);
   useEffect(() => {
-    if (view !== "gps-map" || !fleetMapRef.current) return;
+    if (view !== "gps-map" || fleetMapPopoutOpen || !fleetMapRef.current) return;
     fleetLeafletRef.current?.remove();
     fleetMarkerRefs.current = new Map();
     const locations = fleetLocations;
@@ -439,7 +465,7 @@ export default function VehiclesPage() {
       fleetLeafletRef.current = null;
       fleetMarkerRefs.current = new Map();
     };
-  }, [view, fleetLocations]);
+  }, [view, fleetMapPopoutOpen, fleetLocations]);
   useEffect(() => {
     if (view !== "gps-map" || selectedFleetVehicleId === null) return;
     const map = fleetLeafletRef.current;
@@ -450,13 +476,13 @@ export default function VehiclesPage() {
   }, [view, selectedFleetVehicleId, fleetLocations]);
 
   return (
-    <AdminShell title="Vehicle management">
-      <div className="mt-8 flex border-b border-black/10">
+    <AdminShell title={isFleetMapPopout ? "Fleet GPS map" : "Vehicle management"} bare={isFleetMapPopout}>
+      {!isFleetMapPopout && <div className="mt-8 flex border-b border-black/10">
         <button type="button" className={`border-b-2 px-5 py-3 text-sm font-semibold ${view === "units" ? "border-[#ff641f] text-[#151515]" : "border-transparent text-[#888]"}`} onClick={() => setView("units")}>All units</button>
         <button type="button" className={`border-b-2 px-5 py-3 text-sm font-semibold ${view === "gps-map" ? "border-[#ff641f] text-[#151515]" : "border-transparent text-[#888]"}`} onClick={() => setView("gps-map")}>Fleet GPS map</button>
-      </div>
+      </div>}
       {view === "gps-map" && <section className="mt-6 border border-black/10 bg-white p-4 md:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Aika GPS</p><h2 className="mt-1 text-xl font-semibold">Fleet live locations</h2><p className="mt-1 text-sm text-[#777]">Configured trackers refresh every 30 seconds. Individual vehicle GPS remains available from the unit list.</p></div><button type="button" className="border border-black/10 px-4 py-2 text-sm font-semibold" onClick={() => void loadFleetLocations()} disabled={fleetMapLoading}>{fleetMapLoading ? "Refreshing..." : "Refresh map"}</button></div>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Aika GPS</p><h2 className="mt-1 text-xl font-semibold">Fleet live locations</h2><p className="mt-1 text-sm text-[#777]">Configured trackers refresh every 30 seconds. Individual vehicle GPS remains available from the unit list.</p></div><div className="flex gap-2"><button type="button" className="border border-black/10 px-4 py-2 text-sm font-semibold" onClick={() => void loadFleetLocations()} disabled={fleetMapLoading || fleetMapPopoutOpen}>{fleetMapLoading ? "Refreshing..." : "Refresh map"}</button>{!isFleetMapPopout && <button type="button" className="bg-[#151515] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={openFleetMapPopout} disabled={fleetMapPopoutOpen}>{fleetMapPopoutOpen ? "Map popped out" : "Pop out map ↗"}</button>}</div></div>
         <div className="mt-5 grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
           <aside className="order-2 border border-black/10 bg-[#f8f7f5] p-3 lg:order-1">
             <div className="flex items-center justify-between gap-2">
@@ -481,7 +507,7 @@ export default function VehiclesPage() {
               <p className="mt-3 text-xs leading-5 text-[#777]">No active configured GPS units have a usable location.</p>
             )}
           </aside>
-          {fleetMapLoading && fleetLocations.length === 0 ? <p className="order-1 flex h-[32rem] items-center justify-center text-sm text-[#777] lg:order-2">Loading fleet GPS locations...</p> : <div ref={fleetMapRef} className="order-1 h-[32rem] w-full lg:order-2" />}
+          {fleetMapPopoutOpen ? <div className="order-1 flex h-[32rem] items-center justify-center bg-[#f8f7f5] px-6 text-center text-sm text-[#777] lg:order-2">Fleet map is open in a separate window. Close that window to re-enable the map here.</div> : fleetMapLoading && fleetLocations.length === 0 ? <p className="order-1 flex h-[32rem] items-center justify-center text-sm text-[#777] lg:order-2">Loading fleet GPS locations...</p> : <div ref={fleetMapRef} className="order-1 h-[32rem] w-full lg:order-2" />}
         </div>
         {fleetLocations.length === 0 && !fleetMapLoading && <p className="mt-4 text-sm text-[#777]">No configured Aika GPS units returned a usable location.</p>}
         {fleetLocationErrors.length > 0 && <div className="mt-4 border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">Some trackers could not be loaded.</p><ul className="mt-2 list-disc pl-5">{fleetLocationErrors.map((item) => <li key={item.vehicle_id}>{item.name}: {item.message}</li>)}</ul></div>}
