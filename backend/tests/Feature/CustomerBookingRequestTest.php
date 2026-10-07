@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\FleetSetting;
+use App\Models\IpBlock;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,6 +18,42 @@ use Tests\TestCase;
 class CustomerBookingRequestTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_booking_only_ip_blocks_prevent_booking_submission_but_not_customer_listing(): void
+    {
+        $user = User::factory()->create(['role' => 'customer', 'last_login_ip' => '203.0.113.10']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        IpBlock::create(['ip_address' => '127.0.0.1', 'scope' => 'bookings']);
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/customer/booking-requests')->assertOk();
+        $this->postJson('/api/customer/booking-requests', [])->assertForbidden();
+    }
+
+    public function test_all_access_ip_blocks_prevent_api_access(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        IpBlock::create(['ip_address' => '127.0.0.1', 'scope' => 'all']);
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/auth/user')->assertForbidden();
+    }
+
+    public function test_customer_booking_submissions_are_rate_limited_by_ip(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        Sanctum::actingAs($user);
+
+        foreach (range(1, 5) as $attempt) {
+            $this->postJson('/api/customer/booking-requests', [])
+                ->assertUnprocessable();
+        }
+
+        $this->postJson('/api/customer/booking-requests', [])
+            ->assertTooManyRequests();
+    }
 
     public function test_customer_attachment_limits_allow_four_ltms_two_secondary_ids_and_one_selfie(): void
     {
