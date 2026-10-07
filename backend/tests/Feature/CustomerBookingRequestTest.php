@@ -269,6 +269,42 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('total_amount', '5500.00');
     }
 
+    public function test_labeled_pinned_locations_still_calculate_delivery_fees(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-792',
+            'daily_rate' => 2000, 'delivery_rate_per_km' => 50, 'status' => 'available',
+        ]);
+        FleetSetting::findOrFail(1)->update([
+            'default_delivery_rate_per_km' => 25,
+            'garage_location_latitude' => 14.5,
+            'garage_location_longitude' => 121.0,
+        ]);
+        Http::fake(['https://router.project-osrm.org/*' => Http::response([
+            'code' => 'Ok',
+            'routes' => [['distance' => 10000]],
+        ])]);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-11-10 10:00',
+            'return_at' => '2030-11-12 10:00',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Customer-entered delivery label',
+            'delivery_latitude' => 14.6,
+            'delivery_longitude' => 121.1,
+            'return_address' => 'Customer-entered return label',
+            'return_latitude' => 14.7,
+            'return_longitude' => 121.2,
+        ])->assertCreated()
+            ->assertJsonPath('delivery_fee', '500.00')
+            ->assertJsonPath('return_pickup_fee', '1000.00')
+            ->assertJsonPath('total_amount', '5500.00');
+    }
+
     public function test_admin_booking_uses_custom_rental_rate_and_fleet_delivery_rate_fallback(): void
     {
         $user = User::factory()->create(['role' => 'owner']);
