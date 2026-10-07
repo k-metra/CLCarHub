@@ -25,6 +25,8 @@ Route::get('/vehicles', [VehicleController::class, 'index']);
 Route::get('/vehicles/featured', [VehicleController::class, 'featured']);
 Route::get('/vehicles/availability', [VehicleController::class, 'available']);
 Route::get('/legal-settings', [FleetSettingController::class, 'legal']);
+Route::middleware(['auth:sanctum', EnsureRole::class.':owner,co_owner,it_management'])
+    ->get('/vehicles/locations', [VehicleController::class, 'fleetLocations']);
 Route::get('/vehicles/{vehicle}', [VehicleController::class, 'show']);
 Route::get('/vehicles/{vehicle}/availability', [VehicleController::class, 'availability']);
 
