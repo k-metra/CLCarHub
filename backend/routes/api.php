@@ -57,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::get('/customers/summary', [CustomerController::class, 'summary']);
     Route::apiResource('customers', CustomerController::class);
+    Route::post('/customers/{customer}/restore', [CustomerController::class, 'restore']);
     Route::middleware(EnsureRole::class.':customer')->get('/customer/profile', [CustomerController::class, 'profile']);
     Route::get('/accounts', [AccountController::class, 'index']);
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('accounts', AccountController::class)->only(['store', 'update', 'destroy']);
