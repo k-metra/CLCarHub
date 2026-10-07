@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
 
 class Booking extends Model
 {
@@ -29,6 +30,13 @@ class Booking extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function scopeVisibleToAdmin(Builder $query, bool $includeArchived = false): Builder
+    {
+        return $includeArchived
+            ? $query
+            : $query->whereHas('customer', fn (Builder $customer) => $customer->whereNull('archived_at'));
     }
 
     public function vehicle(): BelongsTo
