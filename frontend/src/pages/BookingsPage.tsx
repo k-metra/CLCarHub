@@ -9,7 +9,7 @@ import { LocationPicker } from '../components/LocationPicker'
 
 type Customer = { id: number; name: string; email?: string | null; phone?: string | null; address?: string | null }
 type QuickAddCategory = 'license' | 'secondary_id' | 'ltms'
-type Payment = { amount: string; notes: string; paid_at: string; fund_id: string }
+type Payment = { amount: string; notes: string; paid_at: string; fund_id: string; provider?: string | null; provider_reference?: string | null }
 type BookingForm = {
   vehicle_id: string; customer_id: string; pickup_at: string; return_at: string; destination: string
   rental_rate: string; delivery_address: string; delivery_latitude: string; delivery_longitude: string; delivery_distance_km: string; delivery_fee: string; return_location_mode: 'garage' | 'location'; return_address: string; return_latitude: string; return_longitude: string; return_distance_km: string; return_pickup_fee: string; payment_method: string; notes: string; fuel_charge: string; rfid_charge: string
