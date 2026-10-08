@@ -325,19 +325,54 @@ export default function HomePage() {
             care about your journey.
           </p>
         </section>
-        <section
-          className="mx-auto mb-[70px] flex w-[calc(100%-36px)] max-w-[1160px] flex-col justify-between bg-[#ef5a1a] p-[35px_28px] md:flex-row md:items-center md:p-[55px_65px]"
-          id="contact"
-        >
-          <div>
-            <Eyebrow>READY WHEN YOU ARE</Eyebrow>
-            <h2 className="my-[13px] font-['Space_Grotesk'] text-[40px]">
-              The road is calling.
-            </h2>
+        <section className="border-y border-white/[.06] bg-[#151515] py-20" id="contact">
+          <div className="mx-auto w-[calc(100%-36px)] max-w-[1160px]">
+            <div className="grid gap-10 lg:grid-cols-[.85fr_1.15fr] lg:items-end">
+              <div>
+                <Eyebrow>CONTACT CL CARHUB</Eyebrow>
+                <h2 className="mt-[17px] font-['Space_Grotesk'] text-[44px] font-semibold leading-[.94] tracking-[-3px] md:text-[54px]">
+                  Let&apos;s get you
+                  <br />
+                  <em className="not-italic text-[#ff641f]">on the road.</em>
+                </h2>
+                <p className="mt-6 max-w-[420px] text-sm leading-[1.75] text-[#85827e]">
+                  Have a question about a vehicle, booking, or delivery? Reach out to the CL CarHub team.
+                </p>
+              </div>
+              <div className="grid gap-px bg-white/[.08] sm:grid-cols-2">
+                <a className="bg-[#151515] p-6 transition hover:bg-[#1d1d1d]" href="tel:+639761928977">
+                  <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Call or text</span>
+                  <strong className="mt-3 block font-['Space_Grotesk'] text-xl">0976 192 8977</strong>
+                </a>
+                <a className="bg-[#151515] p-6 transition hover:bg-[#1d1d1d]" href="mailto:licoancyril25@gmail.com">
+                  <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Email</span>
+                  <strong className="mt-3 block break-all font-['Space_Grotesk'] text-xl">licoancyril25@gmail.com</strong>
+                </a>
+                <div className="grid bg-[#151515] sm:col-span-2 sm:grid-cols-2">
+                  <div className="flex min-h-56 flex-col justify-center p-6">
+                    <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Visit us</span>
+                    <address className="mt-3 not-italic text-sm leading-6 text-[#d0cdca]">Blk 5, Lot 3A, Calle Gracia<br />Calamba, 4027 Laguna</address>
+                  </div>
+                  <iframe
+                    className="h-64 w-full border-0 sm:h-full"
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3867.970611358424!2d121.1692774!3d14.196499199999998!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd6300769b6edd%3A0x6ce13f5c55c978db!2sCL%20CarHub!5e0!3m2!1sen!2sph!4v1791431843565!5m2!1sen!2sph"
+                    title="CL CarHub location map"
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
+                </div>
+                <a className="bg-[#151515] p-6 transition hover:bg-[#1d1d1d]" href="https://www.facebook.com/p/CL-CarHub-61567994249496/" target="_blank" rel="noreferrer">
+                  <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Facebook</span>
+                  <strong className="mt-3 block font-['Space_Grotesk'] text-xl">CL CarHub ↗</strong>
+                </a>
+                <a className="bg-[#151515] p-6 transition hover:bg-[#1d1d1d]" href="https://www.tiktok.com/@cl_carhub" target="_blank" rel="noreferrer">
+                  <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">TikTok</span>
+                  <strong className="mt-3 block font-['Space_Grotesk'] text-xl">@cl_carhub ↗</strong>
+                </a>
+              </div>
+            </div>
           </div>
-          <Button dark onClick={scrollToFleet}>
-            Explore the fleet →
-          </Button>
         </section>
       </main>
       <PublicFooter />
