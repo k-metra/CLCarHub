@@ -123,7 +123,7 @@ After deployment, verify the link and file access:
 ```bash
 ls -la /var/www/clcarhub/backend/public/storage
 test -f /var/www/clcarhub/backend/storage/app/public/vehicles/example.png
-curl -I https://clcarhub.my.to/storage/vehicles/example.png
+curl -I https://clcarhub.com/storage/vehicles/example.png
 ```
 
 The image response should be `200` with an image content type, not the
@@ -175,9 +175,9 @@ The final command must output:
 After uploading a test image, compare the API path with the filesystem:
 
 ```bash
-curl -s https://clcarhub.my.to/api/vehicles?per_page=1
+curl -s https://clcarhub.com/api/vehicles?per_page=1
 ls -l /var/www/clcarhub/backend/storage/app/public/vehicles
-curl -I https://clcarhub.my.to/storage/vehicles/<path-from-api>.png
+curl -I https://clcarhub.com/storage/vehicles/<path-from-api>.png
 ```
 
 If the file exists locally but the last command returns `404`, the Nginx
