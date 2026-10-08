@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'paymongo' => [
+        'secret_key' => env('PAYMONGO_SECRET_KEY'),
+        'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
+        'frontend_url' => env('FRONTEND_URL', env('APP_URL')),
+    ],
     'aika' => [
         'server' => env('AIKA_SERVER', 'https://en.aika168.com'),
         'ca_bundle' => env('AIKA_CA_BUNDLE'),
