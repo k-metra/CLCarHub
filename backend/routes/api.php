@@ -74,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [BookingController::class, 'customerStore'])
             ->middleware(['blocked.ip:bookings', 'throttle:customer-booking-submissions']);
         Route::get('/{booking}', [BookingController::class, 'customerShow']);
+        Route::post('/{booking}/payment', [BookingController::class, 'customerPayment']);
     });
     Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::apiResource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);
