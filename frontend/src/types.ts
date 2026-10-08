@@ -14,4 +14,4 @@ export type BookingRecord = { id: number; reference: string; created_at?: string
 export type Paginated<T> = { data: T[]; total: number }
 export type ExpenseRecord = { id: number; category: 'unit-related' | 'general'; vehicle_id?: number | null; vehicle?: VehicleRecord | null; fund_id?: number | null; fund?: FundRecord | null; expense_type?: string | null; spent_at: string; description: string; amount: string }
 export type FundRecord = { id: number; name: string; type: string; account_name?: string | null; account_number?: string | null; qr_code_url?: string | null; opening_balance: string; balance: number; notes?: string | null; transactions_count?: number }
-export type FundTransactionRecord = { id: number; fund_id: number; fund?: FundRecord; type: 'inflow' | 'outflow'; transacted_at: string; amount: string; description: string; notes?: string | null }
+export type FundTransactionRecord = { id: number; fund_id: number; fund?: FundRecord; payment?: PaymentRecord | null; type: 'inflow' | 'outflow'; transacted_at: string; amount: string; description: string; notes?: string | null }
