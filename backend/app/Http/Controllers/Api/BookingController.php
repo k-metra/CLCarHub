@@ -35,6 +35,25 @@ class BookingController extends Controller
         return $booking->load(['vehicle.images', 'payments.fund', 'statusHistory.user']);
     }
 
+    public function customerPayment(Request $request, Booking $booking)
+    {
+        $customer = $this->authenticatedCustomer($request);
+        abort_unless($booking->customer_id === $customer->id, 404);
+        abort_if(in_array($booking->status, [Booking::CANCELLED, Booking::REJECTED], true), 422, 'Cancelled or rejected bookings cannot receive payments.');
+
+        $data = $request->validate(['amount' => ['required', 'numeric', 'min:0.01']]);
+        $booking->load('payments');
+        $balance = $booking->balance;
+        $fleetSettings = FleetSetting::findOrFail(1);
+        $minimum = min((float) $fleetSettings->reservation_fee, $balance);
+        abort_if((float) $data['amount'] < $minimum || (float) $data['amount'] > $balance, 422, 'Payment must be at least the reservation fee and no more than the remaining balance.');
+
+        $session = app(PayMongoService::class)->createCheckoutSession($booking, (float) $data['amount']);
+        $booking->update(['paymongo_checkout_session_id' => $session['id']]);
+
+        return response()->json(['checkout_url' => $session['url']], 201);
+    }
+
     public function customerStore(Request $request)
     {
         $customer = $this->authenticatedCustomer($request);
