@@ -15,10 +15,12 @@ use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\FleetSettingController;
 use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\PayMongoController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/payments/paymongo/webhook', [PayMongoController::class, 'webhook']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/resend-verification', [AuthController::class, 'resendVerificationForEmail'])->middleware('throttle:6,1');
 Route::get('/vehicles', [VehicleController::class, 'index']);
