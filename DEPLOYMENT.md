@@ -12,6 +12,13 @@
 
 The repository contains a Laravel API in `backend/` and a separately built React/Vite frontend in `frontend/`.
 
+For PayMongo hosted checkout, set `PAYMONGO_SECRET_KEY` and
+`PAYMONGO_WEBHOOK_SECRET` in the backend production `.env`. Configure the
+PayMongo webhook endpoint as
+`https://clcarhub.com/api/payments/paymongo/webhook` and subscribe to
+`checkout_session.payment.paid`. Keep both values server-side and never commit
+them.
+
 If Composer reports that `ext-curl` is missing on an Ubuntu/Debian server,
 install the cURL extension for the PHP version used by the server. For PHP
 8.4:
