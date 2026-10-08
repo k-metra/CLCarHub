@@ -14,17 +14,13 @@ class PayMongoService
         abort_unless(is_string($secretKey) && $secretKey !== '', 503, 'Online payments are not configured.');
 
         $frontendUrl = rtrim((string) config('services.paymongo.frontend_url', config('app.url')), '/');
+        $lineItems = $this->checkoutLineItems($booking, $amount);
         $response = Http::withBasicAuth($secretKey, '')
             ->acceptJson()
             ->post('https://api.paymongo.com/v2/checkout_sessions', [
                 'data' => [
                     'attributes' => [
-                        'line_items' => [[
-                            'name' => 'CL CarHub reservation '.$booking->reference,
-                            'amount' => (int) round($amount * 100),
-                            'currency' => 'PHP',
-                            'quantity' => 1,
-                        ]],
+                        'line_items' => $lineItems,
                         'payment_method_types' => ['card', 'gcash', 'paymaya', 'qrph'],
                         'success_url' => $frontendUrl.'/account?payment=success&booking='.$booking->id,
                         'cancel_url' => $frontendUrl.'/account?payment=cancelled&booking='.$booking->id,
@@ -40,6 +36,57 @@ class PayMongoService
         abort_unless(is_string($checkoutUrl) && $checkoutUrl !== '' && is_string($sessionId), 502, 'PayMongo did not return a checkout session.');
 
         return ['id' => $sessionId, 'url' => $checkoutUrl];
+    }
+
+    private function checkoutLineItems(Booking $booking, float $amount): array
+    {
+        $fullAmount = (float) $booking->total_amount;
+        if (abs($amount - $fullAmount) > 0.01) {
+            return [[
+                'name' => 'Reservation fee or downpayment for booking '.$booking->reference,
+                'amount' => (int) round($amount * 100),
+                'currency' => 'PHP',
+                'quantity' => 1,
+            ]];
+        }
+
+        $items = collect([
+            ['Daily rental', (float) $booking->rental_amount],
+            ['Additional charges', (float) $booking->additional_charges],
+            ['Fuel charge', (float) $booking->fuel_charge],
+            ['RFID charge', (float) $booking->rfid_charge],
+            ['Damage fees', (float) $booking->damage_fees],
+            ['Car wash fees', (float) $booking->car_wash_fees],
+            ['Extension fees', (float) $booking->extension_fees],
+            ['Delivery fee', (float) $booking->delivery_fee],
+            ['Return pickup fee', (float) $booking->return_pickup_fee],
+            ['Security deposit', (float) $booking->deposit],
+        ])->filter(fn (array $item): bool => $item[1] > 0);
+
+        $items = $items->map(fn (array $item): array => [
+            'name' => $item[0],
+            'amount' => (int) round($item[1] * 100),
+            'currency' => 'PHP',
+            'quantity' => 1,
+        ])->values()->all();
+
+        abort_unless($items !== [], 422, 'PayMongo checkout has no payable line items.');
+        $lineItemTotal = array_sum(array_column($items, 'amount'));
+        $difference = (int) round($fullAmount * 100) - $lineItemTotal;
+        if ($difference > 0) {
+            $items[] = [
+                'name' => 'Other booking charges',
+                'amount' => $difference,
+                'currency' => 'PHP',
+                'quantity' => 1,
+            ];
+        } elseif ($difference < 0) {
+            $lastIndex = count($items) - 1;
+            $items[$lastIndex]['amount'] += $difference;
+            abort_if($items[$lastIndex]['amount'] <= 0, 422, 'PayMongo checkout line items are invalid.');
+        }
+
+        return $items;
     }
 
     public function verifyWebhook(string $payload, ?string $signature): void
