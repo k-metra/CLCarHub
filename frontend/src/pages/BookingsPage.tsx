@@ -12,12 +12,12 @@ type QuickAddCategory = 'license' | 'secondary_id' | 'ltms'
 type Payment = { amount: string; notes: string; paid_at: string; fund_id: string }
 type BookingForm = {
   vehicle_id: string; customer_id: string; pickup_at: string; return_at: string; destination: string
-  rental_rate: string; delivery_address: string; delivery_latitude: string; delivery_longitude: string; delivery_fee: string; return_location_mode: 'garage' | 'location'; return_address: string; return_latitude: string; return_longitude: string; return_distance_km: string; return_pickup_fee: string; payment_method: string; notes: string; fuel_charge: string; rfid_charge: string
+  rental_rate: string; delivery_address: string; delivery_latitude: string; delivery_longitude: string; delivery_distance_km: string; delivery_fee: string; return_location_mode: 'garage' | 'location'; return_address: string; return_latitude: string; return_longitude: string; return_distance_km: string; return_pickup_fee: string; payment_method: string; notes: string; fuel_charge: string; rfid_charge: string
   damage_fees: string; car_wash_fees: string; extension_fees: string; payments: Payment[]; status: string; status_reason: string
 }
 
 const emptyPayment = (): Payment => ({ amount: '', notes: '', paid_at: new Date().toISOString().slice(0, 10), fund_id: '' })
-const emptyForm: BookingForm = { vehicle_id: '', customer_id: '', pickup_at: '', return_at: '', destination: '', rental_rate: '', delivery_address: '', delivery_latitude: '', delivery_longitude: '', delivery_fee: '', return_location_mode: 'garage', return_address: '', return_latitude: '', return_longitude: '', return_distance_km: '', return_pickup_fee: '', payment_method: 'cash_on_pickup', notes: '', fuel_charge: '', rfid_charge: '', damage_fees: '', car_wash_fees: '', extension_fees: '', payments: [], status: 'pending', status_reason: '' }
+const emptyForm: BookingForm = { vehicle_id: '', customer_id: '', pickup_at: '', return_at: '', destination: '', rental_rate: '', delivery_address: '', delivery_latitude: '', delivery_longitude: '', delivery_distance_km: '', delivery_fee: '', return_location_mode: 'garage', return_address: '', return_latitude: '', return_longitude: '', return_distance_km: '', return_pickup_fee: '', payment_method: 'cash_on_pickup', notes: '', fuel_charge: '', rfid_charge: '', damage_fees: '', car_wash_fees: '', extension_fees: '', payments: [], status: 'pending', status_reason: '' }
 const feeFields: Array<[keyof BookingForm, string]> = [['fuel_charge', 'Fuel charge'], ['rfid_charge', 'RFID charge'], ['damage_fees', 'Damage fees'], ['car_wash_fees', 'Car wash fees'], ['extension_fees', 'Extension fees']]
 const statusTransitions: Record<string, string[]> = {
   pending: ['upcoming', 'cancelled', 'rejected'],
@@ -183,6 +183,8 @@ export default function BookingsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<number | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const [routeCalculating, setRouteCalculating] = useState(false)
+  const [routeError, setRouteError] = useState('')
   const [paymentsTouched, setPaymentsTouched] = useState(false)
   const [addCustomer, setAddCustomer] = useState(false)
   const [newCustomer, setNewCustomer] = useState({ first_name: '', middle_name: '', last_name: '', email: '', phone: '', address: '' })
@@ -223,7 +225,7 @@ export default function BookingsPage() {
   }, [])
 
   const setField = (key: keyof BookingForm, value: string) => setForm(current => ({ ...current, [key]: value }))
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setPaymentsTouched(false); setAddCustomer(false); setShowForm(true) }
+  const openCreate = () => { setEditing(null); setForm(emptyForm); setRouteError(''); setPaymentsTouched(false); setAddCustomer(false); setShowForm(true) }
   const openDetails = useCallback(async (booking: BookingRecord) => {
     setSelectedBooking(booking); setDetailTab('details'); setShowActions(false); setDetailLoading(true)
     try {
@@ -267,8 +269,9 @@ export default function BookingsPage() {
   }, [showToast])
   const openEdit = useCallback((booking: BookingRecord) => {
     setEditing(booking.id)
+    setRouteError('')
     setPaymentsTouched(false)
-    setForm({ ...emptyForm, vehicle_id: String(booking.vehicle?.id ?? ''), customer_id: String(booking.customer?.id ?? ''), pickup_at: dateTimeLocalValue(booking.pickup_at), return_at: dateTimeLocalValue(booking.return_at), destination: booking.destination ?? '', rental_rate: booking.rental_rate ?? '', delivery_address: booking.delivery_address ?? '', delivery_latitude: booking.delivery_latitude ?? '', delivery_longitude: booking.delivery_longitude ?? '', delivery_fee: booking.delivery_fee ?? '', return_location_mode: booking.return_latitude && booking.return_longitude ? 'location' : 'garage', return_address: booking.return_address ?? '', return_latitude: booking.return_latitude ?? '', return_longitude: booking.return_longitude ?? '', return_distance_km: booking.return_distance_km ?? '', return_pickup_fee: booking.return_pickup_fee ?? '', payment_method: booking.payment_method ?? 'cash_on_pickup', notes: booking.notes ?? '', fuel_charge: booking.fuel_charge ?? '', rfid_charge: booking.rfid_charge ?? '', damage_fees: booking.damage_fees ?? '', car_wash_fees: booking.car_wash_fees ?? '', extension_fees: booking.extension_fees ?? '', payments: booking.payments?.map(payment => ({ amount: payment.amount, notes: payment.notes ?? '', paid_at: payment.paid_at.slice(0, 10), fund_id: payment.fund_id ? String(payment.fund_id) : '' })) ?? [], status: booking.status, status_reason: '' })
+    setForm({ ...emptyForm, vehicle_id: String(booking.vehicle?.id ?? ''), customer_id: String(booking.customer?.id ?? ''), pickup_at: dateTimeLocalValue(booking.pickup_at), return_at: dateTimeLocalValue(booking.return_at), destination: booking.destination ?? '', rental_rate: booking.rental_rate ?? '', delivery_address: booking.delivery_address ?? '', delivery_latitude: booking.delivery_latitude ?? '', delivery_longitude: booking.delivery_longitude ?? '', delivery_distance_km: booking.delivery_distance_km ?? '', delivery_fee: booking.delivery_fee ?? '', return_location_mode: booking.return_latitude && booking.return_longitude ? 'location' : 'garage', return_address: booking.return_address ?? '', return_latitude: booking.return_latitude ?? '', return_longitude: booking.return_longitude ?? '', return_distance_km: booking.return_distance_km ?? '', return_pickup_fee: booking.return_pickup_fee ?? '', payment_method: booking.payment_method ?? 'cash_on_pickup', notes: booking.notes ?? '', fuel_charge: booking.fuel_charge ?? '', rfid_charge: booking.rfid_charge ?? '', damage_fees: booking.damage_fees ?? '', car_wash_fees: booking.car_wash_fees ?? '', extension_fees: booking.extension_fees ?? '', payments: booking.payments?.map(payment => ({ amount: payment.amount, notes: payment.notes ?? '', paid_at: payment.paid_at.slice(0, 10), fund_id: payment.fund_id ? String(payment.fund_id) : '' })) ?? [], status: booking.status, status_reason: '' })
     setShowForm(true)
   }, [])
 
@@ -387,6 +390,65 @@ export default function BookingsPage() {
   const formTotal = subtotal + optionalFees + deliveryFee + returnPickupFee + securityDeposit + (fleetSettings.reservation_fee_deductible ? 0 : reservationFee)
   const formPaid = form.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
   const formBalance = Math.max(0, formTotal - formPaid)
+
+  useEffect(() => {
+    const originLat = fleetSettings.garage_location_latitude
+    const originLon = fleetSettings.garage_location_longitude
+    const deliveryLat = Number(form.delivery_latitude)
+    const deliveryLon = Number(form.delivery_longitude)
+    const returnLat = Number(form.return_latitude)
+    const returnLon = Number(form.return_longitude)
+    const hasDelivery = form.delivery_latitude !== '' && form.delivery_longitude !== '' && Number.isFinite(deliveryLat) && Number.isFinite(deliveryLon)
+    const hasReturn = form.return_latitude !== '' && form.return_longitude !== '' && Number.isFinite(returnLat) && Number.isFinite(returnLon)
+    const clearBreakdown = () => setForm(current => ({ ...current, delivery_distance_km: '', delivery_fee: '', return_distance_km: '', return_pickup_fee: '' }))
+
+    if (!hasDelivery && !hasReturn) {
+      const resetTimer = window.setTimeout(() => { clearBreakdown(); setRouteCalculating(false); setRouteError('') }, 0)
+      return () => window.clearTimeout(resetTimer)
+    }
+    if (originLat === null || originLon === null) {
+      const errorTimer = window.setTimeout(() => { clearBreakdown(); setRouteCalculating(false); setRouteError('Delivery fees are unavailable because the garage location has not been configured.') }, 0)
+      return () => window.clearTimeout(errorTimer)
+    }
+
+    let cancelled = false
+    const routeDistance = async (latitude: number, longitude: number): Promise<number> => {
+      const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${originLon},${originLat};${longitude},${latitude}?overview=false`)
+      const data = await response.json() as { code?: string; routes?: Array<{ distance?: number }> }
+      if (!response.ok || data.code !== 'Ok' || typeof data.routes?.[0]?.distance !== 'number') {
+        throw new Error('Unable to calculate the route distance.')
+      }
+      return Math.round(data.routes[0].distance / 10) / 100
+    }
+
+    void Promise.resolve().then(() => {
+      if (cancelled) return
+      setRouteCalculating(true)
+      setRouteError('')
+    })
+    void Promise.all([hasDelivery ? routeDistance(deliveryLat, deliveryLon) : Promise.resolve(null), hasReturn ? routeDistance(returnLat, returnLon) : Promise.resolve(null)])
+      .then(([deliveryDistance, returnDistance]) => {
+        if (cancelled) return
+        const vehicleRate = selectedVehicle?.delivery_rate_per_km === null || selectedVehicle?.delivery_rate_per_km === undefined ? null : Number(selectedVehicle.delivery_rate_per_km)
+        const rate = vehicleRate !== null && vehicleRate > 0 ? vehicleRate : Number(fleetSettings.default_delivery_rate_per_km)
+        setForm(current => ({
+          ...current,
+          delivery_distance_km: deliveryDistance === null ? '' : String(deliveryDistance),
+          delivery_fee: deliveryDistance === null ? '' : String(Math.round(deliveryDistance * rate * 100) / 100),
+          return_distance_km: returnDistance === null ? '' : String(returnDistance),
+          return_pickup_fee: returnDistance === null ? '' : String(Math.round(returnDistance * 2 * rate * 100) / 100),
+        }))
+      })
+      .catch(error => {
+        if (cancelled) return
+        clearBreakdown()
+        setRouteError(error instanceof Error ? error.message : 'Unable to calculate the route distance.')
+      })
+      .finally(() => { if (!cancelled) setRouteCalculating(false) })
+
+    return () => { cancelled = true }
+  }, [fleetSettings.default_delivery_rate_per_km, fleetSettings.garage_location_latitude, fleetSettings.garage_location_longitude, form.delivery_latitude, form.delivery_longitude, form.return_latitude, form.return_longitude, selectedVehicle])
+
   const updatePayment = (index: number, changes: Partial<Payment>) => {
     setPaymentsTouched(true)
     setForm(current => ({ ...current, payments: current.payments.map((item, itemIndex) => itemIndex === index ? { ...item, ...changes } : item) }))
@@ -416,6 +478,7 @@ export default function BookingsPage() {
         <fieldset className="md:col-span-2"><legend className="text-xs text-[#777]">Return location</legend><div className="mt-2 flex gap-3 text-sm"><label><input type="radio" checked={form.return_location_mode === 'garage'} onChange={() => setForm(current => ({ ...current, return_location_mode: 'garage', return_address: '', return_latitude: '', return_longitude: '' }))} /> <span className="ml-1">Return at CL CarHub</span></label><label><input type="radio" checked={form.return_location_mode === 'location'} onChange={() => setForm(current => ({ ...current, return_location_mode: 'location' }))} /> <span className="ml-1">Choose location</span></label></div></fieldset>
         {form.return_location_mode === 'location' && <LocationPicker label="Return pickup location" value={{ address: form.return_address, latitude: form.return_latitude ? Number(form.return_latitude) : null, longitude: form.return_longitude ? Number(form.return_longitude) : null }} onChange={location => setForm(current => ({ ...current, return_address: location.address, return_latitude: location.latitude === null ? '' : String(location.latitude), return_longitude: location.longitude === null ? '' : String(location.longitude) }))} />}
         {form.return_location_mode === 'location' && form.payment_method === 'cash_on_delivery' && form.delivery_address && <button type="button" className="text-left text-xs font-semibold text-[#ff641f] md:col-span-2" onClick={() => setForm(current => ({ ...current, return_address: current.delivery_address, return_latitude: current.delivery_latitude, return_longitude: current.delivery_longitude }))}>Use delivery location as return pickup</button>}
+        {(form.delivery_latitude && form.delivery_longitude || form.return_latitude && form.return_longitude) && <div className="md:col-span-2 border border-black/10 bg-[#f8f7f5] p-4 text-sm"><p className="font-semibold">Location charges</p>{routeCalculating ? <p className="mt-2 text-[#777]">Calculating route distances...</p> : routeError ? <p className="mt-2 text-red-600">{routeError}</p> : <div className="mt-2 space-y-1 text-[#555]">{form.delivery_distance_km && <p>Delivery: {Number(form.delivery_distance_km).toFixed(2)} km · ₱{Number(form.delivery_fee).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>}{form.return_distance_km && <p>Return pickup: {Number(form.return_distance_km).toFixed(2)} km · ₱{Number(form.return_pickup_fee).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>}{!form.delivery_distance_km && !form.return_distance_km && <p>Route distance is not available.</p>}</div>}</div>}
         <label className="text-xs text-[#777] md:col-span-2">Remarks<textarea className="mt-2 min-h-24 w-full border border-black/10 px-3 py-2.5 text-sm" value={form.notes} onChange={e => setField('notes', e.target.value)} /></label>
       </div>
       {editing && <div className="mt-6 border-t border-black/10 pt-5"><h3 className="font-semibold">{editingBooking?.status === 'ongoing' ? 'Return processing' : 'Additional charges'}</h3><p className="mt-1 text-sm text-[#777]">{editingBooking?.status === 'ongoing' ? 'Record the vehicle inspection, final charges, and payment before completing this rental.' : 'Adjust charges associated with this booking.'}</p><div className="mt-3 grid gap-3 md:grid-cols-3">{feeFields.map(([key, label]) => <label className="text-xs text-[#777]" key={key}>{label}<input className="mt-1 w-full border border-black/10 px-3 py-2 text-sm" type="number" min="0" step="0.01" value={form[key] as string} onChange={e => setField(key, e.target.value)} /></label>)}</div>{editingBooking?.status === 'ongoing' && <div className="mt-4 grid gap-3 md:grid-cols-2"><label className="text-xs text-[#777]">Return notes<textarea className="mt-1 min-h-20 w-full border border-black/10 px-3 py-2 text-sm" value={form.status_reason} onChange={e => setField('status_reason', e.target.value)} placeholder="Describe the return inspection and condition." required={form.status === 'complete'} /></label><div className="border border-orange-200 bg-orange-50 p-4 text-sm text-[#6b3418]"><p className="font-semibold">Complete after inspection</p><p className="mt-1">Set the rental to complete after confirming the vehicle condition and collecting any remaining balance.</p><button type="button" className="mt-3 bg-[#ff641f] px-4 py-2 text-sm font-bold text-white" onClick={() => setField('status', 'complete')}>Mark ready to complete</button></div></div>}{form.status === 'complete' && <p className="mt-3 text-sm font-semibold text-emerald-700">This rental will be completed when you save.</p>}</div>}
