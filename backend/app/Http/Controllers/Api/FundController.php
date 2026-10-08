@@ -29,7 +29,7 @@ class FundController extends Controller
             'type_outflow' => $query->orderByRaw("CASE WHEN type = 'outflow' THEN 0 ELSE 1 END")->orderByDesc('transacted_at'),
             default => $query->orderByDesc('transacted_at'),
         };
-        $transactions = $query->paginate(50);
+        $transactions = $query->with('payment')->paginate(50);
         return response()->json([
             'funds' => $funds,
             'transactions' => $transactions->items(),
@@ -76,12 +76,17 @@ class FundController extends Controller
 
     public function updateTransaction(Request $request, FundTransaction $transaction)
     {
-        $transaction->update($request->validate($this->transactionRules()));
+        $data = $request->validate($this->transactionRules());
+        $transaction->update($data);
+        if ($transaction->payment_id) {
+            $transaction->payment()->update(['fund_id' => $transaction->fund_id]);
+        }
         return $transaction->fresh('fund');
     }
 
     public function destroyTransaction(FundTransaction $transaction)
     {
+        abort_if($transaction->payment?->provider === 'paymongo', 422, 'PayMongo fund transactions cannot be deleted.');
         $transaction->delete();
         return response()->noContent();
     }
@@ -112,6 +117,6 @@ class FundController extends Controller
 
     private function transactionRules(): array
     {
-        return ['type' => ['required', 'in:inflow,outflow'], 'transacted_at' => ['required', 'date'], 'amount' => ['required', 'numeric', 'min:0.01'], 'description' => ['required', 'string', 'max:255'], 'notes' => ['nullable', 'string']];
+        return ['fund_id' => ['sometimes', 'exists:funds,id'], 'type' => ['required', 'in:inflow,outflow'], 'transacted_at' => ['required', 'date'], 'amount' => ['required', 'numeric', 'min:0.01'], 'description' => ['required', 'string', 'max:255'], 'notes' => ['nullable', 'string']];
     }
 }
