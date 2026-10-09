@@ -5,6 +5,7 @@ import { VehicleProfileModal } from "./HomePage";
 import { vehicleTypeLabels, vehicleTypes, type VehicleImage, type VehicleRecord } from "../types";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import PublicFooter from "../components/PublicFooter";
+import Seo from "../components/Seo";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 const thumbnailUrl = (vehicle: VehicleRecord) => {
@@ -39,6 +40,7 @@ export default function FleetGalleryPage() {
   };
 
   return <div className="min-h-screen bg-[#0b0b0b] text-[#f4f3f0]">
+    <Seo title="Rental Fleet | Cars and Big Bikes | CL CarHub" description="Browse CL CarHub's available rental cars and big bikes in the Philippines. Compare vehicle types, rates, and details." path="/vehicles" />
     <header className="border-b border-white/[.08]">
       <nav className="mx-auto flex h-[84px] w-[calc(100%-56px)] max-w-[1160px] items-center justify-between">
         <Link to="/" aria-label="CLCarHub home"><img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-20 w-32 object-contain object-left" /></Link>
