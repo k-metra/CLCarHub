@@ -3,10 +3,14 @@
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\OAuthController;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/api/auth/{provider}/redirect', [OAuthController::class, 'redirect']);
+Route::get('/api/auth/{provider}/callback', [OAuthController::class, 'callback']);
 
 Route::get('/email/verify/{id}/{hash}', function (Request $request, int $id, string $hash) {
     $user = User::findOrFail($id);
