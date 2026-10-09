@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 use App\Observers\AuditObserver;
 use App\Models\{Appointment, Booking, BookingStatusHistory, Contract, Customer, CustomerAttachment, Expense, FleetSetting, Fund, FundTransaction, IpBlock, Partner, Payment, User, Vehicle, VehicleImage, VehicleMaintenance};
 
@@ -23,6 +24,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Event::listen(function (SocialiteWasCalled $event): void {
+            $event->extendSocialite('facebook', \SocialiteProviders\Facebook\Provider::class);
+        });
         RateLimiter::for('customer-booking-submissions', function ($request) {
             return Limit::perMinute(5)->by('booking-ip:'.$request->ip());
         });
