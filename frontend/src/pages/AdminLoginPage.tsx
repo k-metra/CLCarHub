@@ -20,12 +20,38 @@ export default function AdminLoginPage() {
   const [verificationResent, setVerificationResent] = useState(false);
   const [vehicleId] = useState(() => new URLSearchParams(window.location.search).get("vehicle_id") ?? "");
   const [legalConsent, setLegalConsent] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState("");
+  const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/+$/, "");
+  const oauthCode = new URLSearchParams(window.location.search).get("oauth_code");
+  const oauthError = new URLSearchParams(window.location.search).get("oauth_error") || (
+    window.location.search.includes("oauth_error=")
+      ? "Google sign-in could not be completed. Check the backend log for the exact error."
+      : ""
+  );
+  const oauthReturnTo = new URLSearchParams(window.location.search).get("return_to");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("verified") === "1") {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
+  useEffect(() => {
+    if (!oauthCode) return;
+    api.post<{
+      token: string;
+      user: Parameters<typeof setSession>[1];
+    }>("/auth/oauth/exchange", { code: oauthCode })
+      .then(({ data }) => {
+        setSession(data.token, data.user);
+        const returnUrl = oauthReturnTo?.startsWith("/") && !oauthReturnTo.startsWith("//") ? oauthReturnTo : "";
+        navigate(returnUrl || (data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}` : accountPath(data.user)), { replace: true });
+      })
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Unable to complete social sign in"))
+  }, [navigate, oauthCode, oauthReturnTo, setSession, vehicleId]);
+  const startOAuth = (provider: "google" | "facebook") => {
+    setOauthLoading(provider);
+    window.location.assign(`${apiBaseUrl}/auth/${provider}/redirect?return_to=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+  };
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -129,7 +155,18 @@ export default function AdminLoginPage() {
               ? "Create an account to manage your rentals."
               : "Sign in to manage your rentals or portal."}
           </p>
+          {oauthError && <p className="mt-5 border border-red-300/30 bg-red-500/10 p-3 text-sm text-red-200">{oauthError}</p>}
         </div>
+        {!registering && <div className="mt-8 space-y-3">
+          <button type="button" className="flex min-h-14 w-full items-center gap-4 rounded-md bg-[#1877f2] px-5 text-left text-sm font-bold text-white shadow-sm transition hover:bg-[#166fe5] focus:outline-none focus:ring-2 focus:ring-[#1877f2] focus:ring-offset-2 focus:ring-offset-[#151515] disabled:cursor-not-allowed disabled:opacity-50" onClick={() => startOAuth("facebook")} disabled={!!oauthLoading || !!oauthCode}>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-2xl font-bold leading-none text-[#1877f2]" aria-hidden="true">f</span>
+            <span>{oauthLoading === "facebook" ? "Connecting..." : oauthCode ? "Signing you in..." : "Continue with Facebook"}</span>
+          </button>
+          <button type="button" className="flex min-h-14 w-full items-center gap-4 rounded-md border border-black/10 bg-white px-5 text-left text-sm font-bold text-[#5f6368] shadow-sm transition hover:bg-[#f8f9fa] focus:outline-none focus:ring-2 focus:ring-[#4285f4] focus:ring-offset-2 focus:ring-offset-[#151515] disabled:cursor-not-allowed disabled:opacity-50" onClick={() => startOAuth("google")} disabled={!!oauthLoading || !!oauthCode}>
+            <svg className="h-7 w-7 shrink-0" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.42h3.13c1.84-1.69 2.92-4.18 2.92-7.19Z" /><path fill="#34A853" d="M12 21.6c2.63 0 4.84-.87 6.45-2.37l-3.13-2.42c-.87.58-1.98.92-3.32.92-2.55 0-4.71-1.72-5.49-4.04H3.27v2.5A9.75 9.75 0 0 0 12 21.6Z" /><path fill="#FBBC05" d="M6.51 13.69a5.86 5.86 0 0 1 0-3.38v-2.5H3.27a9.75 9.75 0 0 0 0 8.38l3.24-2.5Z" /><path fill="#EA4335" d="M12 6.27c1.43 0 2.72.49 3.74 1.46l2.8-2.8C16.84 3.33 14.63 2.4 12 2.4a9.75 9.75 0 0 0-8.73 5.41l3.24 2.5C7.29 7.99 9.45 6.27 12 6.27Z" /></svg>
+            <span>{oauthLoading === "google" ? "Connecting..." : oauthCode ? "Signing you in..." : "Continue with Google"}</span>
+          </button>
+        </div>}
         <form className="mt-8 space-y-5" onSubmit={submit}>
           {registering && (
             <>
