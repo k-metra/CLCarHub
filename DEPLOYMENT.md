@@ -64,7 +64,8 @@ Copy `backend/.env.example` to `backend/.env` and set:
 APP_ENV=production
 APP_DEBUG=false
 APP_URL=https://api.example.com
-FRONTEND_URL=https://example.com
+FRONTEND_URL=https://example.com,https://www.example.com
+SANCTUM_STATEFUL_DOMAINS=example.com,www.example.com
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
