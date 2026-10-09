@@ -2,7 +2,9 @@
 
 return [
     'aika' => [
-        'server' => env('AIKA_SERVER', 'https://en.aika168.com'),
+        // The vendor's HTTPS certificate is currently expired. Keep this
+        // configurable so it can be switched back when the certificate is renewed.
+        'server' => env('AIKA_SERVER', 'http://en.aika168.com'),
         'ca_bundle' => env('AIKA_CA_BUNDLE'),
         'devices' => [
             '9175749144' => [
