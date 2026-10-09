@@ -10,7 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
-import { vehicleTypeLabels, vehicleTypes, type FleetGpsLocation, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";
+import { vehicleTypeLabels, vehicleTypes, type FleetGpsLocation, type FleetSettings, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";
 import { ImageLightbox, RowActions } from "../components/Ui";
 
 const apiOrigin = (
@@ -39,7 +39,6 @@ function statusTagClass(status: string): string {
   return "bg-blue-100 text-blue-700";
 }
 
-const GPS_REFRESH_INTERVAL_MS = 30_000;
 const GPS_STALE_AFTER_MS = 5 * 60_000;
 
 function formatStatus(status: string): string {
@@ -159,6 +158,7 @@ export default function VehiclesPage() {
   const [fleetLocations, setFleetLocations] = useState<FleetGpsLocation[]>([]);
   const [fleetLocationErrors, setFleetLocationErrors] = useState<Array<{ vehicle_id: number; name: string; message: string }>>([]);
   const [fleetMapLoading, setFleetMapLoading] = useState(false);
+  const [gpsRefreshIntervalSeconds, setGpsRefreshIntervalSeconds] = useState(30);
   const [fleetMapPopoutOpen, setFleetMapPopoutOpen] = useState(false);
   const [selectedFleetVehicleId, setSelectedFleetVehicleId] = useState<number | null>(null);
   const fleetMapRef = useRef<HTMLDivElement>(null);
@@ -225,14 +225,19 @@ export default function VehiclesPage() {
     }
   }, []);
   useEffect(() => {
+    api.get<FleetSettings>("/fleet-settings")
+      .then((result) => setGpsRefreshIntervalSeconds(Math.max(10, result.data.gps_refresh_interval_seconds || 30)))
+      .catch((e) => setError(e instanceof Error ? e.message : "Unable to load GPS settings"));
+  }, []);
+  useEffect(() => {
     if (view !== "gps-map" || fleetMapPopoutOpen) return;
     const initialLoad = window.setTimeout(() => void loadFleetLocations(), 0);
-    const timer = window.setInterval(() => void loadFleetLocations(), GPS_REFRESH_INTERVAL_MS);
+    const timer = window.setInterval(() => void loadFleetLocations(), gpsRefreshIntervalSeconds * 1000);
     return () => {
       window.clearTimeout(initialLoad);
       window.clearInterval(timer);
     };
-  }, [view, fleetMapPopoutOpen, loadFleetLocations]);
+  }, [view, fleetMapPopoutOpen, gpsRefreshIntervalSeconds, loadFleetLocations]);
 
   const updateField = (key: keyof VehicleForm, value: string | boolean | File | null) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -417,9 +422,9 @@ export default function VehiclesPage() {
     const timer = window.setInterval(() => {
       void refreshLocation(locationVehicle);
       setCurrentTime(Date.now());
-    }, GPS_REFRESH_INTERVAL_MS);
+    }, gpsRefreshIntervalSeconds * 1000);
     return () => window.clearInterval(timer);
-  }, [locationVehicle, refreshLocation]);
+  }, [gpsRefreshIntervalSeconds, locationVehicle, refreshLocation]);
   useEffect(() => {
     if (!locationVehicle || !location || !locationMapRef.current) return;
     locationLeafletRef.current?.remove();
@@ -453,7 +458,9 @@ export default function VehiclesPage() {
         }),
       } : undefined).addTo(map);
       const freshness = item.position_time && Date.now() - new Date(item.position_time).getTime() <= GPS_STALE_AFTER_MS ? "Fresh" : "Stale";
-      marker.bindPopup(`<strong>${item.name}</strong><br>${item.plate_number}<br>${freshness} · ${item.speed ?? 0} km/h<br>Last position: ${item.position_time ?? "Unknown"}`);
+      const movement = item.is_stopped ? "In place" : "Moving";
+      marker.bindPopup(`<strong>${item.name}</strong><br>${item.plate_number}<br>${movement} · ${item.speed ?? 0} km/h<br>${freshness}<br>Last position: ${item.position_time ?? "Unknown"}`);
+      marker.on("click", () => setSelectedFleetVehicleId(current => current === item.vehicle_id ? null : item.vehicle_id));
       fleetMarkerRefs.current.set(item.vehicle_id, marker);
       bounds.extend([item.latitude, item.longitude]);
     });
@@ -467,8 +474,11 @@ export default function VehiclesPage() {
     };
   }, [view, fleetMapPopoutOpen, fleetLocations]);
   useEffect(() => {
-    if (view !== "gps-map" || selectedFleetVehicleId === null) return;
     const map = fleetLeafletRef.current;
+    if (view !== "gps-map" || selectedFleetVehicleId === null) {
+      map?.closePopup();
+      return;
+    }
     const marker = fleetMarkerRefs.current.get(selectedFleetVehicleId);
     if (!map || !marker) return;
     map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 15), { duration: 0.6 });
@@ -482,9 +492,9 @@ export default function VehiclesPage() {
         <button type="button" className={`border-b-2 px-5 py-3 text-sm font-semibold ${view === "gps-map" ? "border-[#ff641f] text-[#151515]" : "border-transparent text-[#888]"}`} onClick={() => setView("gps-map")}>Fleet GPS map</button>
       </div>}
       {view === "gps-map" && <section className="mt-6 border border-black/10 bg-white p-4 md:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Aika GPS</p><h2 className="mt-1 text-xl font-semibold">Fleet live locations</h2><p className="mt-1 text-sm text-[#777]">Configured trackers refresh every 30 seconds. Individual vehicle GPS remains available from the unit list.</p></div><div className="flex gap-2"><button type="button" className="border border-black/10 px-4 py-2 text-sm font-semibold" onClick={() => void loadFleetLocations()} disabled={fleetMapLoading || fleetMapPopoutOpen}>{fleetMapLoading ? "Refreshing..." : "Refresh map"}</button>{!isFleetMapPopout && <button type="button" className="bg-[#151515] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={openFleetMapPopout} disabled={fleetMapPopoutOpen}>{fleetMapPopoutOpen ? "Map popped out" : "Pop out map ↗"}</button>}</div></div>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Aika GPS</p><h2 className="mt-1 text-xl font-semibold">Fleet live locations</h2><p className="mt-1 text-sm text-[#777]">Configured trackers refresh every {gpsRefreshIntervalSeconds} seconds. Individual vehicle GPS remains available from the unit list.</p></div><div className="flex gap-2"><button type="button" className="border border-black/10 px-4 py-2 text-sm font-semibold" onClick={() => void loadFleetLocations()} disabled={fleetMapLoading || fleetMapPopoutOpen}>{fleetMapLoading ? "Refreshing..." : "Refresh map"}</button>{!isFleetMapPopout && <button type="button" className="bg-[#151515] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={openFleetMapPopout} disabled={fleetMapPopoutOpen}>{fleetMapPopoutOpen ? "Map popped out" : "Pop out map ↗"}</button>}</div></div>
         <div className="mt-5 grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-          <aside className="order-2 border border-black/10 bg-[#f8f7f5] p-3 lg:order-1">
+          <aside className="order-2 max-h-[32rem] overflow-y-auto border border-black/10 bg-[#f8f7f5] p-3 lg:order-1">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold">Active GPS units</h3>
               <span className="text-xs text-[#777]">{fleetLocations.filter((item) => item.status !== "archived").length}</span>
@@ -496,10 +506,11 @@ export default function VehiclesPage() {
                     key={item.vehicle_id}
                     type="button"
                     className={`w-full border px-3 py-2 text-left transition-colors ${selectedFleetVehicleId === item.vehicle_id ? "border-[#ff641f] bg-white" : "border-transparent bg-white/60 hover:border-black/20"}`}
-                    onClick={() => setSelectedFleetVehicleId(item.vehicle_id)}
+                    onClick={() => setSelectedFleetVehicleId(current => current === item.vehicle_id ? null : item.vehicle_id)}
                   >
                     <span className="block truncate text-sm font-semibold text-[#151515]">{item.name}</span>
                     <span className="mt-1 block text-xs text-[#777]">{item.plate_number} · {formatStatus(item.status)}</span>
+                    <span className={`mt-2 block text-xs font-semibold ${item.is_stopped ? "text-[#777]" : "text-emerald-700"}`}>{item.is_stopped ? "In place" : "Moving"} · {item.speed ?? 0} km/h</span>
                   </button>
                 ))}
               </div>
