@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import api from "../lib/api";
+import Seo from "../components/Seo";
 
 const legalContent = {
   "/terms": {
@@ -73,6 +74,11 @@ export default function LegalPage() {
 
   return (
     <div className="min-h-screen bg-[#0b0b0b] text-[#f4f3f0]">
+      <Seo
+        title={`${content.title} | CL CarHub`}
+        description={content.intro}
+        path={pathname}
+      />
       <header className="border-b border-white/[.08]">
         <nav className="mx-auto flex h-[84px] w-[calc(100%-56px)] max-w-[1160px] items-center justify-between">
           <Link to="/" aria-label="CLCarHub home">
