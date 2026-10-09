@@ -19,6 +19,7 @@ use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/oauth/exchange', [\App\Http\Controllers\Api\OAuthController::class, 'exchange']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/resend-verification', [AuthController::class, 'resendVerificationForEmail'])->middleware('throttle:6,1');
 Route::get('/vehicles', [VehicleController::class, 'index']);
