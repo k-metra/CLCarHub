@@ -27,7 +27,10 @@ class OAuthController extends Controller
             'return_to' => $this->safeReturnPath($request->query('return_to')),
         ]);
 
-        return Socialite::driver($provider)->with(['state' => $state])->redirect();
+        $driver = Socialite::driver($provider)
+            ->scopes($provider === 'facebook' ? ['email', 'public_profile'] : ['openid', 'email', 'profile']);
+
+        return $driver->with(['state' => $state])->redirect();
     }
 
     public function callback(Request $request, string $provider): RedirectResponse
