@@ -173,7 +173,7 @@ export default function BookingsPage() {
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [funds, setFunds] = useState<FundRecord[]>([])
-  const [fleetSettings, setFleetSettings] = useState<FleetSettings>({ reservation_fee: '0', reservation_fee_deductible: true, default_hour_extension_rate: '200', full_day_extension_threshold_hours: 12, late_return_grace_period_minutes: 60, default_delivery_rate_per_km: '0', garage_location_name: null, garage_location_address: null, garage_location_latitude: null, garage_location_longitude: null, terms_and_conditions: null, privacy_policy: null })
+  const [fleetSettings, setFleetSettings] = useState<FleetSettings>({ reservation_fee: '0', reservation_fee_deductible: true, default_hour_extension_rate: '200', full_day_extension_threshold_hours: 12, late_return_grace_period_minutes: 60, gps_refresh_interval_seconds: 30, default_delivery_rate_per_km: '0', garage_location_name: null, garage_location_address: null, garage_location_latitude: null, garage_location_longitude: null, terms_and_conditions: null, privacy_policy: null })
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
   const [includeArchived, setIncludeArchived] = useState(false)
