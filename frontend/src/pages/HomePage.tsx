@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
 import PublicFooter from "../components/PublicFooter";
+import Seo from "../components/Seo";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import api from "../lib/api";
@@ -82,6 +83,20 @@ export default function HomePage() {
   };
   return (
     <div className="min-h-screen overflow-hidden bg-[#0b0b0b] text-[#f4f3f0]">
+      <Seo
+        title="Car and Big Bike Rentals in the Philippines | CL CarHub"
+        description="Rent reliable cars and big bikes from CL CarHub in the Philippines. Browse our fleet, check availability, and request your next ride."
+        path="/"
+        structuredData={{
+          "@context": "https://schema.org",
+          "@type": "AutoRental",
+          name: "CL CarHub",
+          url: "https://clcarhub.com/",
+          logo: "https://clcarhub.com/clcarhublogo_upscaled.png",
+          description: "Car and big bike rentals in the Philippines.",
+          areaServed: "Philippines",
+        }}
+      />
       <header className="absolute z-10 w-full border-b border-white/[.08]">
         <nav className="mx-auto flex h-[84px] w-[calc(100%-56px)] max-w-[1160px] items-center justify-between">
           <Link className="shrink-0" to="/" aria-label="CLCarHub home">
