@@ -16,6 +16,7 @@ class FleetSetting extends Model
             'default_hour_extension_rate' => 'decimal:2',
             'full_day_extension_threshold_hours' => 'integer',
             'late_return_grace_period_minutes' => 'integer',
+            'gps_refresh_interval_seconds' => 'integer',
             'default_delivery_rate_per_km' => 'decimal:2',
             'garage_location_latitude' => 'decimal:7',
             'garage_location_longitude' => 'decimal:7',
