@@ -54,7 +54,18 @@ class AikaGpsService
         $deviceInfo = $login['deviceInfo'] ?? null;
         $key = is_array($deviceInfo) ? ($deviceInfo['key2018'] ?? null) : null;
         $resolvedDeviceId = is_array($deviceInfo) ? ($deviceInfo['deviceID'] ?? $deviceId) : $deviceId;
-        abort_unless($key, 502, 'Aika GPS login did not return a session key.');
+        if (! $key) {
+            Log::warning('Aika GPS login was rejected', [
+                'vehicle_id' => $vehicle->id,
+                'device_id' => $deviceId,
+                'state' => is_scalar($login['state'] ?? null) ? (string) $login['state'] : null,
+                'response_keys' => array_keys($login),
+                'device_info_keys' => is_array($deviceInfo) ? array_keys($deviceInfo) : [],
+            ]);
+
+            $state = is_scalar($login['state'] ?? null) ? ' (state '.((string) $login['state']).')' : '';
+            abort(502, 'Aika GPS login was rejected'.$state.'. Verify the device credentials and VPS access to the Aika account.');
+        }
 
         $tracking = $this->request($appAddress, 'GetTracking', [
             'DeviceID' => $resolvedDeviceId,
