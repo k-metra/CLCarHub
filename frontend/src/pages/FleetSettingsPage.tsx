@@ -13,6 +13,7 @@ const defaults: FleetSettings = {
   default_hour_extension_rate: "200",
   full_day_extension_threshold_hours: 12,
   late_return_grace_period_minutes: 60,
+  gps_refresh_interval_seconds: 30,
   default_delivery_rate_per_km: "0",
   garage_location_name: null,
   garage_location_address: null,
@@ -35,6 +36,7 @@ const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   default_hour_extension_rate: value.default_hour_extension_rate === undefined ? defaults.default_hour_extension_rate : value.default_hour_extension_rate,
   full_day_extension_threshold_hours: value.full_day_extension_threshold_hours ?? defaults.full_day_extension_threshold_hours,
   late_return_grace_period_minutes: value.late_return_grace_period_minutes ?? defaults.late_return_grace_period_minutes,
+  gps_refresh_interval_seconds: value.gps_refresh_interval_seconds ?? defaults.gps_refresh_interval_seconds,
   default_delivery_rate_per_km: value.default_delivery_rate_per_km ?? defaults.default_delivery_rate_per_km,
   garage_location_name: value.garage_location_name ?? defaults.garage_location_name,
   garage_location_address: value.garage_location_address ?? defaults.garage_location_address,
@@ -325,6 +327,14 @@ export default function FleetSettingsPage() {
                   <span className="font-normal text-[#555]">minutes</span>
                 </div>
                 <span className="mt-1 block text-xs font-normal text-[#777]">Returns within this period after a full rental day do not incur an hourly extension charge. Default: 60 minutes.</span>
+              </label>
+              <label className="block text-sm font-semibold">
+                GPS refresh interval
+                <div className="mt-2 flex items-center gap-3">
+                  <input required min="10" max="3600" type="number" className="w-28 border border-black/10 px-3 py-3 text-sm" value={settings.gps_refresh_interval_seconds} onChange={event => setSettings(current => ({ ...current, gps_refresh_interval_seconds: Number(event.target.value) }))} />
+                  <span className="font-normal text-[#555]">seconds</span>
+                </div>
+                <span className="mt-1 block text-xs font-normal text-[#777]">The minimum is 10 seconds. Shorter intervals can increase vendor/API load and may be rate-limited.</span>
               </label>
               <label className="block text-sm font-semibold">
                 Default delivery rate per kilometer
