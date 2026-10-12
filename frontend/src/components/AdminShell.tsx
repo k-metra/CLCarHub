@@ -4,6 +4,7 @@ import { Link, Navigate } from "react-router-dom";
 import { AdminSidebar } from "./AdminSidebar";
 import { canViewReports, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import { AdminBookingNotifications } from "./AdminBookingNotifications";
+import { ThemeToggle, useTheme } from "../lib/ThemeContext";
 
 export function AdminShell({
   children,
@@ -18,6 +19,7 @@ export function AdminShell({
 }) {
   const { user, loading } = useAuth();
   const signOut = useSignOut();
+  const { theme } = useTheme();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   if (loading) return null;
@@ -26,7 +28,7 @@ export function AdminShell({
   if (reportsOnly && !canViewReports(user)) return <Navigate to="/admin" replace />;
 
   return (
-    <div className="min-h-screen bg-[#f4f3f0] text-[#151515]">
+    <div className={`dashboard-theme min-h-screen bg-[#f4f3f0] text-[#151515] ${theme === "dark" ? "theme-dark" : ""}`}>
       {!bare && <header className="sticky top-0 z-[200] flex h-20 min-w-0 items-center justify-between border-b border-black/10 bg-[#111] px-4 text-white print:hidden sm:px-6 md:px-10">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
@@ -49,6 +51,7 @@ export function AdminShell({
         </div>
         <div className="flex shrink-0 items-center gap-3 sm:gap-5">
           <AdminBookingNotifications />
+          <ThemeToggle />
           <div className="hidden text-right sm:block">
             <p className="text-sm font-semibold">{displayName(user)}</p>
             <p className="text-[10px] uppercase tracking-widest text-[#888]">
