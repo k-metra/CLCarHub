@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
-import { useToast } from "../components/Ui";
+import { Skeleton, useToast } from "../components/Ui";
 import api from "../lib/api";
-import type { FleetSettings } from "../types";
+import { vehicleTypeLabels, vehicleTypes, type DiscountStructure, type FleetSettings } from "../types";
 import RichTextEditor from "../components/RichTextEditor";
 
 const defaultMapCenter: [number, number] = [14.5995, 120.9842];
@@ -21,6 +21,7 @@ const defaults: FleetSettings = {
   garage_location_longitude: null,
   terms_and_conditions: null,
   privacy_policy: null,
+  discount_structures: [],
 };
 
 type SearchResult = {
@@ -44,7 +45,10 @@ const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   garage_location_longitude: value.garage_location_longitude == null ? null : Number(value.garage_location_longitude),
   terms_and_conditions: value.terms_and_conditions ?? defaults.terms_and_conditions,
   privacy_policy: value.privacy_policy ?? defaults.privacy_policy,
+  discount_structures: value.discount_structures ?? defaults.discount_structures,
 });
+
+const emptyStructure = (): DiscountStructure => ({ name: "", vehicle_types: [], milestones: [{ days: 1, discount_percent: 0 }] });
 
 function GarageMap({
   center,
@@ -278,6 +282,22 @@ export default function FleetSettingsPage() {
     await persistSettings();
   };
 
+  const updateStructure = (index: number, structure: DiscountStructure) => setSettings(current => ({ ...current, discount_structures: current.discount_structures.map((item, itemIndex) => itemIndex === index ? structure : item) }));
+  const addStructure = () => setSettings(current => ({ ...current, discount_structures: [...current.discount_structures, emptyStructure()] }));
+  const removeStructure = (index: number) => setSettings(current => ({ ...current, discount_structures: current.discount_structures.filter((_, itemIndex) => itemIndex !== index) }));
+  const saveDiscountStructures = async () => {
+    setSaving(true);
+    try {
+      const response = await api.put<FleetSettings>("/fleet-settings", settings);
+      setSettings(normalizeSettings(response.data));
+      showToast("Discount structures saved successfully.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to save discount structures.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <AdminShell title="Fleet Settings">
       <div className="mt-8 max-w-3xl space-y-6">
@@ -353,6 +373,27 @@ export default function FleetSettingsPage() {
               </div>
             </form>
           )}
+        </section>
+        <section className="border border-black/10 bg-white p-5 sm:p-8">
+          <p className="text-xs uppercase tracking-widest text-[#ff641f]">Rental pricing</p>
+          <h2 className="mt-2 text-2xl font-semibold">Discount structures</h2>
+          <p className="mt-2 text-sm text-[#777]">Create reusable milestone pricing for one or more vehicle categories. The highest matching milestone applies to the daily rental rate.</p>
+          <div className="mt-6 space-y-5" aria-busy={loading || saving}>
+            {loading ? <div className="space-y-4" role="status" aria-live="polite"><Skeleton className="h-24 w-full" /><Skeleton className="h-44 w-full" /><span className="sr-only">Loading discount structures...</span></div> : settings.discount_structures.map((structure, structureIndex) => <div className="border border-black/10 p-4" key={structureIndex}>
+              <div className="flex items-start gap-3">
+                <input aria-label="Discount structure name" className="min-w-0 flex-1 border border-black/10 px-3 py-2 text-sm font-semibold" placeholder="Structure name" value={structure.name} onChange={event => updateStructure(structureIndex, { ...structure, name: event.target.value })} />
+                <button type="button" className="text-sm text-red-600" onClick={() => removeStructure(structureIndex)}>Remove</button>
+              </div>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-[#777]">Vehicle categories</p>
+              <div className="mt-2 flex flex-wrap gap-2">{vehicleTypes.map(type => <label className="flex items-center gap-2 border border-black/10 px-3 py-2 text-sm" key={type}><input type="checkbox" checked={structure.vehicle_types.includes(type)} onChange={event => updateStructure(structureIndex, { ...structure, vehicle_types: event.target.checked ? [...structure.vehicle_types, type] : structure.vehicle_types.filter(item => item !== type) })} />{vehicleTypeLabels[type]}</label>)}</div>
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[480px] text-sm"><thead><tr className="border-b border-black/10 text-left text-xs uppercase tracking-wider text-[#777]"><th className="pb-2">Rental days</th><th className="pb-2">Discount (%)</th><th className="pb-2 text-right">Action</th></tr></thead><tbody>{structure.milestones.map((milestone, milestoneIndex) => <tr className="border-b border-black/5" key={milestoneIndex}><td className="py-2"><input min="1" type="number" className="w-28 border border-black/10 px-2 py-2" value={milestone.days} onChange={event => updateStructure(structureIndex, { ...structure, milestones: structure.milestones.map((item, index) => index === milestoneIndex ? { ...item, days: Number(event.target.value) } : item) })} /></td><td className="py-2"><input min="-100" max="100" step="0.01" type="number" className="w-28 border border-black/10 px-2 py-2" value={milestone.discount_percent} onChange={event => updateStructure(structureIndex, { ...structure, milestones: structure.milestones.map((item, index) => index === milestoneIndex ? { ...item, discount_percent: Number(event.target.value) } : item) })} /></td><td className="py-2 text-right"><button type="button" className="text-xs text-red-600 disabled:text-[#aaa]" disabled={structure.milestones.length === 1} onClick={() => updateStructure(structureIndex, { ...structure, milestones: structure.milestones.filter((_, index) => index !== milestoneIndex) })}>Remove</button></td></tr>)}</tbody></table>
+                <button type="button" className="mt-3 text-sm font-semibold text-[#ff641f]" onClick={() => updateStructure(structureIndex, { ...structure, milestones: [...structure.milestones, { days: 1, discount_percent: 0 }] })}>+ Add milestone</button>
+              </div>
+            </div>)}
+            {!loading && <button type="button" disabled={saving} className="border border-[#ff641f] px-4 py-2 text-sm font-semibold text-[#ff641f] disabled:cursor-not-allowed disabled:opacity-50" onClick={addStructure}>+ Add discount structure</button>}
+          </div>
+          {!loading && <div className="mt-5 flex items-center justify-between gap-4"><p className="text-xs text-[#777]" aria-live="polite">{saving ? "Saving your discount structures..." : "Changes are local until you save them."}</p><button type="button" disabled={saving} onClick={saveDiscountStructures} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving..." : "Save discount structures"}</button></div>}
         </section>
         <section className="border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p>
