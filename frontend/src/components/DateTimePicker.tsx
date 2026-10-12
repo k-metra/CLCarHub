@@ -114,7 +114,7 @@ export function DateTimePicker({
       {open && !disabled && (
         <div className="theme-surface absolute z-[130] mt-2 w-[min(22rem,calc(100vw-2rem))] rounded border border-black/10 bg-white p-4 shadow-2xl">
           <div className="flex items-center justify-between gap-2">
-            <button type="button" className="rounded px-2 py-1 text-lg hover:bg-black/5" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button>
+            <button type="button" className="calendar-nav rounded px-2 py-1 text-lg hover:bg-black/5" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button>
             <div className="flex min-w-0 gap-2">
               <select className="min-w-0 border border-black/10 px-2 py-1 text-sm font-semibold" value={month.getMonth()} onChange={event => setMonth(new Date(month.getFullYear(), Number(event.target.value), 1))}>
                 {Array.from({ length: 12 }, (_, index) => <option value={index} key={index}>{new Date(2000, index, 1).toLocaleDateString([], { month: "long" })}</option>)}
@@ -123,21 +123,21 @@ export function DateTimePicker({
                 {years.map(year => <option value={year} key={year}>{year}</option>)}
               </select>
             </div>
-            <button type="button" className="rounded px-2 py-1 text-lg hover:bg-black/5" aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button>
+            <button type="button" className="calendar-nav rounded px-2 py-1 text-lg hover:bg-black/5" aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button>
           </div>
           <div className="mt-3 grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wider text-[#888]">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <span key={day} className="py-1">{day}</span>)}
             {days.map(day => {
               const active = datePart(value) === formatDate(day);
               const inMonth = day.getMonth() === month.getMonth();
-              return <button type="button" key={formatDate(day)} onClick={() => selectDate(day)} className={`rounded py-2 text-sm ${active ? "bg-[#ff641f] font-bold text-white" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>{day.getDate()}</button>;
+              return <button type="button" key={formatDate(day)} onClick={() => selectDate(day)} className={`calendar-day rounded py-2 text-sm ${active ? "bg-[#ff641f] font-bold text-white" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>{day.getDate()}</button>;
             })}
           </div>
           {mode === "datetime" && (
             <div className="mt-4 border-t border-black/10 pt-3">
               <p className="mb-2 text-xs font-semibold text-[#555]">Choose a time</p>
               <div className="grid max-h-40 grid-cols-4 gap-1 overflow-y-auto pr-1">
-                {timeSlots.map(slot => <button type="button" key={slot} onClick={() => selectTime(slot)} className={`rounded border px-2 py-2 text-xs ${time === slot ? "border-[#ff641f] bg-orange-50 font-semibold text-[#d94d10]" : "border-black/10 hover:bg-black/5"}`}>{formatTime(slot)}</button>)}
+                {timeSlots.map(slot => <button type="button" key={slot} onClick={() => selectTime(slot)} className={`calendar-time rounded border px-2 py-2 text-xs ${time === slot ? "border-[#ff641f] bg-orange-50 font-semibold text-[#d94d10]" : "border-black/10 hover:bg-black/5"}`}>{formatTime(slot)}</button>)}
               </div>
             </div>
           )}
