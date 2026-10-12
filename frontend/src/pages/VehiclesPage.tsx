@@ -11,7 +11,7 @@ import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
 import { vehicleTypeLabels, vehicleTypes, type FleetGpsLocation, type FleetSettings, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";
-import { ImageLightbox, RowActions } from "../components/Ui";
+import { ImageLightbox, RowActions, useToast } from "../components/Ui";
 
 const apiOrigin = (
   import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"
@@ -69,6 +69,7 @@ type VehicleForm = {
   aika_device_id: string;
   aika_device_password: string;
   image: File | null;
+  remove_background: boolean;
 };
 
 const galleryImageSlots = [
@@ -112,6 +113,7 @@ const emptyForm: VehicleForm = {
   aika_device_id: "",
   aika_device_password: "",
   image: null,
+  remove_background: true,
 };
 
 const fields: Array<[keyof VehicleForm, string, string]> = [
@@ -148,6 +150,9 @@ export default function VehiclesPage() {
   const locationMapRef = useRef<HTMLDivElement>(null);
   const locationLeafletRef = useRef<L.Map | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [actionVehicleId, setActionVehicleId] = useState<number | null>(null);
+  const { showToast } = useToast();
   const [editing, setEditing] = useState<number | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"details" | "images">("details");
@@ -308,7 +313,9 @@ export default function VehiclesPage() {
 
   const saveVehicle = async (event: FormEvent) => {
     event.preventDefault();
+    if (saving) return;
     setError("");
+    setSaving(true);
     const payload = new FormData();
     Object.entries(form).forEach(([key, value]) => {
       if (key === "image" || key === "aika_enabled" || key === "aika_device_id" || key === "aika_device_password") return;
@@ -338,6 +345,7 @@ export default function VehiclesPage() {
         if (form.image) {
           const imagePayload = new FormData();
           imagePayload.append("image", form.image);
+          imagePayload.append("remove_background", form.remove_background ? "1" : "0");
           await api.post(`/vehicles/${editing}/image`, imagePayload, {
             headers: { "Content-Type": "multipart/form-data" },
           });
@@ -347,6 +355,14 @@ export default function VehiclesPage() {
           headers: { "Content-Type": "multipart/form-data" },
         });
         vehicleId = response.data.id;
+        if (form.image && vehicleId) {
+          const imagePayload = new FormData();
+          imagePayload.append("image", form.image);
+          imagePayload.append("remove_background", form.remove_background ? "1" : "0");
+          await api.post(`/vehicles/${vehicleId}/image`, imagePayload, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        }
       }
       if (vehicleId) {
         await Promise.all(
@@ -372,8 +388,12 @@ export default function VehiclesPage() {
       setGalleryUrls(emptyGalleryUrls());
       setForm(emptyForm);
       loadVehicles();
+      showToast(editing ? "Vehicle updated successfully." : "Vehicle created successfully.", "success");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save vehicle");
+      showToast(e instanceof Error ? e.message : "Unable to save vehicle", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -386,17 +406,17 @@ export default function VehiclesPage() {
     )
       return;
     try {
+      setActionVehicleId(vehicle.id);
       if (archived) await api.post(`/vehicles/${vehicle.id}/restore`);
       else await api.delete(`/vehicles/${vehicle.id}`);
       loadVehicles();
+      showToast(archived ? "Vehicle restored successfully." : "Vehicle archived successfully.", "success");
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : archived
-            ? "Unable to restore vehicle"
-            : "Unable to archive vehicle",
-      );
+      const message = e instanceof Error ? e.message : archived ? "Unable to restore vehicle" : "Unable to archive vehicle";
+      setError(message);
+      showToast(message, "error");
+    } finally {
+      setActionVehicleId(null);
     }
   };
   const refreshLocation = useCallback(async (vehicle: VehicleRecord, initial = false) => {
@@ -737,6 +757,14 @@ export default function VehiclesPage() {
                       updateField("image", e.target.files?.[0] ?? null)
                     }
                   />{" "}
+                  <label className="mt-3 flex items-center gap-2 text-xs text-[#555]">
+                    <input
+                      type="checkbox"
+                      checked={form.remove_background}
+                      onChange={(e) => updateField("remove_background", e.target.checked)}
+                    />
+                    Remove background automatically (recommended)
+                  </label>
                   <span className="mt-2 block text-[11px] text-[#888]">
                     Drop an image here or click to upload. For better calendar
                     output, vehicle image should have a transparent background.{" "}
@@ -768,8 +796,8 @@ export default function VehiclesPage() {
                 >
                   Cancel
                 </button>
-                <button className="bg-[#151515] px-5 py-2 text-sm font-bold text-white">
-                  Save vehicle
+                <button disabled={saving} className="bg-[#151515] px-5 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                  {saving ? "Saving vehicle..." : "Save vehicle"}
                 </button>
               </div>
             </form>
@@ -856,7 +884,7 @@ export default function VehiclesPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-4 text-right"><RowActions actions={[{ label: "Show GPS location", disabled: !vehicle.aika_device_id, onClick: () => void showLocation(vehicle) }, { label: "Edit", onClick: () => openEdit(vehicle) }, { label: vehicle.status === "archived" ? "Restore" : "Archive", danger: vehicle.status !== "archived", onClick: () => void archiveVehicle(vehicle) }]} /></td>
+                      <td className="py-4 text-right"><RowActions actions={[{ label: "Show GPS location", disabled: !vehicle.aika_device_id, onClick: () => void showLocation(vehicle) }, { label: "Edit", onClick: () => openEdit(vehicle) }, { label: actionVehicleId === vehicle.id ? "Saving..." : vehicle.status === "archived" ? "Restore" : "Archive", danger: vehicle.status !== "archived", disabled: actionVehicleId === vehicle.id, onClick: () => void archiveVehicle(vehicle) }]} /></td>
                     </tr>
                   );
                 })
