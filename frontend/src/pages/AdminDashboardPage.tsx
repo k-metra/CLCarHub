@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../lib/api";
 import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
-import { Skeleton } from "../components/Ui";
+import { Skeleton, useToast } from "../components/Ui";
 import { displayName, useAuth } from "../lib/AuthContext";
 import { vehicleTypeLabels, vehicleTypes, type BookingRecord, type VehicleRecord, type VehicleType } from "../types";
 
@@ -19,6 +19,7 @@ type DashboardData = {
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 });
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
+type AvailabilityType = VehicleType | "all";
 
 function imageUrl(booking: BookingRecord) {
   const value = booking.vehicle?.images?.[0]?.url;
@@ -35,9 +36,10 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
-  const [availabilityType, setAvailabilityType] = useState<VehicleType>("sedan");
+  const [availabilityType, setAvailabilityType] = useState<AvailabilityType>("sedan");
   const [availabilityDate, setAvailabilityDate] = useState(() => new Date().toISOString().slice(0, 16));
   const [availableVehicles, setAvailableVehicles] = useState<VehicleRecord[]>([]);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
@@ -92,7 +94,7 @@ export default function AdminDashboardPage() {
       <Card>
         <h3 className="font-semibold">Vehicle availability</h3>
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
-          <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select value={availabilityType} onChange={event => setAvailabilityType(event.target.value as VehicleType)} className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm">{vehicleTypes.map(vehicleType => <option key={vehicleType} value={vehicleType}>{vehicleTypeLabels[vehicleType]}</option>)}</select></label>
+          <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select value={availabilityType} onChange={event => setAvailabilityType(event.target.value as AvailabilityType)} className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm"><option value="all">All</option>{vehicleTypes.map(vehicleType => <option key={vehicleType} value={vehicleType}>{vehicleTypeLabels[vehicleType]}</option>)}</select></label>
           <label className="flex-1 text-xs font-semibold text-[#555]">Date & time<DateTimePicker mode="datetime" value={availabilityDate} onChange={setAvailabilityDate} className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" /></label>
           <button type="button" onClick={checkAvailability} disabled={availabilityLoading} className="bg-[#ff641f] px-5 py-3 text-center text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{availabilityLoading ? "Checking..." : "Check availability"}</button>
         </div>
@@ -124,21 +126,41 @@ export default function AdminDashboardPage() {
         <Card><h3 className="font-semibold">Top vehicles by total revenue</h3><div className="mt-5 space-y-4">{loading ? <>{[1, 2, 3, 4].map(item => <Skeleton className="h-8 w-full" key={item} />)}</> : data?.top_vehicles.length ? data.top_vehicles.map(vehicle => <div className="min-w-0" key={vehicle.id}><div className="mb-1 flex min-w-0 items-start justify-between gap-3 text-sm"><span className="min-w-0 break-words">{vehicle.name || `${vehicle.brand} ${vehicle.model}`} ({vehicle.year})</span><strong className="shrink-0">{money.format(vehicle.revenue)}</strong></div><div className="h-2 bg-black/5"><div className="h-2 bg-[#ff641f]" style={{ width: `${Math.max(4, vehicle.revenue / Math.max(1, data.top_vehicles[0].revenue) * 100)}%` }} /></div></div>) : <p className="py-8 text-sm text-[#777]">No completed revenue records yet.</p>}</div></Card>
       </div>
     </div>
-    {availabilityOpen && <AvailabilityModal vehicles={availableVehicles} type={availabilityType} date={availabilityDate} onClose={() => setAvailabilityOpen(false)} />}
+    {availabilityOpen && <AvailabilityModal vehicles={availableVehicles} type={availabilityType} date={availabilityDate} onClose={() => setAvailabilityOpen(false)} showToast={showToast} />}
   </AdminShell>;
 }
 
-function AvailabilityModal({ vehicles, type, date, onClose }: { vehicles: VehicleRecord[]; type: VehicleType; date: string; onClose: () => void }) {
+function AvailabilityModal({ vehicles, type, date, onClose, showToast }: { vehicles: VehicleRecord[]; type: AvailabilityType; date: string; onClose: () => void; showToast: (message: string, tone?: "success" | "error" | "info") => void }) {
+  const dateLabel = new Date(date).toLocaleString([], { dateStyle: "long", timeStyle: "short" });
+  const vehicleList = vehicles.map(vehicle => {
+    const title = vehicle.name || `${vehicle.brand} ${vehicle.model}`;
+    return `${title} — ${vehicle.brand} ${vehicle.model} ${vehicle.year} — Plate: ${vehicle.plate_number}`;
+  });
+  const clipboardText = [
+    `Available vehicles for ${dateLabel}`,
+    `${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"} available`,
+    "",
+    ...(vehicleList.length ? vehicleList.map(vehicle => `- ${vehicle}`) : ["- No vehicles are available for this date."]),
+  ].join("\n");
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(clipboardText);
+      showToast("Availability list copied to clipboard.", "success");
+    } catch {
+      showToast("Unable to copy the availability list. Please check clipboard permissions.", "error");
+    }
+  };
+
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="availability-title">
     <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded bg-[#1f2a3a] text-white shadow-2xl">
       <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-        <div><h2 id="availability-title" className="font-['Space_Grotesk'] text-xl font-semibold">Available {vehicleTypeLabels[type]}{vehicles.length ? "" : "s"}</h2><p className="mt-1 text-sm text-slate-300">on {new Date(date).toLocaleString([], { dateStyle: "long", timeStyle: "short" })}</p></div>
+        <div><h2 id="availability-title" className="font-['Space_Grotesk'] text-xl font-semibold">Available {type === "all" ? "vehicles" : vehicleTypeLabels[type]}{vehicles.length ? "" : "s"}</h2><p className="mt-1 text-sm text-slate-300">on {dateLabel}</p></div>
         <button type="button" onClick={onClose} className="text-2xl text-slate-300 hover:text-white" aria-label="Close availability results">×</button>
       </div>
       <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
         {vehicles.length ? vehicles.map(vehicle => <AvailabilityVehicleCard vehicle={vehicle} key={vehicle.id} />) : <p className="col-span-full py-12 text-center text-slate-300">No vehicles are available for this date.</p>}
       </div>
-      <div className="flex justify-end border-t border-white/10 px-6 py-4"><button type="button" onClick={onClose} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white">Close</button></div>
+      <div className="flex flex-wrap justify-end gap-3 border-t border-white/10 px-6 py-4"><button type="button" onClick={copyToClipboard} className="border border-white/20 px-5 py-3 text-sm font-bold text-white hover:bg-white/10">Copy to clipboard</button><button type="button" onClick={onClose} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white">Close</button></div>
     </div>
   </div>;
 }
