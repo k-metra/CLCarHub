@@ -7,10 +7,12 @@ use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 use App\Services\AikaGpsService;
+use Illuminate\Support\Str;
 
 class VehicleController extends Controller
 {
@@ -82,8 +84,11 @@ class VehicleController extends Controller
 
     public function uploadImage(Request $request, Vehicle $vehicle)
     {
-        $data = $request->validate(['image' => ['required', 'image', 'max:20480']]);
-        $this->storeImage($vehicle, $data['image']);
+        $data = $request->validate([
+            'image' => ['required', 'image', 'max:20480'],
+            'remove_background' => ['sometimes', 'boolean'],
+        ]);
+        $this->storeImage($vehicle, $data['image'], (bool) ($data['remove_background'] ?? false));
 
         return $vehicle->fresh(['images', 'partner']);
     }
@@ -194,16 +199,51 @@ class VehicleController extends Controller
         return ['name' => ['nullable', 'string', 'max:100'], 'brand' => ['required', 'string', 'max:100'], 'model' => ['required', 'string', 'max:100'], 'variant' => ['nullable', 'string'], 'year' => ['required', 'integer', 'min:1900', 'max:'.(now()->year + 1)], 'type' => ['required', Rule::in(self::VEHICLE_TYPES)], 'plate_number' => ['required', 'string', 'unique:vehicles,plate_number'], 'aika_device_id' => ['nullable', 'string', 'max:100', 'unique:vehicles,aika_device_id'], 'aika_device_password' => ['nullable', 'string', 'max:255'], 'transmission' => ['required', 'in:manual,automatic'], 'fuel_type' => ['required', 'in:regular_unleaded,premium_95,premium_98,diesel,ev_phev'], 'seats' => ['required', 'integer', 'min:1'], 'color' => ['required', 'string', 'max:50'], 'daily_rate' => ['required', 'numeric', 'min:0'], 'mileage_limit' => ['nullable', 'integer', 'min:0'], 'hour_extension_rate' => ['nullable', 'numeric', 'min:0'], 'security_deposit_fee' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'ownership' => ['nullable', 'string', 'max:150'], 'partner_id' => ['nullable', 'exists:partners,id'], 'description' => ['nullable', 'string'], 'status' => ['required', 'in:available,maintenance,reserved,rented,unavailable,archived'], 'image' => ['nullable', 'image', 'max:20480']];
     }
 
-    private function storeImage(Vehicle $vehicle, ?UploadedFile $image): void
+    private function storeImage(Vehicle $vehicle, ?UploadedFile $image, bool $removeBackground = false): void
     {
         if (! $image) {
             return;
         }
 
-        $path = $image->store('vehicles', 'public');
+        $path = $removeBackground
+            ? $this->removeImageBackground($image)
+            : $image->store('vehicles', 'public');
         abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The vehicle image could not be saved. Check storage permissions and disk configuration.');
         $vehicle->images()->whereNull('image_type')->update(['is_primary' => false]);
         $vehicle->images()->create(['path' => $path, 'is_primary' => true, 'image_type' => null]);
+    }
+
+    private function removeImageBackground(UploadedFile $image): string
+    {
+        $apiKey = config('services.remove_bg.key');
+        abort_if(! is_string($apiKey) || trim($apiKey) === '', 503, 'Background removal is not configured. Disable the option or contact an administrator.');
+
+        $response = Http::timeout(60)
+            ->withHeaders(['X-Api-Key' => $apiKey])
+            ->attach('image_file', $image->get(), $image->getClientOriginalName())
+            ->post('https://api.remove.bg/v1.0/removebg', [
+                'size' => 'auto',
+                'format' => 'png',
+            ]);
+
+        if (! $response->successful()) {
+            $status = $response->status();
+            $message = match ($status) {
+                401, 403 => 'The remove.bg API key was rejected. Check the configured key.',
+                402 => 'The remove.bg monthly background-removal limit has been reached.',
+                default => 'Background removal failed. Disable the option or try a different image.',
+            };
+            Log::warning('remove.bg background removal failed', [
+                'status' => $status,
+                'response' => str($response->body())->limit(500)->toString(),
+            ]);
+            abort(502, $message);
+        }
+
+        $path = 'vehicles/'.Str::uuid().'.png';
+        Storage::disk('public')->put($path, $response->body());
+
+        return $path;
     }
 
     private function storeGalleryImage(Vehicle $vehicle, UploadedFile $image, string $imageType): void
