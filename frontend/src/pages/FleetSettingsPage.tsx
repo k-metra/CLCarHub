@@ -301,7 +301,7 @@ export default function FleetSettingsPage() {
   return (
     <AdminShell title="Fleet Settings">
       <div className="mt-8 max-w-3xl space-y-6">
-        <section className="border border-black/10 bg-white p-5 sm:p-8">
+        <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Reservation policy</p>
           <h2 className="mt-2 text-2xl font-semibold">Global reservation fee</h2>
           <p className="mt-2 text-sm text-[#777]">This fee applies to every vehicle and replaces the old vehicle-specific reservation fee.</p>
@@ -374,12 +374,12 @@ export default function FleetSettingsPage() {
             </form>
           )}
         </section>
-        <section className="border border-black/10 bg-white p-5 sm:p-8">
+        <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Rental pricing</p>
           <h2 className="mt-2 text-2xl font-semibold">Discount structures</h2>
           <p className="mt-2 text-sm text-[#777]">Create reusable milestone pricing for one or more vehicle categories. The highest matching milestone applies to the daily rental rate.</p>
           <div className="mt-6 space-y-5" aria-busy={loading || saving}>
-            {loading ? <div className="space-y-4" role="status" aria-live="polite"><Skeleton className="h-24 w-full" /><Skeleton className="h-44 w-full" /><span className="sr-only">Loading discount structures...</span></div> : settings.discount_structures.map((structure, structureIndex) => <div className="border border-black/10 p-4" key={structureIndex}>
+            {loading ? <div className="space-y-4" role="status" aria-live="polite"><Skeleton className="h-24 w-full" /><Skeleton className="h-44 w-full" /><span className="sr-only">Loading discount structures...</span></div> : settings.discount_structures.map((structure, structureIndex) => <div className="rounded-md border border-black/10 p-4" key={structureIndex}>
               <div className="flex items-start gap-3">
                 <input aria-label="Discount structure name" className="min-w-0 flex-1 border border-black/10 px-3 py-2 text-sm font-semibold" placeholder="Structure name" value={structure.name} onChange={event => updateStructure(structureIndex, { ...structure, name: event.target.value })} />
                 <button type="button" className="text-sm text-red-600" onClick={() => removeStructure(structureIndex)}>Remove</button>
@@ -395,7 +395,7 @@ export default function FleetSettingsPage() {
           </div>
           {!loading && <div className="mt-5 flex items-center justify-between gap-4"><p className="text-xs text-[#777]" aria-live="polite">{saving ? "Saving your discount structures..." : "Changes are local until you save them."}</p><button type="button" disabled={saving} onClick={saveDiscountStructures} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving..." : "Save discount structures"}</button></div>}
         </section>
-        <section className="border border-black/10 bg-white p-5 sm:p-8">
+        <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p>
           <h2 className="mt-2 text-2xl font-semibold">Legal pages</h2>
           <p className="mt-2 text-sm text-[#777]">
@@ -425,7 +425,7 @@ export default function FleetSettingsPage() {
             </div>
           </form>
         </section>
-        <section className="border border-black/10 bg-white p-5 sm:p-8">
+        <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Delivery origin</p>
           <h2 className="mt-2 text-2xl font-semibold">Garage location</h2>
           <p className="mt-2 text-sm text-[#777]">
@@ -515,7 +515,7 @@ export default function FleetSettingsPage() {
           </div>
           <p className="mt-3 text-xs text-[#777]">Map and place data © OpenStreetMap contributors. Search is provided by Photon.</p>
         </section>
-        <section className="border border-dashed border-black/20 p-5 text-sm text-[#777]">
+        <section className="rounded-lg border border-dashed border-black/20 p-5 text-sm text-[#777]">
           <p className="font-semibold text-[#151515]">Future fleet settings</p>
           <p className="mt-2">Default security deposit, minimum rental duration, booking buffers, customer cancellation rules, and maintenance scheduling can be added here as the fleet policy grows.</p>
         </section>
