@@ -59,6 +59,91 @@ html.theme-dark::-webkit-scrollbar-thumb:hover,
   color: #f4f3f0;
 }
 .dashboard-theme.theme-dark .bg-white { background-color: #242424; }
+.theme-surface {
+  color-scheme: light;
+}
+html.theme-dark .theme-surface {
+  color-scheme: dark;
+  background-color: #242424;
+  border-color: rgb(255 255 255 / 14%);
+  color: #f4f3f0;
+}
+html.theme-dark .theme-surface [class*="border-black"] {
+  border-color: rgb(255 255 255 / 12%);
+}
+html.theme-dark .theme-surface .bg-\[\#f8f7f5\] {
+  background-color: #303030;
+}
+html.theme-dark .theme-surface .hover\:bg-\[\#f8f7f5\]:hover,
+html.theme-dark .theme-surface .hover\:bg-orange-50:hover {
+  background-color: #303030;
+}
+html.theme-dark .theme-surface .text-\[\#151515\],
+html.theme-dark .theme-surface .text-\[\#222\],
+html.theme-dark .theme-surface .text-\[\#555\],
+html.theme-dark .theme-surface .text-\[\#666\],
+html.theme-dark .theme-surface .text-\[\#777\],
+html.theme-dark .theme-surface .text-\[\#888\],
+html.theme-dark .theme-surface .text-\[\#999\] {
+  color: #d0cfcb;
+}
+html.theme-dark .theme-surface input,
+html.theme-dark .theme-surface select,
+html.theme-dark .theme-surface textarea {
+  background-color: #303030;
+  border-color: rgb(255 255 255 / 18%);
+  color: #f4f3f0;
+}
+html.theme-dark .dashboard-theme [class~="bg-orange-50"] {
+  background-color: #4a281b;
+}
+html.theme-dark .dashboard-theme [class~="text-orange-700"],
+html.theme-dark .dashboard-theme [class~="text-[#d94f12]"],
+html.theme-dark .dashboard-theme [class~="text-[#d94d10]"] {
+  color: #ffb18e;
+}
+html.theme-dark .dashboard-theme [class~="bg-yellow-100/70"],
+html.theme-dark .dashboard-theme [class~="bg-amber-50"] {
+  background-color: #4a3a18;
+}
+html.theme-dark .dashboard-theme [class~="text-yellow-800"],
+html.theme-dark .dashboard-theme [class~="text-amber-800"],
+html.theme-dark .dashboard-theme [class~="text-amber-900"] {
+  color: #f4d58c;
+}
+html.theme-dark .dashboard-theme [class~="bg-red-50"],
+html.theme-dark .dashboard-theme [class~="bg-red-100/60"] {
+  background-color: #4a2020;
+}
+html.theme-dark .dashboard-theme [class~="text-red-700"],
+html.theme-dark .dashboard-theme [class~="text-red-900"] {
+  color: #ffaaa5;
+}
+html.theme-dark .dashboard-theme [class~="bg-emerald-50"],
+html.theme-dark .dashboard-theme [class~="bg-green-50"] {
+  background-color: #173d30;
+}
+html.theme-dark .dashboard-theme [class~="text-emerald-700"],
+html.theme-dark .dashboard-theme [class~="text-emerald-800"],
+html.theme-dark .dashboard-theme [class~="text-green-700"] {
+  color: #8fe0bd;
+}
+html.theme-dark .dashboard-theme [class~="bg-blue-50"],
+html.theme-dark .dashboard-theme [class~="bg-sky-50"] {
+  background-color: #19344a;
+}
+html.theme-dark .dashboard-theme [class~="text-blue-700"],
+html.theme-dark .dashboard-theme [class~="text-sky-700"] {
+  color: #9bcfff;
+}
+html.theme-dark .dashboard-theme [class~="bg-gray-100"],
+html.theme-dark .dashboard-theme [class~="bg-slate-100"] {
+  background-color: #303030;
+}
+html.theme-dark .dashboard-theme [class~="text-gray-500"],
+html.theme-dark .dashboard-theme [class~="text-slate-500"] {
+  color: #aaa9a5;
+}
 .dashboard-theme.theme-dark .bg-\[\#f8f7f5\],
 .dashboard-theme.theme-dark .bg-\[\#f7f6f3\],
 .dashboard-theme.theme-dark .bg-\[\#f4f3f0\] { background-color: #171717; }
