@@ -34,13 +34,13 @@ class VehicleController extends Controller
     public function available(Request $request)
     {
         $data = $request->validate([
-            'type' => ['required', Rule::in(self::VEHICLE_TYPES)],
+            'type' => ['required', Rule::in([...self::VEHICLE_TYPES, 'all'])],
             'pickup_at' => ['required', 'date'],
             'return_at' => ['required', 'date', 'after:pickup_at'],
         ]);
 
         return Vehicle::with(['images', 'partner'])
-            ->where('type', $data['type'])
+            ->when($data['type'] !== 'all', fn ($query) => $query->where('type', $data['type']))
             ->where('status', 'available')
             ->whereDoesntHave('bookings', fn ($query) => $query
                 ->whereIn('status', \App\Models\Booking::ACTIVE_STATUSES)
