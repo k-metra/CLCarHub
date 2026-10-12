@@ -15,6 +15,45 @@ button:disabled { cursor: not-allowed; }
 .dashboard-theme {
   transition: background-color 180ms ease, color 180ms ease;
 }
+html {
+  scrollbar-color: #b8b6b0 #f4f3f0;
+  scrollbar-width: auto;
+}
+html.theme-dark {
+  scrollbar-color: #5c5c5c #171717;
+}
+html::-webkit-scrollbar,
+.dashboard-theme::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+html::-webkit-scrollbar-track,
+.dashboard-theme::-webkit-scrollbar-track {
+  background: #f4f3f0;
+}
+html.theme-dark::-webkit-scrollbar-track,
+.dashboard-theme.theme-dark::-webkit-scrollbar-track {
+  background: #171717;
+}
+html::-webkit-scrollbar-thumb,
+.dashboard-theme::-webkit-scrollbar-thumb {
+  border: 3px solid #f4f3f0;
+  border-radius: 999px;
+  background: #b8b6b0;
+}
+html.theme-dark::-webkit-scrollbar-thumb,
+.dashboard-theme.theme-dark::-webkit-scrollbar-thumb {
+  border-color: #171717;
+  background: #5c5c5c;
+}
+html::-webkit-scrollbar-thumb:hover,
+.dashboard-theme::-webkit-scrollbar-thumb:hover {
+  background: #8f8d87;
+}
+html.theme-dark::-webkit-scrollbar-thumb:hover,
+.dashboard-theme.theme-dark::-webkit-scrollbar-thumb:hover {
+  background: #858585;
+}
 .dashboard-theme.theme-dark {
   background: #171717;
   color: #f4f3f0;
