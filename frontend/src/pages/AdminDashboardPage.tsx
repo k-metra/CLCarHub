@@ -132,15 +132,24 @@ export default function AdminDashboardPage() {
 
 function AvailabilityModal({ vehicles, type, date, onClose, showToast }: { vehicles: VehicleRecord[]; type: AvailabilityType; date: string; onClose: () => void; showToast: (message: string, tone?: "success" | "error" | "info") => void }) {
   const dateLabel = new Date(date).toLocaleString([], { dateStyle: "long", timeStyle: "short" });
+  const categoryLabel = type === "all" ? "All categories" : vehicleTypeLabels[type];
   const vehicleList = vehicles.map(vehicle => {
     const title = vehicle.name || `${vehicle.brand} ${vehicle.model}`;
-    return `${title} — ${vehicle.brand} ${vehicle.model} ${vehicle.year} — Plate: ${vehicle.plate_number}`;
+    return [
+      `🚗 ${title}`,
+      `   🏷️ Category: ${vehicleTypeLabels[vehicle.type]}`,
+      `   💰 Rate: ${money.format(Number(vehicle.daily_rate))} / day`,
+      `   📅 Year: ${vehicle.year}`,
+      `   🔢 Plate: ${vehicle.plate_number}`,
+    ].join("\n");
   });
   const clipboardText = [
-    `Available vehicles for ${dateLabel}`,
-    `${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"} available`,
+    "🚘 CL CarHub Vehicle Availability",
+    `📅 Date: ${dateLabel}`,
+    `🏷️ Category: ${categoryLabel}`,
+    `✅ ${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"} available`,
     "",
-    ...(vehicleList.length ? vehicleList.map(vehicle => `- ${vehicle}`) : ["- No vehicles are available for this date."]),
+    ...(vehicleList.length ? vehicleList : ["❌ No vehicles are available for this date."]),
   ].join("\n");
   const copyToClipboard = async () => {
     try {
