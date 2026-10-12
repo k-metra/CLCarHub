@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
+import { ThemeProvider } from "./lib/ThemeContext";
 import { LoadingScreen, ToastProvider } from "./components/Ui";
 
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
@@ -30,7 +31,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
           <Suspense fallback={<LoadingScreen />}>
             <Routes>
           <Route path="/" element={<HomePage />} />
@@ -77,7 +79,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
-        </AuthProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </ToastProvider>
     </BrowserRouter>
   );
