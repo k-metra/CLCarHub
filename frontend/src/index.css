@@ -11,3 +11,50 @@ input, select, textarea { border-radius: 0.375rem; }
 button:not(:disabled), a, select, summary, [role="button"] { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 .garage-map .leaflet-control-attribution { font-size: 9px; }
+
+.dashboard-theme {
+  transition: background-color 180ms ease, color 180ms ease;
+}
+.dashboard-theme.theme-dark {
+  background: #171717;
+  color: #f4f3f0;
+}
+.dashboard-theme.theme-dark .bg-white { background-color: #242424; }
+.dashboard-theme.theme-dark .bg-\[\#f8f7f5\],
+.dashboard-theme.theme-dark .bg-\[\#f7f6f3\],
+.dashboard-theme.theme-dark .bg-\[\#f4f3f0\] { background-color: #171717; }
+.dashboard-theme.theme-dark .bg-\[\#fff7f3\] { background-color: #3a241b; }
+.dashboard-theme.theme-dark .bg-gray-50,
+.dashboard-theme.theme-dark .bg-gray-100,
+.dashboard-theme.theme-dark .bg-gray-200,
+.dashboard-theme.theme-dark .bg-slate-50,
+.dashboard-theme.theme-dark .bg-slate-100 { background-color: #242424; }
+.dashboard-theme.theme-dark .text-\[\#151515\],
+.dashboard-theme.theme-dark .text-\[\#222\],
+.dashboard-theme.theme-dark .text-\[\#555\],
+.dashboard-theme.theme-dark .text-\[\#666\],
+.dashboard-theme.theme-dark .text-\[\#777\] { color: #d0cfcb; }
+.dashboard-theme.theme-dark .text-\[\#888\],
+.dashboard-theme.theme-dark .text-\[\#999\] { color: #aaa9a5; }
+.dashboard-theme.theme-dark .text-gray-500,
+.dashboard-theme.theme-dark .text-gray-600,
+.dashboard-theme.theme-dark .text-slate-500,
+.dashboard-theme.theme-dark .text-slate-600 { color: #aaa9a5; }
+.dashboard-theme.theme-dark .border-black\/10,
+.dashboard-theme.theme-dark .border-black\/15,
+.dashboard-theme.theme-dark .border-black\/20 { border-color: rgb(255 255 255 / 14%); }
+.dashboard-theme.theme-dark .divide-black\/10 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(255 255 255 / 12%); }
+.dashboard-theme.theme-dark input,
+.dashboard-theme.theme-dark select,
+.dashboard-theme.theme-dark textarea {
+  background-color: #242424;
+  border-color: rgb(255 255 255 / 18%);
+  color: #f4f3f0;
+}
+.dashboard-theme.theme-dark input::placeholder,
+.dashboard-theme.theme-dark textarea::placeholder { color: #989791; }
+.dashboard-theme.theme-dark .hover\:bg-\[\#f8f7f5\]:hover,
+.dashboard-theme.theme-dark .hover\:bg-black\/5:hover { background-color: #303030; }
+.dashboard-theme.theme-dark .bg-amber-50 { background-color: #3d2f14; }
+.dashboard-theme.theme-dark .text-amber-800,
+.dashboard-theme.theme-dark .text-amber-900 { color: #f4d58c; }
