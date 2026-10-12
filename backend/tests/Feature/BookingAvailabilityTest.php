@@ -8,6 +8,9 @@ use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class BookingAvailabilityTest extends TestCase
@@ -71,6 +74,27 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonFragment(['type' => 'motorcycle']);
     }
 
+    public function test_vehicle_icon_can_remove_background_before_storage(): void
+    {
+        [$vehicle] = $this->authenticate();
+        Storage::fake('public');
+        Http::fake(['https://api.remove.bg/*' => Http::response('processed-png', 200)]);
+
+        $this->post("/api/vehicles/{$vehicle->id}/image", [
+            'image' => UploadedFile::fake()->createWithContent(
+                'vehicle.png',
+                base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),
+            ),
+            'remove_background' => '1',
+        ])->assertOk();
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://api.remove.bg/v1.0/removebg'
+            && $request->hasHeader('X-Api-Key'));
+        $storedImage = $vehicle->fresh()->images()->first();
+        $this->assertStringEndsWith('.png', $storedImage->path);
+        Storage::disk('public')->assertExists($storedImage->path);
+    }
+
     public function test_exactly_twenty_four_hours_costs_one_rental_day(): void
     {
         [$vehicle, $customer] = $this->authenticate();
@@ -112,12 +136,12 @@ class BookingAvailabilityTest extends TestCase
         [$vehicle, $customer] = $this->authenticate();
 
         foreach ([
-            ['reference' => 'CANCELLED', 'status' => 'cancelled', 'pickup_at' => '2026-10-02 10:00'],
-            ['reference' => 'REJECTED', 'status' => 'rejected', 'pickup_at' => '2026-10-02 09:00'],
-            ['reference' => 'COMPLETE', 'status' => 'complete', 'pickup_at' => '2026-10-05 09:00'],
-            ['reference' => 'UPCOMING-FAR', 'status' => 'upcoming', 'pickup_at' => '2026-10-10 09:00'],
-            ['reference' => 'PENDING-FAR', 'status' => 'pending', 'pickup_at' => '2026-10-10 10:00'],
-            ['reference' => 'PENDING-CLOSE', 'status' => 'pending', 'pickup_at' => '2026-10-02 08:00'],
+            ['reference' => 'CANCELLED', 'status' => 'cancelled', 'pickup_at' => '2030-01-02 10:00'],
+            ['reference' => 'REJECTED', 'status' => 'rejected', 'pickup_at' => '2030-01-02 09:00'],
+            ['reference' => 'COMPLETE', 'status' => 'complete', 'pickup_at' => '2030-01-05 09:00'],
+            ['reference' => 'UPCOMING-FAR', 'status' => 'upcoming', 'pickup_at' => '2030-01-10 09:00'],
+            ['reference' => 'PENDING-FAR', 'status' => 'pending', 'pickup_at' => '2030-01-10 10:00'],
+            ['reference' => 'PENDING-CLOSE', 'status' => 'pending', 'pickup_at' => '2030-01-02 08:00'],
         ] as $data) {
             Booking::create([
                 ...$data,
@@ -184,7 +208,7 @@ class BookingAvailabilityTest extends TestCase
             ->assertOk()
             ->assertHeader('Content-Type', 'text/html; charset=UTF-8')
             ->assertSee('INV-CLCH-2030-000123')
-            ->assertSee('Rental fees (₱2,000.00 daily rate × 2 days)')
+            ->assertSee('Rental fees (₱2,000.00 regular rate; ₱2,000.00 effective rate × 2 days)')
             ->assertSee('Delivery fee (₱50.00/km × 22.98 km)')
             ->assertSee('Return pickup fee (₱50.00/km × 10.00 km × 2)')
             ->assertSee('₱9,139.00')
