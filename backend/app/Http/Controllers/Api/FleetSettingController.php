@@ -20,6 +20,7 @@ class FleetSettingController extends Controller
         return FleetSetting::firstOrCreate(['id' => 1], [
             'reservation_fee' => 0,
             'reservation_fee_deductible' => true,
+            'discount_structures' => [],
             'default_hour_extension_rate' => 200,
             'full_day_extension_threshold_hours' => 12,
             'late_return_grace_period_minutes' => 60,
@@ -37,6 +38,13 @@ class FleetSettingController extends Controller
         $data = $request->validate([
             'reservation_fee' => ['required', 'numeric', 'min:0'],
             'reservation_fee_deductible' => ['required', 'boolean'],
+            'discount_structures' => ['nullable', 'array'],
+            'discount_structures.*.name' => ['required', 'string', 'max:255'],
+            'discount_structures.*.vehicle_types' => ['required', 'array', 'min:1'],
+            'discount_structures.*.vehicle_types.*' => ['required', 'string', 'max:50'],
+            'discount_structures.*.milestones' => ['required', 'array', 'min:1'],
+            'discount_structures.*.milestones.*.days' => ['required', 'integer', 'min:1', 'max:3650'],
+            'discount_structures.*.milestones.*.discount_percent' => ['required', 'numeric', 'between:-100,100'],
             'default_hour_extension_rate' => ['nullable', 'numeric', 'min:0'],
             'full_day_extension_threshold_hours' => ['required', 'integer', 'min:1', 'max:23'],
             'late_return_grace_period_minutes' => ['required', 'integer', 'min:0', 'max:1439'],
