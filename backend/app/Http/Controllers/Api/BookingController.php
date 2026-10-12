@@ -77,6 +77,7 @@ class BookingController extends Controller
                 'status' => Booking::PENDING,
                 'payment_status' => 'unpaid',
                 'rental_amount' => $rental,
+                'rental_discount' => $rentalBreakdown['discount'],
                 'additional_charges' => 0,
                 ...$delivery,
                 'discount' => 0,
@@ -163,7 +164,7 @@ class BookingController extends Controller
             $extensionFees = array_key_exists('extension_fees', $data) ? (float) $data['extension_fees'] : $rentalBreakdown['extension'];
             $delivery = $this->deliveryBreakdown($data, $vehicle, $fleetSettings);
             $total = $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) ($data['additional_charges'] ?? 0), $fees, $extensionFees, (float) $delivery['delivery_fee'] + (float) $delivery['return_pickup_fee'], $fleetSettings) - (float) ($data['discount'] ?? 0);
-            $booking = Booking::create([...$data, ...$delivery, 'status' => Booking::UPCOMING, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
+            $booking = Booking::create([...$data, ...$delivery, 'status' => Booking::UPCOMING, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'rental_discount' => $rentalBreakdown['discount'], 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
             $this->syncPayments($booking, $payments);
             $booking->load(['customer', 'creator']);
             $customerName = $booking->customer?->name ?? 'A customer';
@@ -210,11 +211,14 @@ class BookingController extends Controller
             : '—';
         $rentalDays = max(1, intdiv($booking->pickup_at->diffInMinutes($booking->return_at), 24 * 60));
         $dailyRate = (float) ($booking->rental_rate ?? $booking->vehicle?->daily_rate ?? 0);
+        $rentalDiscount = (float) $booking->rental_discount;
+        $effectiveDailyRate = $dailyRate - ($rentalDiscount / $rentalDays);
         $deliveryRate = (float) ($booking->delivery_rate_per_km ?? 0);
         $deliveryDistance = (float) ($booking->delivery_distance_km ?? 0);
         $returnDistance = (float) ($booking->return_distance_km ?? 0);
         $lineItems = [
-            ['Rental fees ('.$money($dailyRate).' daily rate × '.$rentalDays.' '.($rentalDays === 1 ? 'day' : 'days').')', (float) $booking->rental_amount],
+            ['Rental fees ('.$money($dailyRate).' regular rate; '.$money($effectiveDailyRate).' effective rate × '.$rentalDays.' '.($rentalDays === 1 ? 'day' : 'days').')', (float) $booking->rental_amount],
+            ['Rental milestone discount', -$rentalDiscount],
             ['Additional charges', (float) $booking->additional_charges],
             ['Delivery fee ('.$money($deliveryRate).'/km × '.number_format($deliveryDistance, 2).' km)', (float) $booking->delivery_fee],
             ['Return pickup fee ('.$money($deliveryRate).'/km × '.number_format($returnDistance, 2).' km × 2)', (float) $booking->return_pickup_fee],
@@ -270,6 +274,7 @@ class BookingController extends Controller
         $booking->refresh();
         $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->return_at, $vehicle, $booking->rental_rate);
         $booking->rental_amount = $rentalBreakdown['rental'];
+        $booking->rental_discount = $rentalBreakdown['discount'];
         if (! array_key_exists('extension_fees', $data)) {
             $booking->extension_fees = $rentalBreakdown['extension'];
         }
@@ -412,8 +417,25 @@ class BookingController extends Controller
         $remainingHours = (int) ceil($billableMinutes / 60);
         $hourlyRate = (float) ($vehicle->hour_extension_rate ?? $settings->default_hour_extension_rate);
         $dailyRate = $rentalRate === null ? (float) $vehicle->daily_rate : (float) $rentalRate;
-        $extension = $remainingHours === 0 ? 0 : ($remainingHours >= $settings->full_day_extension_threshold_hours ? $dailyRate : $remainingHours * $hourlyRate);
+        $rentalDays = max(1, $days);
+        $discountPercent = $this->discountPercent($settings, (string) $vehicle->type, $rentalDays);
+        $baseRental = $rentalDays * $dailyRate;
+        $discount = round($baseRental * ($discountPercent / 100), 2);
+        $discountedDailyRate = $dailyRate * (1 - ($discountPercent / 100));
+        $extension = $remainingHours === 0 ? 0 : ($remainingHours >= $settings->full_day_extension_threshold_hours ? $discountedDailyRate : $remainingHours * $hourlyRate);
 
-        return ['rental' => max(1, $days) * $dailyRate, 'extension' => $extension];
+        return ['rental' => max(0, $baseRental - $discount), 'discount' => $discount, 'discount_percent' => $discountPercent, 'extension' => $extension];
+    }
+
+    private function discountPercent(FleetSetting $settings, string $vehicleType, int $rentalDays): float
+    {
+        $milestones = collect($settings->discount_structures ?? [])
+            ->filter(fn (array $structure): bool => in_array($vehicleType, $structure['vehicle_types'] ?? [], true))
+            ->flatMap(fn (array $structure) => $structure['milestones'] ?? [])
+            ->filter(fn (array $milestone): bool => (int) ($milestone['days'] ?? 0) <= $rentalDays)
+            ->sortByDesc(fn (array $milestone): int => (int) $milestone['days'])
+            ->first();
+
+        return $milestones ? (float) ($milestones['discount_percent'] ?? 0) : 0;
     }
 }
