@@ -59,6 +59,18 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonMissingPath('conflicts.0.customer');
     }
 
+    public function test_vehicle_availability_can_return_all_vehicle_types(): void
+    {
+        [$vehicle] = $this->authenticate();
+        Vehicle::create(['brand' => 'Honda', 'model' => 'Click', 'type' => 'motorcycle', 'plate_number' => 'XYZ-789', 'daily_rate' => 1000, 'status' => 'available']);
+
+        $this->getJson('/api/vehicles/availability?type=all&pickup_at=2030-01-11%2010:00&return_at=2030-01-13%2010:00')
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->assertJsonFragment(['id' => $vehicle->id])
+            ->assertJsonFragment(['type' => 'motorcycle']);
+    }
+
     public function test_exactly_twenty_four_hours_costs_one_rental_day(): void
     {
         [$vehicle, $customer] = $this->authenticate();
