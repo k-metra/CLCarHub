@@ -112,7 +112,7 @@ export function DateTimePicker({
         className={`${className} cursor-pointer bg-white`}
       />
       {open && !disabled && (
-        <div className="absolute z-[130] mt-2 w-[min(22rem,calc(100vw-2rem))] rounded border border-black/10 bg-white p-4 shadow-2xl">
+        <div className="theme-surface absolute z-[130] mt-2 w-[min(22rem,calc(100vw-2rem))] rounded border border-black/10 bg-white p-4 shadow-2xl">
           <div className="flex items-center justify-between gap-2">
             <button type="button" className="rounded px-2 py-1 text-lg hover:bg-black/5" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button>
             <div className="flex min-w-0 gap-2">
