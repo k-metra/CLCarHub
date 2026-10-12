@@ -42,17 +42,6 @@ function overlapsDay(booking: BookingRecord, day: Date): boolean {
   return start < nextDay && end >= day
 }
 
-function BookingCard({ booking }: { booking: BookingRecord }) {
-  const image = imageUrl(booking)
-  const tooltip = `${vehicleName(booking)} | ${bookingDate(booking.pickup_at)} - ${bookingDate(booking.return_at)}`
-
-  if (!image) return null
-
-  return <Link className="inline-block rounded focus:outline-none focus:ring-2 focus:ring-[#ff641f]" to={`/admin/bookings?edit=${booking.id}`} title={tooltip} aria-label={`Edit booking: ${tooltip}`}>
-    <img className="h-10 w-14 rounded object-contain" src={image} alt={tooltip} />
-  </Link>
-}
-
 export default function CalendarPage() {
   const [bookings, setBookings] = useState<BookingRecord[]>([])
   const [error, setError] = useState('')
@@ -111,48 +100,71 @@ export default function CalendarPage() {
     {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
     {loading ? (
       <div className="mt-6">
-        <div className="space-y-3 md:hidden">{[1, 2, 3, 4].map(item => <Skeleton className="h-20 w-full" key={item} />)}</div>
-        <div className="hidden md:block"><CalendarSkeleton view={view} /></div>
+        <CalendarSkeleton view={view} />
       </div>
     ) : (
       <div className="mt-6">
-        <div className="md:hidden"><MobileCalendarList bookings={bookings} cursor={cursor} view={view} /></div>
-        <div className="hidden md:block">
-          {view === 'month' ? <div className="w-full overflow-hidden"><div className="grid w-full grid-cols-7 border-l border-t border-black/10">
-      {dayNames.map(day => <div className="border-b border-r border-black/10 bg-[#f8f7f5] p-2 text-[10px] font-bold uppercase tracking-widest text-[#888]" key={day}>{day.slice(0, 3)}</div>)}
-      {monthDays.map(day => <div className={`min-h-32 border-b border-r border-black/10 p-2 ${day.getMonth() !== cursor.getMonth() ? 'bg-[#fafafa] text-[#aaa]' : ''}`} key={day.toISOString()}>
-        <p className={`text-xs font-semibold ${sameDay(day, new Date()) ? 'text-[#ff641f]' : ''}`}>{day.getDate()}</p>
-        <div className="mt-2 space-y-1">{bookings.filter(booking => !['pending', 'cancelled', 'rejected'].includes(booking.status) && overlapsDay(booking, day)).map(booking => <BookingCard booking={booking} key={`${booking.id}-${day.toISOString()}`} />)}</div>
-      </div>)}
-    </div></div> : <div className="w-full overflow-hidden"><div className="grid w-full grid-cols-7 border-l border-t border-black/10">
-            {weekDays.map(day => <div className="border-b border-r border-black/10" key={day.toISOString()}><div className={`border-b border-black/10 p-3 ${sameDay(day, new Date()) ? 'bg-orange-50' : 'bg-[#f8f7f5]'}`}><p className="text-[10px] font-bold uppercase tracking-widest text-[#888]">{dayNames[day.getDay()]}</p><p className={`mt-1 font-['Space_Grotesk'] text-2xl font-semibold ${sameDay(day, new Date()) ? 'text-[#ff641f]' : ''}`}>{day.getDate()}</p></div><div className="min-h-96 space-y-2 p-2">{bookings.filter(booking => !['pending', 'cancelled', 'rejected'].includes(booking.status) && overlapsDay(booking, day)).map(booking => <BookingCard booking={booking} key={booking.id} />)}</div></div>)}
-          </div></div>}
-        </div>
+        <CalendarGrid bookings={bookings} cursor={cursor} view={view} monthDays={monthDays} weekDays={weekDays} />
       </div>
     )}
   </div></AdminShell>
 }
 
-function MobileCalendarList({ bookings, cursor, view }: { bookings: BookingRecord[]; cursor: Date; view: 'month' | 'week' }) {
-  const start = view === 'week' ? startOfWeek(cursor) : new Date(cursor.getFullYear(), cursor.getMonth(), 1)
-  const end = view === 'week' ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7) : new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59)
-  const visible = bookings.filter(booking => !['pending', 'cancelled', 'rejected'].includes(booking.status) && new Date(booking.pickup_at) < end && new Date(booking.return_at) >= start).sort((left, right) => new Date(left.pickup_at).getTime() - new Date(right.pickup_at).getTime())
-  if (visible.length === 0) return <p className="rounded border border-black/10 bg-[#fafafa] px-4 py-10 text-center text-sm text-[#777]">No active bookings in this period.</p>
-  return <div className="space-y-3">{visible.map(booking => <Link className="flex items-center gap-3 rounded border border-black/10 bg-[#fafafa] p-3" to={`/admin/bookings?edit=${booking.id}`} key={booking.id}>
-    {imageUrl(booking) ? <img className="h-14 w-16 shrink-0 rounded object-contain" src={imageUrl(booking)!} alt="" /> : <div className="h-14 w-16 shrink-0 rounded bg-black/5" />}
-    <span className="min-w-0"><strong className="block truncate text-sm">{vehicleName(booking)}</strong><span className="mt-1 block text-xs text-[#777]">{bookingDate(booking.pickup_at)} → {bookingDate(booking.return_at)}</span><span className="mt-1 block text-xs capitalize text-[#999]">{booking.status.replace('_', ' ')}</span></span>
-  </Link>)}</div>
+function CalendarGrid({
+  bookings,
+  cursor,
+  view,
+  monthDays,
+  weekDays,
+}: {
+  bookings: BookingRecord[]
+  cursor: Date
+  view: 'month' | 'week'
+  monthDays: Date[]
+  weekDays: Date[]
+}) {
+  const activeBookings = bookings.filter(booking => !['pending', 'cancelled', 'rejected'].includes(booking.status))
+  const bookingsForDay = (day: Date) => activeBookings.filter(booking => overlapsDay(booking, day))
+
+  if (view === 'month') return <div className="w-full overflow-hidden"><div className="grid w-full grid-cols-7 border-l border-t border-black/10">
+    {dayNames.map(day => <div className="border-b border-r border-black/10 bg-[#f8f7f5] p-1 text-center text-[9px] font-bold uppercase tracking-wider text-[#888] md:p-2 md:text-left md:text-[10px] md:tracking-widest" key={day}>{day.slice(0, 3)}</div>)}
+    {monthDays.map(day => <div className={`min-h-20 border-b border-r border-black/10 p-1 md:min-h-32 md:p-2 ${day.getMonth() !== cursor.getMonth() ? 'bg-[#fafafa] text-[#aaa]' : ''}`} key={day.toISOString()}>
+      <p className={`text-xs font-semibold ${sameDay(day, new Date()) ? 'text-[#ff641f]' : ''}`}>{day.getDate()}</p>
+      <div className="mt-1 space-y-1 md:mt-2">{bookingsForDay(day).map(booking => <BookingCard booking={booking} compact key={`${booking.id}-${day.toISOString()}`} />)}</div>
+    </div>)}
+  </div></div>
+
+  return <div className="w-full overflow-hidden"><div className="grid w-full grid-cols-7 border-l border-t border-black/10">
+    {weekDays.map(day => <div className="border-b border-r border-black/10" key={day.toISOString()}>
+      <div className={`border-b border-black/10 p-1 md:p-3 ${sameDay(day, new Date()) ? 'bg-orange-50' : 'bg-[#f8f7f5]'}`}>
+        <p className="truncate text-[9px] font-bold uppercase tracking-wider text-[#888] md:text-[10px] md:tracking-widest">{dayNames[day.getDay()].slice(0, 3)}</p>
+        <p className={`mt-1 font-['Space_Grotesk'] text-lg font-semibold md:text-2xl ${sameDay(day, new Date()) ? 'text-[#ff641f]' : ''}`}>{day.getDate()}</p>
+      </div>
+      <div className="min-h-40 space-y-1 p-1 md:min-h-96 md:space-y-2 md:p-2">{bookingsForDay(day).map(booking => <BookingCard booking={booking} compact key={booking.id} />)}</div>
+    </div>)}
+  </div></div>
+}
+
+function BookingCard({ booking, compact = false }: { booking: BookingRecord; compact?: boolean }) {
+  const image = imageUrl(booking)
+  const tooltip = `${vehicleName(booking)} | ${bookingDate(booking.pickup_at)} - ${bookingDate(booking.return_at)}`
+
+  if (!image) return null
+
+  return <Link className="inline-block rounded focus:outline-none focus:ring-2 focus:ring-[#ff641f]" to={`/admin/bookings?edit=${booking.id}`} title={tooltip} aria-label={`Edit booking: ${tooltip}`}>
+    <img className={compact ? "h-7 w-10 rounded object-contain md:h-10 md:w-14" : "h-10 w-14 rounded object-contain"} src={image} alt={tooltip} />
+  </Link>
 }
 
 function CalendarSkeleton({ view }: { view: 'month' | 'week' }) {
   const count = view === 'month' ? 42 : 7
-  const cellHeight = view === 'month' ? 'min-h-32' : 'min-h-96'
+  const cellHeight = view === 'month' ? 'min-h-20 md:min-h-32' : 'min-h-40 md:min-h-96'
   return <div className="mt-6 grid w-full grid-cols-7 border-l border-t border-black/10">
-    {dayNames.map(day => <div className="border-b border-r border-black/10 bg-[#f8f7f5] p-2" key={day}><Skeleton className="h-3 w-8" /></div>)}
+    {dayNames.map(day => <div className="border-b border-r border-black/10 bg-[#f8f7f5] p-1 md:p-2" key={day}><Skeleton className="h-3 w-8" /></div>)}
     {Array.from({ length: count }, (_, index) => (
-      <div className={`${cellHeight} border-b border-r border-black/10 p-2`} key={index}>
+      <div className={`${cellHeight} border-b border-r border-black/10 p-1 md:p-2`} key={index}>
         <Skeleton className="h-3 w-8" />
-        <Skeleton className="mt-3 h-10 w-14" />
+        <Skeleton className="mt-3 h-7 w-10 md:h-10 md:w-14" />
       </div>
     ))}
   </div>
