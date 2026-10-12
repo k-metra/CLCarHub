@@ -94,6 +94,36 @@ html.theme-dark .theme-surface textarea {
   border-color: rgb(255 255 255 / 18%);
   color: #f4f3f0;
 }
+html.theme-dark .theme-surface .calendar-day:hover,
+html.theme-dark .theme-surface .calendar-nav:hover,
+html.theme-dark .theme-surface .calendar-time:hover {
+  background-color: #303030;
+}
+html.theme-dark .theme-surface .calendar-day.text-\[\#bbb\] {
+  color: #777;
+}
+html.theme-dark .theme-surface .calendar-time {
+  border-color: rgb(255 255 255 / 14%);
+}
+html.theme-dark .theme-surface .calendar-time.bg-orange-50 {
+  background-color: #4a281b;
+  color: #ffb18e;
+}
+html.theme-dark .dashboard-theme [class~="hover:bg-black/5"]:hover,
+html.theme-dark .dashboard-theme [class~="hover:bg-white/10"]:hover,
+html.theme-dark .dashboard-theme [class~="hover:bg-[#f8f7f5]"]:hover,
+html.theme-dark .dashboard-theme [class~="hover:bg-[#fff7f3]"]:hover {
+  background-color: #303030;
+}
+html.theme-dark .dashboard-theme [class~="hover:bg-orange-50"]:hover {
+  background-color: #4a281b;
+}
+html.theme-dark .dashboard-theme [class~="hover:bg-red-50"]:hover {
+  background-color: #4a2020;
+}
+html.theme-dark .dashboard-theme [class~="hover:text-[#151515]"]:hover {
+  color: #f4f3f0;
+}
 html.theme-dark .dashboard-theme [class~="bg-orange-50"] {
   background-color: #4a281b;
 }
@@ -144,10 +174,27 @@ html.theme-dark .dashboard-theme [class~="text-gray-500"],
 html.theme-dark .dashboard-theme [class~="text-slate-500"] {
   color: #aaa9a5;
 }
+html.theme-dark .dashboard-theme .milestone-preview {
+  border-color: #3f8f6b;
+  background-color: #173d30;
+  color: #e2f7ec;
+}
+html.theme-dark .dashboard-theme .milestone-preview p,
+html.theme-dark .dashboard-theme .milestone-preview strong,
+html.theme-dark .dashboard-theme .milestone-preview span {
+  color: #e2f7ec;
+}
 .dashboard-theme.theme-dark .bg-\[\#f8f7f5\],
 .dashboard-theme.theme-dark .bg-\[\#f7f6f3\],
 .dashboard-theme.theme-dark .bg-\[\#f4f3f0\] { background-color: #171717; }
 .dashboard-theme.theme-dark .bg-\[\#fff7f3\] { background-color: #3a241b; }
+.dashboard-theme.theme-dark .bg-\[\#e7e5e1\],
+html.theme-dark .vehicle-image-preview {
+  background-color: #303030;
+}
+.dashboard-theme.theme-dark .vehicle-selection-preview {
+  background-color: #242424;
+}
 .dashboard-theme.theme-dark .bg-gray-50,
 .dashboard-theme.theme-dark .bg-gray-100,
 .dashboard-theme.theme-dark .bg-gray-200,
