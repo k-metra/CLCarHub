@@ -325,6 +325,39 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonPath('status_history.0.reason', 'Returned with a clean inspection.');
     }
 
+    public function test_return_photos_are_saved_with_optional_labels_and_limited_to_thirty(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        Storage::fake('public');
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000102',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'for_completion',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        $response = $this->post("/api/bookings/{$booking->id}/return-photos", [
+            'photos' => [
+                ['file' => UploadedFile::fake()->create('front.jpg', 10, 'image/jpeg'), 'label' => 'Front bumper'],
+                ['file' => UploadedFile::fake()->create('dashboard.jpg', 10, 'image/jpeg')],
+            ],
+        ])->assertOk();
+
+        $response->assertJsonPath('return_photos.0.label', 'Front bumper')
+            ->assertJsonPath('return_photos.1.label', null);
+        $this->assertCount(2, $booking->fresh()->returnPhotos);
+        Storage::disk('public')->assertExists($booking->fresh()->returnPhotos->first()->path);
+
+        $this->post("/api/bookings/{$booking->id}/return-photos", [
+            'photos' => array_map(fn ($index) => ['file' => UploadedFile::fake()->create("photo-{$index}.jpg", 10, 'image/jpeg')], range(1, 29)),
+        ])->assertUnprocessable();
+    }
+
     public function test_terminal_status_change_requires_a_reason_and_records_history(): void
     {
         [$vehicle, $customer] = $this->authenticate();
