@@ -311,7 +311,7 @@ export default function CustomerAccountPage() {
     const title = vehicle.name || `${vehicle.brand} ${vehicle.model}`;
     const image = vehicle.images?.find(item => item.image_type === "thumbnail") ?? vehicle.images?.[0];
     const starred = starredVehicleIds.includes(vehicle.id);
-    return <article className="w-56 shrink-0">
+    return <article key={vehicle.id} className="w-56 shrink-0">
       <div className="relative overflow-hidden rounded-2xl bg-[#e8e7e3]">
         {image?.url ? <img src={image.url} alt={title} className="h-32 w-full object-cover" /> : <div className="h-32" />}
         <button type="button" aria-label={starred ? `Remove ${title} from starred vehicles` : `Star ${title}`} onClick={() => toggleStarredVehicle(vehicle.id)} className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-xl shadow ${starred ? "text-[#ff641f]" : "text-[#78818a]"}`}>{starred ? "★" : "☆"}</button>
