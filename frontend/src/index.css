@@ -428,7 +428,7 @@ html.theme-dark .vehicle-image-preview {
 .dashboard-theme.theme-dark .text-amber-900 { color: #f4d58c; }
 
 @media (max-width: 639px) {
-  .dashboard-theme > main {
+  .dashboard-theme > .customer-desktop-content {
     display: none;
   }
 }
