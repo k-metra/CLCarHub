@@ -44,6 +44,20 @@ Route::get('/sitemap.xml', function () {
     return response($xml.'</urlset>', 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
 })->name('sitemap');
 
+Route::get('/vehicles/{vehicle}', function (Vehicle $vehicle) {
+    abort_unless($vehicle->status === 'available', 404);
+
+    $vehicle->load('images');
+    $otherVehicles = Vehicle::query()
+        ->with('images')
+        ->where('status', 'available')
+        ->whereKeyNot($vehicle->id)
+        ->latest()
+        ->get();
+
+    return view('vehicle', compact('vehicle', 'otherVehicles'));
+})->name('vehicles.show');
+
 Route::get('/api/auth/{provider}/redirect', [OAuthController::class, 'redirect']);
 Route::get('/api/auth/{provider}/callback', [OAuthController::class, 'callback']);
 
