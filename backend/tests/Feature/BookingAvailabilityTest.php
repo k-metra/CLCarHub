@@ -298,6 +298,33 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonPath('total_amount', '2650.00');
     }
 
+    public function test_return_processing_updates_are_saved_without_status_change(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000101',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'for_completion',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'status' => 'for_completion',
+            'actual_return_at' => '2030-01-11 11:00',
+            'status_reason' => 'Returned with a clean inspection.',
+            'extension_fees' => 200,
+        ])->assertOk()
+            ->assertJsonPath('status', 'for_completion')
+            ->assertJsonPath('actual_return_at', '2030-01-11T03:00:00.000000Z')
+            ->assertJsonPath('status_history.0.reason', 'Returned with a clean inspection.');
+    }
+
     public function test_terminal_status_change_requires_a_reason_and_records_history(): void
     {
         [$vehicle, $customer] = $this->authenticate();
