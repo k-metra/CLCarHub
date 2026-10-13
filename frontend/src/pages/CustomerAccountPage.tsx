@@ -59,6 +59,7 @@ export default function CustomerAccountPage() {
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => searchParams.get("tab") === "request" ? "request" : searchParams.get("tab") === "starred" ? "starred" : searchParams.get("tab") === "calendar" ? "calendar" : "overview"); const [step, setStep] = useState(1);
   const [bookings, setBookings] = useState<BookingRecord[]>([]); const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
+  const [recentVehicleIds, setRecentVehicleIds] = useState<number[]>([]);
   const [fleetSettings, setFleetSettings] = useState<FleetSettings>({ reservation_fee: "0", reservation_fee_deductible: true, default_hour_extension_rate: "200", full_day_extension_threshold_hours: 12, late_return_grace_period_minutes: 60, gps_refresh_interval_seconds: 30, default_delivery_rate_per_km: "0", garage_location_name: null, garage_location_address: null, garage_location_latitude: null, garage_location_longitude: null, terms_and_conditions: null, privacy_policy: null, discount_structures: [] });
   const [month, setMonth] = useState(() => new Date()); const [loadingData, setLoadingData] = useState(true); const [submitting, setSubmitting] = useState(false); const [checking, setChecking] = useState(false);
   const [customer, setCustomer] = useState<CustomerResult | null>(null);
@@ -112,6 +113,15 @@ export default function CustomerAccountPage() {
       setStarredVehicleIds(stored ? JSON.parse(stored) as number[] : []);
     } catch {
       setStarredVehicleIds([]);
+    }
+  }, [user]);
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const stored = window.localStorage.getItem(`clcarhub-recent-vehicles-${user.id}`);
+      setRecentVehicleIds(stored ? JSON.parse(stored) as number[] : []);
+    } catch {
+      setRecentVehicleIds([]);
     }
   }, [user]);
   useEffect(() => {
@@ -313,11 +323,10 @@ export default function CustomerAccountPage() {
     const starred = starredVehicleIds.includes(vehicle.id);
     return <article key={vehicle.id} className="w-56 shrink-0">
       <div className="relative overflow-hidden rounded-2xl bg-[#e8e7e3]">
-        {image?.url ? <img src={image.url} alt={title} className="h-32 w-full object-cover" /> : <div className="h-32" />}
+        <Link to={`/vehicles/${vehicle.id}`} aria-label={`View ${title}`} className="block">{image?.url ? <img src={image.url} alt={title} className="h-32 w-full object-cover" /> : <div className="h-32" />}</Link>
         <button type="button" aria-label={starred ? `Remove ${title} from starred vehicles` : `Star ${title}`} onClick={() => toggleStarredVehicle(vehicle.id)} className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-xl shadow ${starred ? "text-[#ff641f]" : "text-[#78818a]"}`}>{starred ? "★" : "☆"}</button>
       </div>
-      <h3 className="mt-3 truncate text-base font-bold">{title}</h3>
-      <p className="mt-1 text-sm text-[#5f6870]">{money.format(Number(vehicle.daily_rate))} <span className="text-[#899198]">/ day</span></p>
+      <Link to={`/vehicles/${vehicle.id}`} className="block"><h3 className="mt-3 truncate text-base font-bold">{title}</h3><p className="mt-1 text-sm text-[#5f6870]">{money.format(Number(vehicle.daily_rate))} <span className="text-[#899198]">/ day</span></p></Link>
     </article>;
   };
   const mobileBookings = bookings.slice(0, 6);
@@ -326,8 +335,8 @@ export default function CustomerAccountPage() {
       <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[2px] text-white/65">CL CarHub</p><h1 className="mt-2 text-2xl font-bold">Hi, {displayName(user).split(" ")[0]}.</h1></div><ThemeToggle /></div>
       <button type="button" onClick={() => { setStep(1); setTab("request"); }} className="mt-6 flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-left text-sm text-[#6d767e] shadow"><span><span>Find your next ride</span><span className="mt-1 block text-xs text-[#9aa1a6]">Tap to choose dates and a vehicle</span></span><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#ff641f] text-xl text-white">⌕</span></button>
     </div>
-    {tab === "request" ? <div className="px-4 pb-28">{requestForm}</div> : <main className="space-y-8 px-4 pb-28 pt-7">
-      {tab === "overview" && <><section><div className="flex items-center justify-between"><h2 className="text-2xl font-bold">Recently viewed</h2><span className="text-sm font-semibold text-[#ff641f]">View history</span></div><div className="mt-4 flex gap-5 overflow-x-auto pb-2">{vehicles.slice(0, 6).map(mobileVehicleCard)}</div></section>
+    {selectedBooking ? <div className="px-4 pb-28"><CustomerBookingDetail booking={selectedBooking} loading={bookingDetailLoading} onClose={() => setSelectedBooking(null)} onPay={() => { setPaymentBooking(selectedBooking); setPaymentAmount(String(Math.min(reservationFee, Number(selectedBooking.balance ?? 0)).toFixed(2))); }} /></div> : tab === "request" ? <div className="px-4 pb-28">{requestForm}</div> : <main className="space-y-8 px-4 pb-28 pt-7">
+      {tab === "overview" && <><section><div className="flex items-center justify-between"><h2 className="text-2xl font-bold">Recently viewed</h2>{recentVehicleIds.length > 0 && <span className="text-sm font-semibold text-[#ff641f]">View history</span>}</div><div className="mt-4 flex gap-5 overflow-x-auto pb-2">{vehicles.filter(vehicle => recentVehicleIds.includes(vehicle.id)).sort((a, b) => recentVehicleIds.indexOf(a.id) - recentVehicleIds.indexOf(b.id)).slice(0, 6).map(mobileVehicleCard)}</div>{recentVehicleIds.length === 0 && <p className="mt-4 text-sm text-[#69747b]">Vehicles you view will appear here.</p>}</section>
         {!identityComplete && <section className="rounded-2xl bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><div><h2 className="text-xl font-bold text-[#234858]">Action Required: Verify Your Identity</h2><p className="mt-2 text-sm leading-6 text-[#5f6870]">To ensure the safety of our community and enable vehicle bookings, please complete your identity verification.</p></div><span className="text-2xl text-[#9aa1a6]" aria-hidden="true">×</span></div><button type="button" onClick={() => { setStep(1); setTab("request"); }} className="mt-5 w-full rounded-full bg-[#ff641f] px-5 py-3 font-bold text-white">Verify Now <span aria-hidden="true">→</span></button></section>}
         <section><h2 className="text-2xl font-bold">Available vehicles</h2><div className="mt-4 flex gap-5 overflow-x-auto pb-2">{vehicles.slice(0, 8).map(mobileVehicleCard)}</div></section></>}
       {tab === "starred" && <section><h2 className="text-2xl font-bold">Starred vehicles</h2><div className="mt-5 grid grid-cols-2 gap-4">{vehicles.filter(vehicle => starredVehicleIds.includes(vehicle.id)).map(vehicle => <div key={vehicle.id} className="min-w-0">{mobileVehicleCard(vehicle)}</div>)}</div>{!vehicles.some(vehicle => starredVehicleIds.includes(vehicle.id)) && <div className="mt-8 rounded-2xl bg-white p-6 text-center text-sm text-[#69747b]">Star vehicles you like and they will appear here.</div>}</section>}

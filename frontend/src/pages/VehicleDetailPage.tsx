@@ -36,6 +36,17 @@ export default function VehicleDetailPage() {
       .then(response => setOtherVehicles(response.data))
       .catch(() => setOtherVehicles([]))
   }, [vehicleId]);
+  useEffect(() => {
+    if (!vehicleId || user?.role !== "customer") return;
+    const key = `clcarhub-recent-vehicles-${user.id}`;
+    try {
+      const current = JSON.parse(window.localStorage.getItem(key) ?? "[]") as number[];
+      const next = [Number(vehicleId), ...current.filter(id => id !== Number(vehicleId))].slice(0, 10);
+      window.localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      window.localStorage.setItem(key, JSON.stringify([Number(vehicleId)]));
+    }
+  }, [user, vehicleId]);
 
   if (error) {
     return <div className="min-h-screen bg-[#0b0b0b] px-6 py-24 text-center text-[#f4f3f0]"><p className="text-[#ff641f]">{error}</p><Link className="mt-6 inline-block text-sm text-[#ff9b73]" to="/vehicles">← Back to our fleet</Link></div>;
