@@ -12,6 +12,21 @@
 
 The repository contains a Laravel API in `backend/` and a separately built React/Vite frontend in `frontend/`.
 
+Laravel serves the dynamic sitemap at `/sitemap.xml`. It queries available
+vehicles from the database, so future public vehicle pages are included
+automatically without a frontend rebuild. Because the frontend and API share
+the `clcarhub.com` domain, route `/sitemap.xml` to Laravel before the React
+SPA fallback in Nginx:
+
+```nginx
+location = /sitemap.xml {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+```
+
+Do not keep a static `frontend/public/sitemap.xml`, because it can intercept
+the request before Laravel and prevent future vehicles from appearing.
+
 If Composer reports that `ext-curl` is missing on an Ubuntu/Debian server,
 install the cURL extension for the PHP version used by the server. For PHP
 8.4:
