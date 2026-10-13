@@ -144,10 +144,8 @@ export default function CustomerAccountPage() {
     const requestedTab = searchParams.get("tab");
     if (requestedTab === "request" || requestedTab === "starred" || requestedTab === "calendar") {
       setTab(requestedTab);
-    } else if (!requestedTab && tab !== "overview") {
-      setTab("overview");
     }
-  }, [searchParams, tab]);
+  }, [searchParams]);
 
   const upcoming = bookings.filter(booking => !["complete", "cancelled", "rejected"].includes(booking.status) && new Date(booking.return_at) >= new Date()).sort((a, b) => new Date(a.pickup_at).getTime() - new Date(b.pickup_at).getTime());
   const pending = bookings.filter(booking => booking.status === "pending"); const totalSpent = bookings.reduce((sum, booking) => sum + Number(booking.total_amount || 0), 0); const days = useMemo(() => calendarDays(month), [month]);

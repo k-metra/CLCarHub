@@ -6,6 +6,7 @@ import Seo from "../components/Seo";
 import api from "../lib/api";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import { vehicleTypeLabels, type VehicleImage, type VehicleRecord } from "../types";
+import { CustomerMobileNav } from "../components/CustomerMobileNav";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 const imageUrl = (image: VehicleImage) => image.url.startsWith("http") ? image.url : `${apiOrigin}/storage/${image.url.replace(/^\/+/, "").replace(/^storage\//, "")}`;
@@ -88,7 +89,7 @@ export default function VehicleDetailPage() {
         </div>
       </nav>
     </header>
-    <main className="mx-auto w-[calc(100%-36px)] max-w-[1160px] py-12 sm:py-20">
+    <main className="mx-auto w-[calc(100%-36px)] max-w-[1160px] pb-28 pt-12 sm:py-20">
       <Link className="text-sm text-[#ff641f] hover:text-[#ff9b73]" to="/vehicles">← Back to our fleet</Link>
       <div className="mt-8 grid gap-10 lg:grid-cols-[1.15fr_.85fr]">
         <section>
@@ -136,6 +137,7 @@ export default function VehicleDetailPage() {
         </div>
       </section>}
     </main>
+    {user?.role === "customer" && <CustomerMobileNav active="home" />}
     <PublicFooter />
   </div>;
 }
