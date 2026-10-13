@@ -134,7 +134,6 @@ class FundController extends Controller
     public function destroyTransaction(FundTransaction $transaction)
     {
         abort_if($transaction->payment?->provider === 'paymongo', 422, 'PayMongo fund transactions cannot be deleted.');
-        abort_if($transaction->transfer_reference, 422, 'Fund transfer transactions cannot be deleted as standalone transactions.');
         $transaction->delete();
         return response()->noContent();
     }

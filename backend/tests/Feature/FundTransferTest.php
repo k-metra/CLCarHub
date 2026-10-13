@@ -67,4 +67,27 @@ class FundTransferTest extends TestCase
         ])->assertUnprocessable();
         $this->assertDatabaseCount('fund_transactions', 0);
     }
+
+    public function test_neither_transfer_entry_can_be_deleted(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'owner']));
+        $source = Fund::create(['name' => 'PayMongo', 'type' => 'e-wallet', 'opening_balance' => 1000]);
+        $destination = Fund::create(['name' => 'Cash', 'type' => 'cash', 'opening_balance' => 0]);
+
+        $this->postJson('/api/fund-transfers', [
+            'source_fund_id' => $source->id,
+            'destination_fund_id' => $destination->id,
+            'transacted_at' => '2030-01-10 10:00',
+            'amount' => 250,
+        ])->assertCreated();
+
+        $transactions = FundTransaction::query()->orderBy('id')->get();
+        foreach ($transactions as $transaction) {
+            $this->deleteJson("/api/fund-transactions/{$transaction->id}")
+                ->assertUnprocessable()
+                ->assertJsonPath('message', 'Fund transfer transactions cannot be deleted as standalone transactions.');
+        }
+
+        $this->assertDatabaseCount('fund_transactions', 2);
+    }
 }
