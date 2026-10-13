@@ -82,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::apiResource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('funds', FundController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::post('/fund-transfers', [FundController::class, 'transfer']);
     Route::post('/funds/{fund}/transactions', [FundController::class, 'storeTransaction']);
     Route::patch('/fund-transactions/{transaction}', [FundController::class, 'updateTransaction']);
     Route::delete('/fund-transactions/{transaction}', [FundController::class, 'destroyTransaction']);
