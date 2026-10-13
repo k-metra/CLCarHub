@@ -11,7 +11,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 use App\Services\PushNotificationService;
+use App\Models\BookingReturnPhoto;
 
 class BookingController extends Controller
 {
@@ -193,7 +196,37 @@ class BookingController extends Controller
             'creator',
             'payments.fund',
             'statusHistory.user',
+            'returnPhotos',
         ]);
+    }
+
+    public function storeReturnPhotos(Request $request, Booking $booking)
+    {
+        $data = $request->validate([
+            'photos' => ['required', 'array', 'min:1'],
+            'photos.*.file' => ['required', 'image', 'max:20480'],
+            'photos.*.label' => ['nullable', 'string', 'max:120'],
+        ]);
+        abort_if($booking->returnPhotos()->count() + count($data['photos']) > 30, 422, 'A booking can have up to 30 return photos.');
+
+        foreach ($data['photos'] as $photo) {
+            /** @var UploadedFile $file */
+            $file = $photo['file'];
+            $path = $file->store('booking-returns', 'public');
+            abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The return photo could not be saved. Check storage permissions and disk configuration.');
+            $booking->returnPhotos()->create(['path' => $path, 'label' => filled($photo['label'] ?? null) ? trim($photo['label']) : null]);
+        }
+
+        return $booking->fresh('returnPhotos');
+    }
+
+    public function destroyReturnPhoto(Booking $booking, BookingReturnPhoto $photo)
+    {
+        abort_unless($photo->booking_id === $booking->id, 404);
+        Storage::disk('public')->delete($photo->path);
+        $photo->delete();
+
+        return response()->noContent();
     }
 
     public function invoice(Request $request, Booking $booking)
@@ -297,7 +330,7 @@ class BookingController extends Controller
             );
         }
 
-        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user']);
+        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos']);
     }
 
     public function destroy(Booking $booking)
