@@ -266,7 +266,7 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonPath('message', 'A upcoming booking cannot be changed to ongoing.');
     }
 
-    public function test_ongoing_booking_can_be_completed_after_return_processing(): void
+    public function test_for_completion_booking_can_be_completed_after_return_processing(): void
     {
         [$vehicle, $customer] = $this->authenticate();
 
@@ -276,7 +276,7 @@ class BookingAvailabilityTest extends TestCase
             'vehicle_id' => $vehicle->id,
             'pickup_at' => '2030-01-10 10:00',
             'return_at' => '2030-01-11 10:00',
-            'status' => 'ongoing',
+            'status' => 'for_completion',
             'payment_status' => 'unpaid',
             'rental_amount' => 2000,
             'total_amount' => 2000,
@@ -284,6 +284,7 @@ class BookingAvailabilityTest extends TestCase
 
         $response = $this->patchJson("/api/bookings/{$booking->id}", [
             'status' => 'complete',
+            'actual_return_at' => '2030-01-11 11:00',
             'fuel_charge' => 150,
             'damage_fees' => 500,
             'status_reason' => 'Vehicle returned and inspected.',
