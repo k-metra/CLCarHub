@@ -217,6 +217,19 @@ The Laravel PHP location must point to `backend/public/index.php`. Do not route
 email verification links to the React `index.html` fallback. After changing
 Nginx, run `sudo nginx -t && sudo systemctl reload nginx`.
 
+Public vehicle detail pages are rendered by Laravel for SEO. Route them to
+Laravel before the React fallback, while keeping `/vehicles` itself on the
+frontend fleet page:
+
+```nginx
+location ^~ /vehicles/ {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+```
+
+This ensures URLs such as `/vehicles/7` return the vehicle-specific title,
+canonical URL, structured data, and content in the initial HTML response.
+
 If the API is hosted under the same domain, `/api/` must likewise be routed
 to Laravel rather than the frontend fallback. A separate API subdomain is
 often simpler to configure and maintain.
