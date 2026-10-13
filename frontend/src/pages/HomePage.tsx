@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
 import PublicFooter from "../components/PublicFooter";
 import Seo from "../components/Seo";
@@ -29,38 +29,14 @@ export default function HomePage() {
   const [searched, setSearched] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(true);
-  const [selectedVehicle, setSelectedVehicle] = useState<VehicleRecord | null>(null);
-  const [selectedImage, setSelectedImage] = useState<VehicleImage | null>(null);
   const { user, loading } = useAuth();
   const signOut = useSignOut();
-  const navigate = useNavigate();
   useEffect(() => {
     api.get<VehicleRecord[]>("/vehicles/featured")
       .then((response) => setVehicles(response.data))
       .catch(() => setVehicles([]))
       .finally(() => setVehiclesLoading(false));
   }, []);
-  useEffect(() => {
-    if (!selectedVehicle) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedVehicle(null);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [selectedVehicle]);
-  const openVehicleProfile = (vehicle: VehicleRecord) => {
-    setSelectedVehicle(vehicle);
-    setSelectedImage(null);
-  };
-  const rentVehicle = (vehicle: VehicleRecord) => {
-    setSelectedVehicle(null);
-    const schedule = new URLSearchParams({ vehicle_id: String(vehicle.id), pickup_at: pickupDate, return_at: returnDate });
-    if (user?.role === "customer") {
-      navigate(`/account?tab=request&${schedule}`);
-      return;
-    }
-    navigate(`/admin/login?register=1&${schedule}`);
-  };
   const checkAvailability = () => {
     if (!pickupDate || !returnDate) {
       setSearched(false);
@@ -277,7 +253,7 @@ export default function HomePage() {
             )) : vehicles.slice(0, 3).map((vehicle) => {
               const image = imageUrl(vehicle);
               return (
-                <button type="button" className="group cursor-pointer border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] focus:ring-offset-2 focus:ring-offset-[#0b0b0b]" key={vehicle.id} onClick={() => openVehicleProfile(vehicle)} aria-label={`View profile for ${vehicle.name || `${vehicle.brand} ${vehicle.model}`}`}>
+                <Link to={`/vehicles/${vehicle.id}?pickup_at=${encodeURIComponent(pickupDate)}&return_at=${encodeURIComponent(returnDate)}`} className="group cursor-pointer border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] focus:ring-offset-2 focus:ring-offset-[#0b0b0b]">
                   {image && <img className="h-[240px] w-full object-cover saturate-[.7]" src={image} alt={vehicle.name || `${vehicle.brand} ${vehicle.model}`} />}
                   <div className="p-[22px]">
                     <small className="text-[9px] uppercase tracking-[1.5px] text-[#ff641f]">{vehicleTypeLabels[vehicle.type]} · {vehicle.transmission}</small>
@@ -289,7 +265,7 @@ export default function HomePage() {
                     </div>
                     <span className="text-xs font-semibold text-[#ff641f] opacity-80 transition group-hover:opacity-100">View details <span aria-hidden="true">→</span></span>
                   </div>
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -389,7 +365,6 @@ export default function HomePage() {
         </section>
       </main>
       <PublicFooter />
-      {selectedVehicle && <VehicleProfileModal vehicle={selectedVehicle} selectedImage={selectedImage} onSelectImage={setSelectedImage} onRent={() => rentVehicle(selectedVehicle)} onClose={() => setSelectedVehicle(null)} />}
     </div>
   );
 }
