@@ -67,6 +67,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('accounts', AccountController::class)->only(['store', 'update', 'destroy']);
     Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
     Route::apiResource('bookings', BookingController::class);
+    Route::post('/bookings/{booking}/return-photos', [BookingController::class, 'storeReturnPhotos']);
+    Route::delete('/bookings/{booking}/return-photos/{photo}', [BookingController::class, 'destroyReturnPhoto']);
     Route::get('/bookings/{booking}/invoice', [BookingController::class, 'invoice']);
     Route::middleware(EnsureRole::class.':customer')->prefix('customer/booking-requests')->group(function () {
         Route::get('/', [BookingController::class, 'customerIndex']);
