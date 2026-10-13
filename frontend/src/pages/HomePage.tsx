@@ -185,9 +185,7 @@ export default function HomePage() {
                   <span className="text-[#ff641f]">(12-Hour FREE Rental)</span>
                 </span>
               </div>
-              <p className="mt-[65px] text-[11px] text-[#777]">
-                ✦ Trusted by 2,000+ riders in the Philippines
-              </p>
+          
             </div>
             <div className="pointer-events-none absolute inset-y-0 right-[-8%] hidden w-[58%] md:block">
               <div className="absolute inset-[-12%] bg-[radial-gradient(ellipse_at_center,#ff641f33_0%,#5d1d0818_36%,#0b0b0b00_68%)] blur-3xl" />
