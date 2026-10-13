@@ -23,7 +23,7 @@ Route::get('/sitemap.xml', function () {
         ->where('status', 'available')
         ->orderBy('id')
         ->get(['id', 'updated_at'])
-        ->each(function (Vehicle $vehicle) use (&$urls): void {
+        ->each(function (Vehicle $vehicle) use (&$urls, $siteUrl): void {
             $urls[] = [
                 'loc' => "{$siteUrl}/vehicles/{$vehicle->id}",
                 'lastmod' => $vehicle->updated_at?->toDateString(),
