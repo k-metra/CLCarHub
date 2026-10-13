@@ -296,6 +296,7 @@ html.theme-dark .booking-detail-panel .text-\[\#999\] {
   @page {
     margin: 0.35in;
   }
+
   .contract-paper {
     padding: 0.7rem !important;
     font-size: 9.5px;
@@ -413,3 +414,9 @@ html.theme-dark .vehicle-image-preview {
 .dashboard-theme.theme-dark .bg-amber-50 { background-color: #3d2f14; }
 .dashboard-theme.theme-dark .text-amber-800,
 .dashboard-theme.theme-dark .text-amber-900 { color: #f4d58c; }
+
+@media (max-width: 639px) {
+  .dashboard-theme > main {
+    display: none;
+  }
+}
