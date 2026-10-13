@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 type PickerMode = "date" | "datetime";
 
@@ -32,6 +32,11 @@ function formatTime(value: string): string {
   return `${pad(hours % 12 || 12)}:${pad(minutes)} ${suffix}`;
 }
 
+function isValidTime(value: string): boolean {
+  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  return match !== null;
+}
+
 function displayDate(value: string): string {
   const date = parseDate(value);
   return date ? date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "";
@@ -47,6 +52,7 @@ export function DateTimePicker({
   placeholder = "Choose a date",
 }: DateTimePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const timeInputId = useId();
   const selected = useMemo(() => parseDate(value), [value]);
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(() => selected ?? new Date());
@@ -95,7 +101,12 @@ export function DateTimePicker({
     if (selected) onChange(`${formatDate(selected)}T${nextTime}`);
   };
 
-  const displayValue = selected ? `${displayDate(value)}${mode === "datetime" ? ` · ${formatTime(time)}` : ""}` : "";
+  const typeTime = (nextTime: string) => {
+    setTime(nextTime);
+    if (selected && isValidTime(nextTime)) onChange(`${formatDate(selected)}T${nextTime}`);
+  };
+
+  const displayValue = selected ? `${displayDate(value)}${mode === "datetime" && isValidTime(time) ? ` · ${formatTime(time)}` : ""}` : "";
 
   return (
     <div className="relative" ref={rootRef}>
@@ -135,7 +146,10 @@ export function DateTimePicker({
           </div>
           {mode === "datetime" && (
             <div className="mt-4 border-t border-black/10 pt-3">
-              <p className="mb-2 text-xs font-semibold text-[#555]">Choose a time</p>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label className="text-xs font-semibold text-[#555]" htmlFor={timeInputId}>Choose a time</label>
+                <input id={timeInputId} type="time" value={time} onChange={event => typeTime(event.target.value)} className="border border-black/10 px-2 py-1 text-sm" aria-label="Type a time" />
+              </div>
               <div className="grid max-h-40 grid-cols-4 gap-1 overflow-y-auto pr-1">
                 {timeSlots.map(slot => <button type="button" key={slot} onClick={() => selectTime(slot)} className={`calendar-time rounded border px-2 py-2 text-xs ${time === slot ? "border-[#ff641f] bg-orange-50 font-semibold text-[#d94d10]" : "border-black/10 hover:bg-black/5"}`}>{formatTime(slot)}</button>)}
               </div>
