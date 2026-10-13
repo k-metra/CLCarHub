@@ -114,6 +114,7 @@ class BookingController extends Controller
                 match ($filter) {
                     'upcoming' => $query->where('status', Booking::UPCOMING),
                     'ongoing' => $query->where('status', Booking::ONGOING),
+                    'for_completion' => $query->where('status', Booking::FOR_COMPLETION),
                     'complete' => $query->where('status', Booking::COMPLETE),
                     'pending' => $query->where('status', Booking::PENDING),
                     'rejected' => $query->where('status', Booking::REJECTED),
@@ -133,11 +134,12 @@ class BookingController extends Controller
         return $query
             ->orderByRaw("CASE
                 WHEN status = 'pending' THEN 0
-                WHEN status = 'upcoming' THEN 1
-                WHEN status = 'ongoing' THEN 2
-                WHEN status = 'complete' THEN 3
-                WHEN status = 'rejected' THEN 4
-                WHEN status = 'cancelled' THEN 5
+                WHEN status = 'for_completion' THEN 1
+                WHEN status = 'upcoming' THEN 2
+                WHEN status = 'ongoing' THEN 3
+                WHEN status = 'complete' THEN 4
+                WHEN status = 'rejected' THEN 5
+                WHEN status = 'cancelled' THEN 6
                 ELSE 6
             END")
             ->orderBy('pickup_at', 'asc')
@@ -250,6 +252,7 @@ class BookingController extends Controller
     public function update(Request $request, Booking $booking)
     {
         Booking::synchronizeAutomaticStatuses();
+        $booking->refresh();
         $data = $request->validate($this->rules(true));
         $oldStatus = $booking->status;
         $reason = $data['status_reason'] ?? null;
@@ -272,7 +275,7 @@ class BookingController extends Controller
             $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $booking->status, 'reason' => $reason, 'changed_by' => $request->user()?->id]);
         }
         $booking->refresh();
-        $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->return_at, $vehicle, $booking->rental_rate);
+        $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->actual_return_at ?? $booking->return_at, $vehicle, $booking->rental_rate);
         $booking->rental_amount = $rentalBreakdown['rental'];
         $booking->rental_discount = $rentalBreakdown['discount'];
         if (! array_key_exists('extension_fees', $data)) {
@@ -306,7 +309,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function authenticatedCustomer(Request $request)
@@ -322,7 +325,8 @@ class BookingController extends Controller
         return [
             Booking::PENDING => [Booking::UPCOMING, Booking::CANCELLED, Booking::REJECTED],
             Booking::UPCOMING => [Booking::CANCELLED],
-            Booking::ONGOING => [Booking::COMPLETE],
+            Booking::ONGOING => [Booking::FOR_COMPLETION, Booking::CANCELLED],
+            Booking::FOR_COMPLETION => [Booking::COMPLETE, Booking::CANCELLED],
             Booking::COMPLETE => [],
             Booking::CANCELLED => [],
             Booking::REJECTED => [],
