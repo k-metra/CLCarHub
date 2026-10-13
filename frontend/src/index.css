@@ -189,6 +189,189 @@ html.theme-dark .dashboard-theme .milestone-preview span {
 .dashboard-theme.theme-dark .bg-\[\#f4f3f0\] { background-color: #171717; }
 .dashboard-theme.theme-dark .bg-\[\#fafafa\] { background-color: #1f1f1f; }
 .dashboard-theme.theme-dark .bg-\[\#fff7f3\] { background-color: #3a241b; }
+.dashboard-theme.theme-dark .contract-paper,
+.dashboard-theme.theme-dark .contract-paper .text-\[\#151515\],
+.dashboard-theme.theme-dark .contract-paper .text-\[\#222\] {
+  color: #151515;
+}
+.dashboard-theme.theme-dark .contract-paper table {
+  color: #151515;
+}
+.dashboard-theme.theme-dark .contract-paper .text-\[\#555\] {
+  color: #444;
+}
+.dashboard-theme.theme-dark .contract-paper .text-\[\#666\],
+.dashboard-theme.theme-dark .contract-paper .text-\[\#777\] {
+  color: #555;
+}
+.dashboard-theme.theme-dark .contract-paper .text-\[\#888\] {
+  color: #666;
+}
+.dashboard-theme.theme-dark .contract-paper .text-\[\#999\] {
+  color: #777;
+}
+.dashboard-theme.theme-dark .booking-detail-panel {
+  background-color: #171717 !important;
+  color: #f4f3f0 !important;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .bg-white {
+  background-color: #242424 !important;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .bg-\[\#f8f7f5\] {
+  background-color: #303030 !important;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .border-emerald-200 {
+  border-color: #3f8f6b;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .border-red-200 {
+  border-color: #8f4a4a;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .bg-emerald-50 {
+  background-color: #173d30;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .bg-red-50 {
+  background-color: #4a2020;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .border-black\/10,
+.dashboard-theme.theme-dark .booking-detail-panel .border-black\/\[\.06\] {
+  border-color: rgb(255 255 255 / 14%);
+}
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#151515\],
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#222\] {
+  color: #f4f3f0 !important;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#555\],
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#666\] {
+  color: #c4c3be;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#777\],
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#888\],
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#999\] {
+  color: #aaa9a5 !important;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#555\],
+.dashboard-theme.theme-dark .booking-detail-panel .text-\[\#666\] {
+  color: #c4c3be !important;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .hover\:bg-\[\#f8f7f5\]:hover {
+  background-color: #303030;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .hover\:bg-red-50:hover {
+  background-color: #4a2020;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .text-red-600 {
+  color: #ffaaa5;
+}
+.dashboard-theme.theme-dark .booking-detail-panel .border-t {
+  border-top-color: rgb(255 255 255 / 18%);
+}
+html.theme-dark .booking-detail-panel {
+  background-color: #171717 !important;
+  color: #f4f3f0 !important;
+}
+html.theme-dark .booking-detail-panel .bg-white {
+  background-color: #242424 !important;
+}
+html.theme-dark .booking-detail-panel .bg-\[\#f8f7f5\] {
+  background-color: #303030 !important;
+}
+html.theme-dark .booking-detail-panel .border-black\/10,
+html.theme-dark .booking-detail-panel .border-black\/\[\.06\] {
+  border-color: rgb(255 255 255 / 14%) !important;
+}
+html.theme-dark .booking-detail-panel .text-\[\#151515\],
+html.theme-dark .booking-detail-panel .text-\[\#222\] {
+  color: #f4f3f0 !important;
+}
+html.theme-dark .booking-detail-panel .text-\[\#555\],
+html.theme-dark .booking-detail-panel .text-\[\#666\] {
+  color: #c4c3be !important;
+}
+html.theme-dark .booking-detail-panel .text-\[\#777\],
+html.theme-dark .booking-detail-panel .text-\[\#888\],
+html.theme-dark .booking-detail-panel .text-\[\#999\] {
+  color: #aaa9a5 !important;
+}
+@media print {
+  @page {
+    margin: 0.35in;
+  }
+  .contract-paper {
+    padding: 0.7rem !important;
+    font-size: 9.5px;
+    line-height: 1.2 !important;
+  }
+  .contract-paper > div,
+  .contract-paper > section {
+    margin-top: 1rem !important;
+  }
+  .contract-paper > div:first-child {
+    margin-top: 0 !important;
+  }
+  .contract-paper > section { break-inside: auto; }
+  .contract-paper h2 { font-size: 1.6rem !important; }
+  .contract-paper h3 {
+    margin-bottom: 0.35rem;
+  }
+  .contract-paper table td {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .contract-paper .space-y-7 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.3rem !important;
+  }
+  .contract-paper .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.25rem !important;
+  }
+  .contract-paper .contract-terms {
+    font-size: 8.25px !important;
+    line-height: 1.08 !important;
+  }
+  .contract-paper .contract-terms h3 {
+    font-size: 9px !important;
+  }
+  .contract-paper .contract-terms ul {
+    padding-left: 1rem !important;
+  }
+  .contract-paper .contract-terms .p-4 {
+    padding: 0.45rem !important;
+  }
+  .contract-paper ul {
+    margin-top: 0.25rem !important;
+  }
+  .contract-paper .contract-effectivity,
+  .contract-paper .contract-signatures,
+  .contract-paper .contract-rfid {
+    break-inside: avoid;
+  }
+  .contract-paper .contract-signatures {
+    margin-top: 2.5rem !important;
+    min-height: 2.75rem;
+  }
+  .contract-paper .contract-rfid {
+    margin-top: 1.5rem !important;
+  }
+  .contract-paper .contract-rfid td {
+    height: 2.2rem !important;
+  }
+  .contract-paper img {
+    max-height: 3.5rem;
+  }
+  html.theme-dark .dashboard-theme .contract-paper,
+  html.theme-dark .dashboard-theme .contract-paper * {
+    color: #151515 !important;
+    border-color: #d9d9d9 !important;
+  }
+  html.theme-dark .dashboard-theme .contract-paper .border-black {
+    border-color: #444 !important;
+  }
+  html.theme-dark .dashboard-theme .contract-paper .text-\[\#ff641f\] {
+    color: #ff641f !important;
+  }
+  html.theme-dark .dashboard-theme .contract-paper .border-\[\#ff641f\] {
+    border-color: #ff641f !important;
+  }
+}
 .dashboard-theme.theme-dark .bg-\[\#e7e5e1\],
 html.theme-dark .vehicle-image-preview {
   background-color: #303030;
