@@ -15,11 +15,13 @@ use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\FleetSettingController;
 use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\PayMongoController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/oauth/exchange', [\App\Http\Controllers\Api\OAuthController::class, 'exchange']);
+Route::post('/payments/paymongo/webhook', [PayMongoController::class, 'webhook']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/resend-verification', [AuthController::class, 'resendVerificationForEmail'])->middleware('throttle:6,1');
 Route::get('/vehicles', [VehicleController::class, 'index']);
@@ -75,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [BookingController::class, 'customerStore'])
             ->middleware(['blocked.ip:bookings', 'throttle:customer-booking-submissions']);
         Route::get('/{booking}', [BookingController::class, 'customerShow']);
+        Route::post('/{booking}/payment', [BookingController::class, 'customerPayment']);
     });
     Route::apiResource('contracts', ContractController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::apiResource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);

@@ -14,6 +14,11 @@ class Payment extends Model
         return ['amount' => 'decimal:2', 'paid_at' => 'datetime'];
     }
 
+    public function isPayMongo(): bool
+    {
+        return $this->provider === 'paymongo';
+    }
+
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);

@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 use App\Services\PushNotificationService;
 use App\Models\BookingReturnPhoto;
+use App\Services\PayMongoService;
 
 class BookingController extends Controller
 {
@@ -37,6 +38,25 @@ class BookingController extends Controller
         return $booking->load(['vehicle.images', 'payments.fund', 'statusHistory.user']);
     }
 
+    public function customerPayment(Request $request, Booking $booking)
+    {
+        $customer = $this->authenticatedCustomer($request);
+        abort_unless($booking->customer_id === $customer->id, 404);
+        abort_if(in_array($booking->status, [Booking::CANCELLED, Booking::REJECTED], true), 422, 'Cancelled or rejected bookings cannot receive payments.');
+
+        $data = $request->validate(['amount' => ['required', 'numeric', 'min:0.01']]);
+        $booking->load('payments');
+        $balance = $booking->balance;
+        $fleetSettings = FleetSetting::findOrFail(1);
+        $minimum = min((float) $fleetSettings->reservation_fee, $balance);
+        abort_if((float) $data['amount'] < $minimum || (float) $data['amount'] > $balance, 422, 'Payment must be at least the reservation fee and no more than the remaining balance.');
+
+        $session = app(PayMongoService::class)->createCheckoutSession($booking, (float) $data['amount']);
+        $booking->update(['paymongo_checkout_session_id' => $session['id']]);
+
+        return response()->json(['checkout_url' => $session['url']], 201);
+    }
+
     public function customerStore(Request $request)
     {
         $customer = $this->authenticatedCustomer($request);
@@ -53,9 +73,12 @@ class BookingController extends Controller
             'return_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'notes' => ['nullable', 'string'],
             'payment_method' => ['required', 'in:cash_on_pickup,cash_on_delivery'],
+            'payment_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        return DB::transaction(function () use ($data, $customer, $request) {
+        $booking = DB::transaction(function () use ($data, $customer, $request) {
+            $paymentAmount = $data['payment_amount'] ?? null;
+            unset($data['payment_amount']);
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
             abort_if(
                 $vehicle->status !== 'available'
@@ -89,6 +112,10 @@ class BookingController extends Controller
                 'total_amount' => $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, 0, 0, $rentalBreakdown['extension'], (float) $delivery['delivery_fee'] + (float) $delivery['return_pickup_fee'], $fleetSettings),
                 'created_by' => $request->user()->id,
             ]);
+            if ($paymentAmount !== null) {
+                $minimum = (float) $fleetSettings->reservation_fee;
+                abort_if((float) $paymentAmount < $minimum || (float) $paymentAmount > (float) $booking->total_amount, 422, 'Payment must be at least the reservation fee and no more than the booking total.');
+            }
             app(PushNotificationService::class)->sendToAdmins(
                 'New booking',
                 "{$customer->name} submitted {$booking->reference}.",
@@ -96,8 +123,25 @@ class BookingController extends Controller
                 "booking-created-{$booking->id}",
             );
 
-            return response()->json($booking->load(['vehicle.images']), 201);
+            return $booking;
         });
+
+        $paymentAmount = $data['payment_amount'] ?? null;
+        if ($paymentAmount !== null) {
+            $fleetSettings = FleetSetting::findOrFail(1);
+            $minimum = (float) $fleetSettings->reservation_fee;
+            $total = (float) $booking->total_amount;
+            abort_if($paymentAmount < $minimum || $paymentAmount > $total, 422, 'Payment must be at least the reservation fee and no more than the booking total.');
+            $session = app(PayMongoService::class)->createCheckoutSession($booking, (float) $paymentAmount);
+            $booking->update(['paymongo_checkout_session_id' => $session['id']]);
+
+            return response()->json([
+                ...$booking->load(['vehicle.images'])->toArray(),
+                'checkout_url' => $session['url'],
+            ], 201);
+        }
+
+        return response()->json($booking->load(['vehicle.images']), 201);
     }
 
     public function index(Request $request)
@@ -370,7 +414,7 @@ class BookingController extends Controller
 
     private function syncPayments(Booking $booking, array $payments): void
     {
-        $booking->payments()->delete();
+        $booking->payments()->whereNull('provider')->delete();
         foreach ($payments as $payment) {
             $createdPayment = $booking->payments()->create(['amount' => $payment['amount'], 'fund_id' => $payment['fund_id'] ?? null, 'notes' => $payment['notes'] ?? null, 'paid_at' => $payment['paid_at'], 'payment_method' => null, 'status' => 'paid']);
             if ($createdPayment->fund_id) {

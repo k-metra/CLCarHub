@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'paymongo' => [
+        'secret_key' => env('PAYMONGO_SECRET_KEY'),
+        'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
+        'frontend_url' => env('FRONTEND_URL', env('APP_URL')),
+    ],
     'aika' => [
         // The vendor's HTTPS certificate is currently expired. Keep this
         // configurable so it can be switched back when the certificate is renewed.

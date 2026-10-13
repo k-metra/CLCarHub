@@ -24,6 +24,8 @@ class FundTransaction extends Model
         return $this->belongsTo(Payment::class);
     }
 
+    protected $with = ['payment'];
+
     public function expense(): BelongsTo
     {
         return $this->belongsTo(Expense::class);
