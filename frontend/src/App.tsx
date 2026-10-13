@@ -23,6 +23,7 @@ const ContractBuilderPage = lazy(() => import("./pages/ContractBuilderPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const FleetSettingsPage = lazy(() => import("./pages/FleetSettingsPage"));
 const FleetGalleryPage = lazy(() => import("./pages/FleetGalleryPage"));
+const VehicleDetailPage = lazy(() => import("./pages/VehicleDetailPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
 const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
 const RentalOperationsPage = lazy(() => import("./pages/RentalOperationsPage"));
@@ -37,6 +38,7 @@ export default function App() {
             <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/vehicles" element={<FleetGalleryPage />} />
+          <Route path="/vehicles/:vehicleId" element={<VehicleDetailPage />} />
           <Route path="/terms" element={<LegalPage />} />
           <Route path="/privacy" element={<LegalPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
