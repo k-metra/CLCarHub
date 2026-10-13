@@ -411,6 +411,18 @@ html.theme-dark .vehicle-image-preview {
 .dashboard-theme.theme-dark textarea::placeholder { color: #989791; }
 .dashboard-theme.theme-dark .hover\:bg-\[\#f8f7f5\]:hover,
 .dashboard-theme.theme-dark .hover\:bg-black\/5:hover { background-color: #303030; }
+.customer-mobile-nav {
+  border-color: rgb(0 0 0 / 10%);
+  background: rgb(255 255 255 / 95%);
+  color: #777;
+}
+.customer-mobile-nav .is-active { color: #ff641f; }
+.dashboard-theme.theme-dark .customer-mobile-nav {
+  border-color: rgb(255 255 255 / 14%);
+  background: rgb(36 36 36 / 95%);
+  color: #aaa9a5;
+}
+.dashboard-theme.theme-dark .customer-mobile-nav .is-active { color: #ff8b5c; }
 .dashboard-theme.theme-dark .bg-amber-50 { background-color: #3d2f14; }
 .dashboard-theme.theme-dark .text-amber-800,
 .dashboard-theme.theme-dark .text-amber-900 { color: #f4d58c; }

@@ -9,6 +9,7 @@ import type { BookingRecord, CustomerAttachment, FleetSettings, Paginated, Vehic
 import { LocationPicker } from "../components/LocationPicker";
 import { discountedRental, discountPercent } from "../lib/discounts";
 import { ThemeToggle, useTheme } from "../lib/ThemeContext";
+import { CustomerMobileNav } from "../components/CustomerMobileNav";
 
 type Tab = "overview" | "starred" | "calendar" | "request";
 type PaymentMethod = "cash_on_pickup" | "cash_on_delivery";
@@ -56,7 +57,7 @@ function DeliveryMap({ center, position, onPin }: { center: [number, number]; po
 export default function CustomerAccountPage() {
   const { user, loading } = useAuth(); const signOut = useSignOut(); const { showToast } = useToast(); const { theme } = useTheme();
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState<Tab>(() => searchParams.get("tab") === "request" ? "request" : "overview"); const [step, setStep] = useState(1);
+  const [tab, setTab] = useState<Tab>(() => searchParams.get("tab") === "request" ? "request" : searchParams.get("tab") === "starred" ? "starred" : searchParams.get("tab") === "calendar" ? "calendar" : "overview"); const [step, setStep] = useState(1);
   const [bookings, setBookings] = useState<BookingRecord[]>([]); const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [fleetSettings, setFleetSettings] = useState<FleetSettings>({ reservation_fee: "0", reservation_fee_deductible: true, default_hour_extension_rate: "200", full_day_extension_threshold_hours: 12, late_return_grace_period_minutes: 60, gps_refresh_interval_seconds: 30, default_delivery_rate_per_km: "0", garage_location_name: null, garage_location_address: null, garage_location_latitude: null, garage_location_longitude: null, terms_and_conditions: null, privacy_policy: null, discount_structures: [] });
   const [month, setMonth] = useState(() => new Date()); const [loadingData, setLoadingData] = useState(true); const [submitting, setSubmitting] = useState(false); const [checking, setChecking] = useState(false);
@@ -129,6 +130,14 @@ export default function CustomerAccountPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [searchParams, vehicles]);
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+    if (requestedTab === "request" || requestedTab === "starred" || requestedTab === "calendar") {
+      setTab(requestedTab);
+    } else if (!requestedTab && tab !== "overview") {
+      setTab("overview");
+    }
+  }, [searchParams, tab]);
 
   const upcoming = bookings.filter(booking => !["complete", "cancelled", "rejected"].includes(booking.status) && new Date(booking.return_at) >= new Date()).sort((a, b) => new Date(a.pickup_at).getTime() - new Date(b.pickup_at).getTime());
   const pending = bookings.filter(booking => booking.status === "pending"); const totalSpent = bookings.reduce((sum, booking) => sum + Number(booking.total_amount || 0), 0); const days = useMemo(() => calendarDays(month), [month]);
@@ -312,8 +321,8 @@ export default function CustomerAccountPage() {
     </article>;
   };
   const mobileBookings = bookings.slice(0, 6);
-  const mobileDashboard = () => <div className={`dashboard-theme min-h-screen bg-[#f7f7f5] text-[#17232d] sm:hidden ${theme === "dark" ? "theme-dark" : ""}`}>
-    <div className="bg-[#173b4b] px-5 pb-7 pt-10 text-white">
+  const mobileDashboard = () => <div className={`dashboard-theme min-h-screen bg-[#f4f3f0] text-[#151515] sm:hidden ${theme === "dark" ? "theme-dark" : ""}`}>
+    <div className="bg-[#111] px-5 pb-7 pt-10 text-white">
       <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[2px] text-white/65">CL CarHub</p><h1 className="mt-2 text-2xl font-bold">Hi, {displayName(user).split(" ")[0]}.</h1></div><ThemeToggle /></div>
       <button type="button" onClick={() => { setStep(1); setTab("request"); }} className="mt-6 flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-left text-sm text-[#6d767e] shadow"><span><span>Find your next ride</span><span className="mt-1 block text-xs text-[#9aa1a6]">Tap to choose dates and a vehicle</span></span><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#ff641f] text-xl text-white">⌕</span></button>
     </div>
@@ -324,10 +333,7 @@ export default function CustomerAccountPage() {
       {tab === "starred" && <section><h2 className="text-2xl font-bold">Starred vehicles</h2><div className="mt-5 grid grid-cols-2 gap-4">{vehicles.filter(vehicle => starredVehicleIds.includes(vehicle.id)).map(vehicle => <div key={vehicle.id} className="min-w-0">{mobileVehicleCard(vehicle)}</div>)}</div>{!vehicles.some(vehicle => starredVehicleIds.includes(vehicle.id)) && <div className="mt-8 rounded-2xl bg-white p-6 text-center text-sm text-[#69747b]">Star vehicles you like and they will appear here.</div>}</section>}
       {tab === "calendar" && <section><h2 className="text-2xl font-bold">My bookings</h2><div className="mt-5 space-y-3">{mobileBookings.map(booking => <button type="button" key={booking.id} onClick={() => void openBookingDetails(booking)} className="w-full rounded-2xl bg-white p-4 text-left shadow-sm"><div className="flex items-center justify-between gap-3"><strong>{booking.vehicle?.name || `${booking.vehicle?.brand ?? ""} ${booking.vehicle?.model ?? ""}`}</strong><span className={`rounded px-2 py-1 text-[10px] font-bold uppercase ${statusClass(booking.status)}`}>{booking.status.replaceAll("_", " ")}</span></div><p className="mt-2 text-sm text-[#69747b]">{dateTime(booking.pickup_at)}</p><p className="mt-2 font-semibold text-[#ff641f]">{money.format(Number(booking.total_amount || 0))}</p></button>)}</div>{!mobileBookings.length && <p className="mt-8 text-sm text-[#69747b]">You have no bookings yet.</p>}</section>}
     </main>}
-    <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-4 border-t border-black/10 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,.08)] backdrop-blur">
-      {[["overview", "⌂", "Home"], ["starred", "♡", "Starred"], ["calendar", "□", "Bookings"]].map(([value, icon, label]) => <button type="button" key={value} onClick={() => setTab(value as Tab)} className={`flex flex-col items-center gap-1 py-2 text-xs font-semibold ${tab === value ? "text-[#ff641f]" : "text-[#8a949b]"}`}><span className="text-2xl leading-5">{icon}</span>{label}</button>)}
-      <Link to="/profile" className="flex flex-col items-center gap-1 py-2 text-xs font-semibold text-[#8a949b]"><span className="text-2xl leading-5">♙</span>Profile</Link>
-    </nav>
+    <CustomerMobileNav active={tab === "starred" ? "starred" : tab === "calendar" ? "bookings" : "home"} />
   </div>;
   const input = "mt-2 w-full border border-black/10 px-3 py-3"; const steps = ["Vehicle & schedule", "Trip details", "Checkout"];
   const requestForm = <section className="mt-8"><div className="mb-6 grid grid-cols-3 gap-2">{steps.map((label, index) => <div key={label} className={`border-t-4 p-3 text-xs font-bold ${step === index + 1 ? "border-[#ff641f] text-[#ff641f]" : step > index + 1 ? "border-emerald-500 text-emerald-700" : "border-black/10 text-[#999]"}`}><span>0{index + 1}</span><p className="mt-1 hidden sm:block">{label}</p></div>)}</div>

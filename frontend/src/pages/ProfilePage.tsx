@@ -6,6 +6,8 @@ import { DateTimePicker } from "../components/DateTimePicker";
 import api from "../lib/api";
 import { displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import type { CustomerAttachment } from "../types";
+import { ThemeToggle, useTheme } from "../lib/ThemeContext";
+import { CustomerMobileNav } from "../components/CustomerMobileNav";
 
 type Profile = { id: number; name: string; first_name?: string | null; middle_name?: string | null; last_name?: string | null; date_of_birth?: string | null; username?: string | null; email: string; role: string; email_verified_at?: string | null };
 type CustomerProfile = Profile & { phone?: string | null; attachments?: CustomerAttachment[] };
@@ -16,6 +18,7 @@ const maxUploadBytes = 20 * 1024 * 1024;
 
 export default function ProfilePage() {
   const { user, loading, updateUser } = useAuth();
+  const { theme } = useTheme();
   const signOut = useSignOut();
   const { showToast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -78,5 +81,5 @@ export default function ProfilePage() {
   </div>;
   const renderedContent = profileLoading ? loadingContent : content;
   if (user.role !== "customer") return <AdminShell title="Profile settings">{renderedContent}</AdminShell>;
-  return <div className="min-h-screen bg-[#f4f3f0] text-[#151515]"><header className="border-b border-black/10 bg-[#111] px-5 text-white sm:px-8"><div className="mx-auto flex h-20 max-w-6xl items-center justify-between"><Link to="/" aria-label="CLCarHub home"><img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-16 w-28 object-contain object-left" /></Link><div className="flex items-center gap-4 text-sm"><span className="hidden sm:block">{displayName(user)}</span><Link className="text-[#ffb18e] hover:text-white" to="/account">Dashboard</Link><button className="text-[#ffb18e] hover:text-white" onClick={signOut}>Sign out</button></div></div></header><main className="px-5 py-10 sm:px-10">{renderedContent}</main></div>;
+  return <div className={`dashboard-theme min-h-screen bg-[#f4f3f0] text-[#151515] ${theme === "dark" ? "theme-dark" : ""}`}><header className="border-b border-black/10 bg-[#111] px-5 text-white sm:px-8"><div className="mx-auto flex h-20 max-w-6xl items-center justify-between"><Link to="/" aria-label="CLCarHub home"><img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-16 w-28 object-contain object-left" /></Link><div className="flex items-center gap-4 text-sm"><span className="hidden sm:block">{displayName(user)}</span><ThemeToggle /><Link className="text-[#ffb18e] hover:text-white" to="/account">Dashboard</Link><button className="text-[#ffb18e] hover:text-white" onClick={signOut}>Sign out</button></div></div></header><main className="px-5 py-10 pb-28 sm:px-10 sm:pb-10">{renderedContent}</main><CustomerMobileNav active="profile" /></div>;
 }
