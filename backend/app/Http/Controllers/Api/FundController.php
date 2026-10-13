@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Fund;
 use App\Models\FundTransaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class FundController extends Controller
 {
@@ -74,8 +76,53 @@ class FundController extends Controller
         return response()->json(FundTransaction::create([...$data, 'fund_id' => $fund->id])->load('fund'), 201);
     }
 
+    public function transfer(Request $request)
+    {
+        $data = $request->validate([
+            'source_fund_id' => ['required', 'integer', 'different:destination_fund_id', 'exists:funds,id'],
+            'destination_fund_id' => ['required', 'integer', 'exists:funds,id'],
+            'transacted_at' => ['required', 'date'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $transferId = (string) Str::uuid();
+        $transactions = DB::transaction(function () use ($data, $transferId, $request): array {
+            $funds = Fund::query()
+                ->whereIn('id', [(int) $data['source_fund_id'], (int) $data['destination_fund_id']])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+            $source = $funds->get((int) $data['source_fund_id']);
+            $destination = $funds->get((int) $data['destination_fund_id']);
+            abort_unless($source && $destination, 404, 'Both funds must exist.');
+
+            $balance = (float) $source->opening_balance
+                + (float) $source->transactions()->where('type', 'inflow')->sum('amount')
+                - (float) $source->transactions()->where('type', 'outflow')->sum('amount');
+            abort_if((float) $data['amount'] > $balance, 422, 'The source fund does not have enough available balance.');
+
+            $description = "Transfer {$transferId}";
+            $common = [
+                'transacted_at' => $data['transacted_at'],
+                'amount' => $data['amount'],
+                'notes' => trim(($data['notes'] ?? '')."\nTransfer ID: {$transferId}"),
+                'transfer_reference' => $transferId,
+                'created_by' => $request->user()?->id,
+            ];
+            return [
+                FundTransaction::create([...$common, 'fund_id' => $source->id, 'type' => 'outflow', 'description' => "Transfer to {$destination->name}"])->load('fund'),
+                FundTransaction::create([...$common, 'fund_id' => $destination->id, 'type' => 'inflow', 'description' => "Transfer from {$source->name}"])->load('fund'),
+            ];
+        });
+
+        return response()->json(['transactions' => $transactions], 201);
+    }
+
     public function updateTransaction(Request $request, FundTransaction $transaction)
     {
+        abort_if($transaction->transfer_reference, 422, 'Fund transfer transactions cannot be edited as standalone transactions.');
         $data = $request->validate($this->transactionRules());
         $transaction->update($data);
         if ($transaction->payment_id) {
@@ -87,6 +134,7 @@ class FundController extends Controller
     public function destroyTransaction(FundTransaction $transaction)
     {
         abort_if($transaction->payment?->provider === 'paymongo', 422, 'PayMongo fund transactions cannot be deleted.');
+        abort_if($transaction->transfer_reference, 422, 'Fund transfer transactions cannot be deleted as standalone transactions.');
         $transaction->delete();
         return response()->noContent();
     }
