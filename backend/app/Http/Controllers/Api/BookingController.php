@@ -273,6 +273,8 @@ class BookingController extends Controller
         $booking->update($data);
         if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
             $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $booking->status, 'reason' => $reason, 'changed_by' => $request->user()?->id]);
+        } elseif ($reason !== null && trim($reason) !== '') {
+            $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $oldStatus, 'reason' => trim($reason), 'changed_by' => $request->user()?->id]);
         }
         $booking->refresh();
         $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->actual_return_at ?? $booking->return_at, $vehicle, $booking->rental_rate);
