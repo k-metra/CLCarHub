@@ -74,6 +74,12 @@ class OAuthController extends Controller
                         'email' => $user->email,
                     ]);
                 }
+                if ($user->role === 'customer' && ! $user->customer()->exists()) {
+                    $user->customer()->create([
+                        'name' => $user->name,
+                        'email' => $user->email,
+                    ]);
+                }
 
                 SocialAccount::create([
                     'user_id' => $user->id,

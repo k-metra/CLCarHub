@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\FleetSettingController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\PayMongoController;
+use App\Http\Controllers\Api\AddonController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +28,7 @@ Route::post('/auth/resend-verification', [AuthController::class, 'resendVerifica
 Route::get('/vehicles', [VehicleController::class, 'index']);
 Route::get('/vehicles/featured', [VehicleController::class, 'featured']);
 Route::get('/vehicles/availability', [VehicleController::class, 'available']);
+Route::get('/addons', [AddonController::class, 'index']);
 Route::get('/legal-settings', [FleetSettingController::class, 'legal']);
 Route::middleware(['auth:sanctum', EnsureRole::class.':owner,co_owner,it_management'])
     ->get('/vehicles/locations', [VehicleController::class, 'fleetLocations']);
@@ -54,6 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/vehicles/{vehicle}/gallery-image/{imageType}', [VehicleController::class, 'deleteGalleryImage']);
         Route::post('/vehicles/{vehicle}/restore', [VehicleController::class, 'restore']);
         Route::apiResource('partners', PartnerController::class);
+        Route::apiResource('addons', AddonController::class)->except(['index', 'show']);
         Route::put('/fleet-settings', [FleetSettingController::class, 'update']);
     });
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->group(function () {

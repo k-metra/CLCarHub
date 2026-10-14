@@ -7,7 +7,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use App\Observers\AuditObserver;
-use App\Models\{Appointment, Booking, BookingStatusHistory, Contract, Customer, CustomerAttachment, Expense, FleetSetting, Fund, FundTransaction, IpBlock, Partner, Payment, User, Vehicle, VehicleImage, VehicleMaintenance};
+use App\Models\{Addon, Appointment, Booking, BookingStatusHistory, Contract, Customer, CustomerAttachment, Expense, FleetSetting, Fund, FundTransaction, IpBlock, Partner, Payment, User, Vehicle, VehicleImage, VehicleMaintenance};
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -31,7 +31,7 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by('booking-ip:'.$request->ip());
         });
 
-        foreach ([Appointment::class, Booking::class, BookingStatusHistory::class, Contract::class, Customer::class, CustomerAttachment::class, Expense::class, FleetSetting::class, Fund::class, FundTransaction::class, IpBlock::class, Partner::class, Payment::class, User::class, Vehicle::class, VehicleImage::class, VehicleMaintenance::class] as $model) {
+        foreach ([Addon::class, Appointment::class, Booking::class, BookingStatusHistory::class, Contract::class, Customer::class, CustomerAttachment::class, Expense::class, FleetSetting::class, Fund::class, FundTransaction::class, IpBlock::class, Partner::class, Payment::class, User::class, Vehicle::class, VehicleImage::class, VehicleMaintenance::class] as $model) {
             $model::observe(AuditObserver::class);
         }
     }

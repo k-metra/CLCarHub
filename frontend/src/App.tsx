@@ -9,6 +9,7 @@ const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
 const BookingsPage = lazy(() => import("./pages/BookingsPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const VehiclesPage = lazy(() => import("./pages/VehiclesPage"));
+const AddOnsPage = lazy(() => import("./pages/AddOnsPage"));
 const CustomerAccountPage = lazy(() => import("./pages/CustomerAccountPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/account" element={<CustomerAccountPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin/vehicles" element={<VehiclesPage />} />
+          <Route path="/admin/add-ons" element={<AddOnsPage />} />
           <Route path="/admin/fleet-settings" element={<FleetSettingsPage />} />
           <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
           <Route path="/admin/bookings" element={<BookingsPage />} />
