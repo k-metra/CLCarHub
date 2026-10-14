@@ -114,12 +114,14 @@ class BookingController extends Controller
                 'discount' => 0,
                 'deposit' => $securityDeposit,
                 'extension_fees' => $rentalBreakdown['extension'],
-                'total_amount' => $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, 0, 0, $rentalBreakdown['extension'], (float) $delivery['delivery_fee'] + (float) $delivery['return_pickup_fee'], $fleetSettings),
+                'total_amount' => $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) $addonBreakdown['total'], 0, $rentalBreakdown['extension'], (float) $delivery['delivery_fee'] + (float) $delivery['return_pickup_fee'], $fleetSettings),
                 'created_by' => $request->user()->id,
             ]);
             if ($paymentAmount !== null) {
                 $minimum = (float) $fleetSettings->reservation_fee;
-                abort_if((float) $paymentAmount < $minimum || (float) $paymentAmount > (float) $booking->total_amount, 422, 'Payment must be at least the reservation fee and no more than the booking total.');
+                $paymentAmount = round((float) $paymentAmount, 2);
+                $bookingTotal = round((float) $booking->total_amount, 2);
+                abort_if($paymentAmount < round($minimum, 2) || $paymentAmount > $bookingTotal, 422, 'Payment must be at least the reservation fee and no more than the booking total.');
             }
             app(PushNotificationService::class)->sendToAdmins(
                 'New booking',
@@ -134,8 +136,9 @@ class BookingController extends Controller
         $paymentAmount = $data['payment_amount'] ?? null;
         if ($paymentAmount !== null) {
             $fleetSettings = FleetSetting::findOrFail(1);
-            $minimum = (float) $fleetSettings->reservation_fee;
-            $total = (float) $booking->total_amount;
+            $paymentAmount = round((float) $paymentAmount, 2);
+            $minimum = round((float) $fleetSettings->reservation_fee, 2);
+            $total = round((float) $booking->total_amount, 2);
             abort_if($paymentAmount < $minimum || $paymentAmount > $total, 422, 'Payment must be at least the reservation fee and no more than the booking total.');
             $session = app(PayMongoService::class)->createCheckoutSession($booking, (float) $paymentAmount);
             $booking->update(['paymongo_checkout_session_id' => $session['id']]);
