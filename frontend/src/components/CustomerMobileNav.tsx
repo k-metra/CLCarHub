@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 type CustomerMobileNavProps = { active?: "home" | "starred" | "bookings" | "profile" };
 
 const items = [
-  { key: "home", icon: "⌂", label: "Home", to: "/account" },
+  { key: "home", icon: "⌂", label: "Home", to: "/account?tab=overview" },
   { key: "starred", icon: "☆", label: "Starred", to: "/account?tab=starred" },
   { key: "bookings", icon: "□", label: "Bookings", to: "/account?tab=calendar" },
   { key: "profile", icon: "♙", label: "Profile", to: "/profile" },
