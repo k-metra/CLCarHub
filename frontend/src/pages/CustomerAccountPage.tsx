@@ -85,6 +85,13 @@ export default function CustomerAccountPage() {
   const [deliveryLocating, setDeliveryLocating] = useState(false);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
   const [returnPosition, setReturnPosition] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+    if (requestedTab === "request" || requestedTab === "starred" || requestedTab === "calendar" || requestedTab === "overview") {
+      setTab(requestedTab);
+      setSelectedBooking(null);
+    }
+  }, [searchParams]);
   const [files, setFiles] = useState<Record<AttachmentCategory, File[]>>({ license: [], secondary_id: [], ltms: [], selfie_license: [] });
   const filePreviewUrls = useMemo(() => {
     const previews: Record<AttachmentCategory, string[]> = { license: [], secondary_id: [], ltms: [], selfie_license: [] };
@@ -307,7 +314,7 @@ export default function CustomerAccountPage() {
     }
     setSubmitting(true);
     try {
-      const payment = paymentChoice === "reservation" ? reservationFee : paymentChoice === "full" ? bookingTotal : Number(downpaymentAmount);
+      const payment = Number((paymentChoice === "reservation" ? reservationFee : paymentChoice === "full" ? bookingTotal : Number(downpaymentAmount)).toFixed(2));
       if (!Number.isFinite(payment) || payment < Number(fleetSettings.reservation_fee) || payment > bookingTotal) throw new Error("Payment must be at least the reservation fee and no more than the booking total.");
       const result = await api.post<{ checkout_url?: string }>("/customer/booking-requests", { vehicle_id: Number(form.vehicle_id), addons: selectedAddonIds, ...schedule(), destination: form.destination || null, delivery_address: form.payment_method === "cash_on_delivery" ? form.delivery_address : null, delivery_latitude: form.payment_method === "cash_on_delivery" ? deliveryPosition?.[0] : null, delivery_longitude: form.payment_method === "cash_on_delivery" ? deliveryPosition?.[1] : null, return_address: form.return_location_mode === "location" ? form.return_address || null : null, return_latitude: form.return_location_mode === "location" ? returnPosition?.[0] ?? null : null, return_longitude: form.return_location_mode === "location" ? returnPosition?.[1] ?? null : null, notes: form.notes || null, payment_method: form.payment_method, payment_amount: payment });
       if (result.data.checkout_url) window.location.assign(result.data.checkout_url); else showToast("Booking request submitted.", "success");
