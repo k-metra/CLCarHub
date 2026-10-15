@@ -28,6 +28,7 @@ const VehicleDetailPage = lazy(() => import("./pages/VehicleDetailPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
 const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
 const RentalOperationsPage = lazy(() => import("./pages/RentalOperationsPage"));
+const ReviewUsPage = lazy(() => import("./pages/ReviewUsPage"));
 
 export default function App() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/vehicles/:vehicleId" element={<VehicleDetailPage />} />
           <Route path="/terms" element={<LegalPage />} />
           <Route path="/privacy" element={<LegalPage />} />
+          <Route path="/review-us" element={<ReviewUsPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
