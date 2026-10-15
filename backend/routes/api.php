@@ -56,9 +56,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/vehicles/{vehicle}/gallery-image/{imageType}', [VehicleController::class, 'deleteGalleryImage']);
         Route::post('/vehicles/{vehicle}/restore', [VehicleController::class, 'restore']);
         Route::apiResource('partners', PartnerController::class);
-        Route::apiResource('addons', AddonController::class)->except(['index', 'show']);
         Route::put('/fleet-settings', [FleetSettingController::class, 'update']);
     });
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('addons', AddonController::class)->except(['index', 'show']);
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->group(function () {
         Route::post('/customers/{customer}/ip-block', [CustomerController::class, 'blockIp']);
         Route::delete('/customers/{customer}/ip-block', [CustomerController::class, 'unblockIp']);
