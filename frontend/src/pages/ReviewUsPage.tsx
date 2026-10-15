@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import Seo from "../components/Seo";
@@ -50,6 +50,22 @@ function FacebookMark() {
 
 export default function ReviewUsPage() {
   const [platform, setPlatform] = useState<ReviewPlatform | null>(null);
+  const branchSectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (platform !== "google") {
+      return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+      branchSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [platform]);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#0b0b0b] text-[#f4f3f0]">
@@ -158,6 +174,7 @@ export default function ReviewUsPage() {
 
           {platform === "google" && (
             <section
+              ref={branchSectionRef}
               className="mt-8 border-t border-white/[.1] pt-8"
               aria-labelledby="branch-heading"
             >
