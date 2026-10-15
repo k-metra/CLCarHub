@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Addon;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +19,8 @@ class AddonController extends Controller
 
     public function index(Request $request)
     {
-        abort_unless($request->boolean('available_only') || $request->user(), 403, 'Authentication is required to view the add-on catalog.');
+        $sanctumUser = Auth::guard('sanctum')->user();
+        abort_unless($request->boolean('available_only') || $sanctumUser, 403, 'Authentication is required to view the add-on catalog.');
 
         $query = Addon::query()
             ->when($request->filled('vehicle_type'), fn ($query) => $query->whereJsonContains('vehicle_types', $request->string('vehicle_type')->toString()))
