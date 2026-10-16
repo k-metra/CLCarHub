@@ -356,6 +356,14 @@ class BookingController extends Controller
         unset($data['payments']);
         $vehicle = Vehicle::findOrFail($data['vehicle_id'] ?? $booking->vehicle_id);
         $fleetSettings = FleetSetting::findOrFail(1);
+        $effectiveStatus = $data['status'] ?? $booking->status;
+        if (
+            in_array($effectiveStatus, Booking::ACTIVE_STATUSES, true)
+            && (array_key_exists('pickup_at', $data) || array_key_exists('return_at', $data) || array_key_exists('vehicle_id', $data))
+            && ! array_key_exists('addons', $data)
+        ) {
+            $this->validateRentalAddons($booking->addons ?? [], $vehicle, $data['pickup_at'] ?? $booking->pickup_at, $data['return_at'] ?? $booking->return_at, $booking->id);
+        }
         if (array_key_exists('addons', $data)) {
             $previousAddonTotal = collect($booking->addons ?? [])->sum(fn (array $addon) => (float) ($addon['total'] ?? 0));
             foreach ($booking->addons ?? [] as $previousAddon) {
@@ -365,7 +373,7 @@ class BookingController extends Controller
                     $addon->save();
                 }
             }
-            $addonBreakdown = $this->addonBreakdown($data['addons'] ?? [], $vehicle, $data['pickup_at'] ?? $booking->pickup_at, $data['return_at'] ?? $booking->return_at);
+            $addonBreakdown = $this->addonBreakdown($data['addons'] ?? [], $vehicle, $data['pickup_at'] ?? $booking->pickup_at, $data['return_at'] ?? $booking->return_at, $booking->id);
             $baseAdditionalCharges = max(0, (float) $booking->additional_charges - $previousAddonTotal);
             $data['addons'] = $addonBreakdown['items'];
             $data['additional_charges'] = $baseAdditionalCharges + $addonBreakdown['total'];
@@ -425,7 +433,7 @@ class BookingController extends Controller
         return $customer;
     }
 
-    private function addonBreakdown(array $ids, Vehicle $vehicle, Carbon|string $pickupAt, Carbon|string $returnAt): array
+    private function addonBreakdown(array $ids, Vehicle $vehicle, Carbon|string $pickupAt, Carbon|string $returnAt, ?int $ignoreBookingId = null): array
     {
         $days = max(1, intdiv(Carbon::parse($pickupAt)->diffInMinutes(Carbon::parse($returnAt)), 24 * 60));
         $peso = "\xE2\x82\xB1";
@@ -433,7 +441,10 @@ class BookingController extends Controller
         $total = 0;
         foreach (array_count_values(array_map('intval', $ids)) as $id => $quantity) {
             $addon = Addon::lockForUpdate()->findOrFail($id);
-            abort_if($addon->status !== 'available' || ($addon->stock !== null && $addon->stock < $quantity), 422, "{$addon->name} is no longer available.");
+            $available = $addon->is_rental
+                ? $addon->availableRentalQuantity($pickupAt, $returnAt, $ignoreBookingId)
+                : ($addon->stock ?? PHP_INT_MAX);
+            abort_if($addon->status !== 'available' || $available < $quantity, 422, $this->addonUnavailableMessage($addon, $pickupAt, $returnAt));
             abort_if(! in_array($vehicle->type, $addon->vehicle_types ?? [], true), 422, "{$addon->name} is not available for this vehicle category.");
             $remaining = $days;
             $amount = 0;
@@ -464,7 +475,7 @@ class BookingController extends Controller
             $amount *= $quantity;
             $items[] = ['id' => $addon->id, 'name' => $addon->name, 'quantity' => $quantity, 'total' => round($amount, 2), 'billing_label' => implode('; ', $labels), 'is_rental' => $addon->is_rental];
             $total += $amount;
-            if ($addon->stock !== null) {
+            if (! $addon->is_rental && $addon->stock !== null) {
                 $addon->stock -= $quantity;
                 if ($addon->stock === 0) $addon->status = 'out_of_stock';
                 $addon->save();
@@ -472,6 +483,39 @@ class BookingController extends Controller
         }
 
         return ['items' => $items, 'total' => round($total, 2)];
+    }
+
+    private function validateRentalAddons(array $items, Vehicle $vehicle, Carbon|string $pickupAt, Carbon|string $returnAt, ?int $ignoreBookingId = null): void
+    {
+        foreach (collect($items)->groupBy('id') as $id => $group) {
+            $addon = Addon::lockForUpdate()->findOrFail($id);
+            if (! $addon->is_rental) {
+                continue;
+            }
+            $quantity = $group->sum(fn (array $item) => (int) ($item['quantity'] ?? 1));
+            abort_if(
+                $addon->status !== 'available'
+                    || ! in_array($vehicle->type, $addon->vehicle_types ?? [], true)
+                    || $addon->availableRentalQuantity($pickupAt, $returnAt, $ignoreBookingId) < $quantity,
+                422,
+                $this->addonUnavailableMessage($addon, $pickupAt, $returnAt)
+            );
+        }
+    }
+
+    private function addonUnavailableMessage(Addon $addon, Carbon|string $pickupAt, Carbon|string $returnAt): string
+    {
+        if ($addon->is_rental) {
+            $occupiedRanges = $addon->rentalBookingConflicts($pickupAt, $returnAt)
+                ->map(fn (Booking $booking) => Carbon::parse($booking->pickup_at)->format('M j, Y g:i A').' to '.Carbon::parse($booking->return_at)->format('M j, Y g:i A'))
+                ->implode('; ');
+
+            if ($occupiedRanges !== '') {
+                return "{$addon->name} is occupied during {$occupiedRanges}.";
+            }
+        }
+
+        return "{$addon->name} is currently unavailable.";
     }
 
     private function allowedStatusTransitions(): array
