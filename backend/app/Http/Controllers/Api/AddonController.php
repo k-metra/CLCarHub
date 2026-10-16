@@ -26,9 +26,15 @@ class AddonController extends Controller
             ->when($request->filled('vehicle_type'), fn ($query) => $query->whereJsonContains('vehicle_types', $request->string('vehicle_type')->toString()))
             ->when($request->boolean('available_only'), fn ($query) => $query->where('status', 'available')->where(fn ($query) => $query->whereNull('stock')->orWhere('stock', '>', 0)));
 
-        return $request->boolean('paginate')
+        $addons = $request->boolean('available_only') && $request->filled(['pickup_at', 'return_at'])
+            ? $query->latest()->get()->filter(fn (Addon $addon) => ! $addon->is_rental || $addon->availableRentalQuantity($request->date('pickup_at'), $request->date('return_at')) > 0)->values()
+            : null;
+
+        return $addons !== null
+            ? ($request->boolean('paginate') ? $addons->forPage(0, min(100, max(1, (int) $request->input('per_page', 50))))->values() : $addons)
+            : ($request->boolean('paginate')
             ? $query->latest()->paginate(min(100, max(1, (int) $request->input('per_page', 50))))
-            : $query->latest()->get();
+            : $query->latest()->get());
     }
 
     public function store(Request $request)
@@ -38,6 +44,7 @@ class AddonController extends Controller
         $image = $data['image'] ?? null;
         unset($data['image']);
         $data['vehicle_types'] = $this->validatedVehicleTypes($data['vehicle_types']);
+        $data['rental_quantity'] = $data['is_rental'] ? (int) ($data['rental_quantity'] ?? 1) : null;
         $data['pricing_tiers'] = $this->validatedPricingTiers($data['pricing_tiers'], (bool) $data['is_rental']);
         $data['status'] = $this->resolvedStatus($data['status'], $data['stock'] ?? null, (bool) $data['is_rental']);
         $data['image_path'] = $this->storeImage($image, (bool) ($data['remove_background'] ?? false));
@@ -53,6 +60,7 @@ class AddonController extends Controller
         $image = $data['image'] ?? null;
         unset($data['image']);
         $data['vehicle_types'] = $this->validatedVehicleTypes($data['vehicle_types']);
+        $data['rental_quantity'] = $data['is_rental'] ? (int) ($data['rental_quantity'] ?? 1) : null;
         $data['pricing_tiers'] = $this->validatedPricingTiers($data['pricing_tiers'], (bool) $data['is_rental']);
         $data['status'] = $this->resolvedStatus($data['status'], $data['stock'] ?? null, (bool) $data['is_rental']);
         $removeBackground = (bool) ($data['remove_background'] ?? false);
@@ -88,6 +96,7 @@ class AddonController extends Controller
             'pricing_tiers.*.billing' => ['required', 'in:one_time,per_day'],
             'is_rental' => ['required', 'boolean'],
             'stock' => ['nullable', 'integer', 'min:0', 'required_if:is_rental,false'],
+            'rental_quantity' => ['nullable', 'integer', 'min:1', 'required_if:is_rental,true'],
             'status' => ['required', 'in:available,unavailable,out_of_stock'],
             'image' => ['nullable', 'image', 'max:20480'],
             'remove_background' => ['sometimes', 'boolean'],
