@@ -290,7 +290,16 @@ export default function CustomerAccountPage() {
         showToast(`Unavailable: ${selectedVehicle.name || `${selectedVehicle.brand} ${selectedVehicle.model}`} is booked during ${conflictText}.`, "error");
         return;
       }
-      setSelectedAddonIds(current => current.filter(id => eligibleAddons.some(addon => addon.id === id)));
+      const addonResult = await api.get<AddonRecord[]>("/addons", {
+        params: {
+          available_only: 1,
+          vehicle_type: selectedVehicle.type,
+          pickup_at: schedule().pickup_at,
+          return_at: schedule().return_at,
+        },
+      });
+      setAddons(addonResult.data);
+      setSelectedAddonIds(current => current.filter(id => addonResult.data.some(addon => addon.id === id)));
       showToast("Vehicle is available for your selected schedule.", "success"); setStep(2);
     } catch (error) { showToast(error instanceof Error ? error.message : "Unable to check availability", "error"); } finally { setChecking(false); }
   };
