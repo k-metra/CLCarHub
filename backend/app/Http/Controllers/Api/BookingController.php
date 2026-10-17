@@ -777,19 +777,29 @@ class BookingController extends Controller
         $pickupAt = $pickupAt instanceof Carbon ? $pickupAt : Carbon::parse($pickupAt);
         $returnAt = $returnAt instanceof Carbon ? $returnAt : Carbon::parse($returnAt);
         $minutes = $pickupAt->diffInMinutes($returnAt);
+        $dailyRate = $rentalRate === null ? (float) $vehicle->daily_rate : (float) $rentalRate;
+        $halfDayRate = $vehicle->twelve_hour_rate !== null
+            ? (float) $vehicle->twelve_hour_rate
+            : $dailyRate * 0.5;
+        if ($minutes <= 12 * 60) {
+            return ['rental' => $halfDayRate, 'discount' => 0, 'discount_percent' => 0, 'extension' => 0];
+        }
         $days = intdiv($minutes, 24 * 60);
         $settings = FleetSetting::findOrFail(1);
         $remainingMinutes = $minutes % (24 * 60);
         $billableMinutes = max(0, $remainingMinutes - (int) $settings->late_return_grace_period_minutes);
         $remainingHours = (int) ceil($billableMinutes / 60);
         $hourlyRate = (float) ($vehicle->hour_extension_rate ?? $settings->default_hour_extension_rate);
-        $dailyRate = $rentalRate === null ? (float) $vehicle->daily_rate : (float) $rentalRate;
         $rentalDays = max(1, $days);
         $discountPercent = $this->discountPercent($settings, (string) $vehicle->type, $rentalDays);
         $baseRental = $rentalDays * $dailyRate;
         $discount = round($baseRental * ($discountPercent / 100), 2);
         $discountedDailyRate = $dailyRate * (1 - ($discountPercent / 100));
-        $extension = $remainingHours === 0 ? 0 : ($remainingHours >= $settings->full_day_extension_threshold_hours ? $discountedDailyRate : $remainingHours * $hourlyRate);
+        $extension = $remainingHours === 0
+            ? 0
+            : ($billableMinutes === 12 * 60
+                ? $halfDayRate
+                : ($remainingHours >= $settings->full_day_extension_threshold_hours ? $discountedDailyRate : $remainingHours * $hourlyRate));
 
         return ['rental' => max(0, $baseRental - $discount), 'discount' => $discount, 'discount_percent' => $discountPercent, 'extension' => $extension];
     }
