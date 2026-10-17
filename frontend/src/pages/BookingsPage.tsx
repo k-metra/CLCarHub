@@ -624,6 +624,7 @@ export default function BookingsPage() {
   });
   const [quickPaymentSaving, setQuickPaymentSaving] = useState(false);
   const [settlingBooking, setSettlingBooking] = useState(false);
+  const [settlementFundId, setSettlementFundId] = useState("");
   const [bookingSaving, setBookingSaving] = useState(false);
   const [invoiceGenerating, setInvoiceGenerating] = useState(false);
 
@@ -1235,12 +1236,12 @@ export default function BookingsPage() {
     }
   };
   const settleBooking = async () => {
-    if (!selectedBooking || settlingBooking || !funds.length) return;
+    if (!selectedBooking || settlingBooking || !settlementFundId) return;
     setSettlingBooking(true);
     try {
       const result = await api.post<BookingRecord>(
         `/bookings/${selectedBooking.id}/settle`,
-        { fund_id: funds[0].id },
+        { fund_id: Number(settlementFundId) },
       );
       setSelectedBooking({
         ...result.data,
@@ -1251,6 +1252,7 @@ export default function BookingsPage() {
         "Outstanding balance settled and recorded as a fund inflow.",
         "success",
       );
+      setSettlementFundId("");
     } catch (error) {
       showToast(
         error instanceof Error
@@ -1261,6 +1263,11 @@ export default function BookingsPage() {
     } finally {
       setSettlingBooking(false);
     }
+  };
+  const openSettlementConfirmation = () => {
+    if (!funds.length) return;
+    setSettlementFundId(String(funds[0].id));
+    setShowActions(false);
   };
   const requestSelectedStatus = (nextStatus: string) => {
     if (!selectedBooking) return;
@@ -1966,8 +1973,68 @@ export default function BookingsPage() {
           </form>
         </div>
       )}
+      {selectedBooking && settlementFundId && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="theme-surface w-full max-w-md bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settle-booking-title"
+          >
+            <p className="text-xs uppercase tracking-widest text-[#ff641f]">
+              Confirm settlement
+            </p>
+            <h2
+              id="settle-booking-title"
+              className="mt-2 text-xl font-semibold"
+            >
+              Settle outstanding balance?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-[#666]">
+              This will record{" "}
+              <strong className="text-[#151515]">
+                ₱{Number(selectedBooking.balance ?? 0).toLocaleString()}
+              </strong>{" "}
+              as a payment for booking {selectedBooking.reference}.
+            </p>
+            <label className="mt-5 block text-sm font-medium">
+              Deposit into fund
+              <select
+                className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
+                value={settlementFundId}
+                onChange={(event) => setSettlementFundId(event.target.value)}
+                disabled={settlingBooking}
+              >
+                {funds.map((fund) => (
+                  <option value={fund.id} key={fund.id}>
+                    {fund.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="border border-black/10 px-4 py-2 text-sm"
+                onClick={() => setSettlementFundId("")}
+                disabled={settlingBooking}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="bg-[#ff641f] px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
+                onClick={() => void settleBooking()}
+                disabled={settlingBooking || !settlementFundId}
+              >
+                {settlingBooking ? "Settling..." : "Confirm settlement"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {selectedBooking && (
-        <div className="booking-detail-panel fixed inset-x-0 bottom-0 top-20 z-[105] overflow-y-auto bg-[#f8f7f5] p-4 md:p-10 lg:left-[260px]">
+        <div className="theme-surface booking-detail-panel fixed inset-x-0 bottom-0 top-20 z-[105] overflow-y-auto bg-[#f8f7f5] p-4 md:p-10 lg:left-[260px]">
           <div className="mx-auto max-w-6xl">
             <div className="flex items-start justify-between">
               <div>
@@ -1995,7 +2062,7 @@ export default function BookingsPage() {
                   Actions
                 </button>
                 {showActions && (
-                  <div className="absolute right-0 z-10 mt-2 w-52 border border-black/10 bg-white p-1 shadow-xl">
+                  <div className="theme-surface absolute right-0 z-10 mt-2 w-52 border border-black/10 bg-white p-1 shadow-xl">
                     <button
                       disabled={invoiceGenerating}
                       className="block w-full px-3 py-2 text-left text-sm hover:bg-[#f8f7f5] disabled:opacity-50"
@@ -2039,8 +2106,7 @@ export default function BookingsPage() {
                         disabled={settlingBooking}
                         className="block w-full px-3 py-2 text-left text-sm font-semibold text-[#d94f12] hover:bg-orange-50 disabled:opacity-50"
                         onClick={() => {
-                          void settleBooking();
-                          setShowActions(false);
+                          openSettlementConfirmation();
                         }}
                       >
                         {settlingBooking ? "Settling balance..." : "Settle outstanding balance"}
