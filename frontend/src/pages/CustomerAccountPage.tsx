@@ -181,11 +181,13 @@ export default function CustomerAccountPage() {
   const rentalMinutes = form.pickup_date && form.return_date ? Math.ceil((new Date(`${form.return_date}T${form.return_time}`).getTime() - new Date(`${form.pickup_date}T${form.pickup_time}`).getTime()) / 60000) : 0;
   const extensionHours = Math.ceil(Math.max(0, (rentalMinutes % (24 * 60)) - fleetSettings.late_return_grace_period_minutes) / 60);
   const hourlyRate = Number(selectedVehicle?.hour_extension_rate ?? fleetSettings.default_hour_extension_rate);
-  const baseRentalAmount = rentalDays * Number(selectedVehicle?.daily_rate ?? 0);
+  const dailyRate = Number(selectedVehicle?.daily_rate ?? 0);
+  const twelveHourRate = selectedVehicle?.twelve_hour_rate == null ? dailyRate * 0.5 : Number(selectedVehicle.twelve_hour_rate);
+  const baseRentalAmount = rentalMinutes > 0 && rentalMinutes <= 12 * 60 ? twelveHourRate : rentalDays * dailyRate;
   const milestonePercent = discountPercent(fleetSettings.discount_structures, selectedVehicle?.type, rentalDays);
   const discountedDailyRate = discountedRental(Number(selectedVehicle?.daily_rate ?? 0), milestonePercent);
-  const extensionAmount = extensionHours === 0 ? 0 : extensionHours >= fleetSettings.full_day_extension_threshold_hours ? discountedDailyRate : extensionHours * hourlyRate;
-  const rentalAmount = discountedRental(baseRentalAmount, milestonePercent) + extensionAmount;
+  const extensionAmount = rentalMinutes > 12 * 60 ? rentalMinutes % (24 * 60) === 12 * 60 ? twelveHourRate : extensionHours === 0 ? 0 : extensionHours >= fleetSettings.full_day_extension_threshold_hours ? discountedDailyRate : extensionHours * hourlyRate : 0;
+  const rentalAmount = rentalMinutes > 0 && rentalMinutes <= 12 * 60 ? twelveHourRate : discountedRental(baseRentalAmount, milestonePercent) + extensionAmount;
   const eligibleAddons = addons.filter(addon => selectedVehicle && addon.vehicle_types.includes(selectedVehicle.type));
   const addonTotal = eligibleAddons.filter(addon => selectedAddonIds.includes(addon.id)).reduce((sum, addon) => sum + addon.pricing_tiers.reduce((tierTotal, tier) => {
     const from = Number(tier.from_day); const to = tier.to_day == null ? rentalDays : Math.min(rentalDays, Number(tier.to_day));
