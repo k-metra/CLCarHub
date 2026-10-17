@@ -11,6 +11,11 @@ class BookingReturnPhoto extends Model
     protected $guarded = ['id'];
     protected $appends = ['url'];
 
+    protected function casts(): array
+    {
+        return ['media_type' => 'string'];
+    }
+
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
