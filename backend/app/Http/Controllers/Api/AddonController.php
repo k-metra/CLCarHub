@@ -44,7 +44,7 @@ class AddonController extends Controller
         $image = $data['image'] ?? null;
         unset($data['image']);
         $data['vehicle_types'] = $this->validatedVehicleTypes($data['vehicle_types']);
-        $data['rental_quantity'] = $data['is_rental'] ? (int) ($data['rental_quantity'] ?? 1) : null;
+        $data['rental_quantity'] = $data['is_rental'] ? (int) ($data['rental_quantity'] ?? 1) : 1;
         $data['pricing_tiers'] = $this->validatedPricingTiers($data['pricing_tiers'], (bool) $data['is_rental']);
         $data['status'] = $this->resolvedStatus($data['status'], $data['stock'] ?? null, (bool) $data['is_rental']);
         $data['image_path'] = $this->storeImage($image, (bool) ($data['remove_background'] ?? false));
@@ -60,7 +60,7 @@ class AddonController extends Controller
         $image = $data['image'] ?? null;
         unset($data['image']);
         $data['vehicle_types'] = $this->validatedVehicleTypes($data['vehicle_types']);
-        $data['rental_quantity'] = $data['is_rental'] ? (int) ($data['rental_quantity'] ?? 1) : null;
+        $data['rental_quantity'] = $data['is_rental'] ? (int) ($data['rental_quantity'] ?? 1) : 1;
         $data['pricing_tiers'] = $this->validatedPricingTiers($data['pricing_tiers'], (bool) $data['is_rental']);
         $data['status'] = $this->resolvedStatus($data['status'], $data['stock'] ?? null, (bool) $data['is_rental']);
         $removeBackground = (bool) ($data['remove_background'] ?? false);
