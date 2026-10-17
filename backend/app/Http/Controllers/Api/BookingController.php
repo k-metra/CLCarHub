@@ -97,7 +97,7 @@ class BookingController extends Controller
                 'The vehicle is not available for the selected period.'
             );
 
-            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null);
+            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null, null);
             $rental = $rentalBreakdown['rental'];
             $addonBreakdown = $this->addonBreakdown($data['addons'] ?? [], $vehicle, $data['pickup_at'], $data['return_at']);
             $fleetSettings = FleetSetting::findOrFail(1);
@@ -215,7 +215,7 @@ class BookingController extends Controller
         return DB::transaction(function () use ($data, $payments, $request) {
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
             abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
-            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null);
+            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null, $data['discount_percent_override'] ?? null);
             $rental = $rentalBreakdown['rental'];
             $addonBreakdown = $this->addonBreakdown($data['addons'] ?? [], $vehicle, $data['pickup_at'], $data['return_at']);
             $fleetSettings = FleetSetting::findOrFail(1);
@@ -467,7 +467,7 @@ class BookingController extends Controller
             $data['addons'] = $addonBreakdown['items'];
             $data['additional_charges'] = $baseAdditionalCharges + $addonBreakdown['total'];
         }
-        if (array_key_exists('delivery_address', $data) || array_key_exists('delivery_latitude', $data) || array_key_exists('delivery_longitude', $data) || array_key_exists('return_address', $data) || array_key_exists('return_latitude', $data) || array_key_exists('return_longitude', $data) || array_key_exists('payment_method', $data) || array_key_exists('vehicle_id', $data)) {
+        if (array_key_exists('delivery_address', $data) || array_key_exists('delivery_latitude', $data) || array_key_exists('delivery_longitude', $data) || array_key_exists('return_address', $data) || array_key_exists('return_latitude', $data) || array_key_exists('return_longitude', $data) || array_key_exists('payment_method', $data) || array_key_exists('vehicle_id', $data) || array_key_exists('delivery_rate_override', $data) || array_key_exists('custom_delivery_fee', $data)) {
             $data = [...$data, ...$this->deliveryBreakdown([...$booking->toArray(), ...$data], $vehicle, $fleetSettings)];
         }
         $booking->update([...$data, 'assigned_to_user_id' => $assignedToUserId]);
@@ -477,7 +477,7 @@ class BookingController extends Controller
             $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $oldStatus, 'reason' => trim($reason), 'changed_by' => $request->user()?->id]);
         }
         $booking->refresh();
-        $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->actual_return_at ?? $booking->return_at, $vehicle, $booking->rental_rate);
+        $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->actual_return_at ?? $booking->return_at, $vehicle, $booking->rental_rate, $booking->discount_percent_override);
         $booking->rental_amount = $rentalBreakdown['rental'];
         $booking->rental_discount = $rentalBreakdown['discount'];
         if (! array_key_exists('extension_fees', $data)) {
@@ -523,7 +523,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_override' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'custom_delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'discount_percent_override' => ['nullable', 'numeric', 'between:0,100'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function authenticatedCustomer(Request $request)
@@ -742,9 +742,11 @@ class BookingController extends Controller
         }
         abort_if($originLat === null || $originLon === null, 422, 'Delivery fees are not available because the garage location has not been configured.');
         $vehicleRate = $vehicle->delivery_rate_per_km === null ? null : (float) $vehicle->delivery_rate_per_km;
-        $rate = $vehicleRate !== null && $vehicleRate > 0
+        $rate = array_key_exists('delivery_rate_override', $data) && $data['delivery_rate_override'] !== null
+            ? (float) $data['delivery_rate_override']
+            : ($vehicleRate !== null && $vehicleRate > 0
             ? $vehicleRate
-            : (float) $settings->default_delivery_rate_per_km;
+            : (float) $settings->default_delivery_rate_per_km);
 
         $routeDistance = function (float $latitude, float $longitude, string $error) use ($originLat, $originLon): float {
             $route = Http::withOptions(['verify' => env('ROUTING_CA_BUNDLE', true)])
@@ -761,7 +763,11 @@ class BookingController extends Controller
             ? $routeDistance((float) $data['return_latitude'], (float) $data['return_longitude'], 'Unable to calculate the return pickup distance. Please try another location.')
             : null;
 
-        return ['delivery_distance_km' => $deliveryDistance, 'delivery_rate_per_km' => $rate, 'delivery_fee' => $deliveryDistance === null ? 0 : round($deliveryDistance * $rate, 2), 'delivery_latitude' => $hasDelivery ? (float) $data['delivery_latitude'] : null, 'delivery_longitude' => $hasDelivery ? (float) $data['delivery_longitude'] : null, 'return_distance_km' => $returnDistance, 'return_pickup_fee' => $returnDistance === null ? 0 : round($returnDistance * 2 * $rate, 2)];
+        $deliveryFee = array_key_exists('custom_delivery_fee', $data) && $data['custom_delivery_fee'] !== null
+            ? (float) $data['custom_delivery_fee']
+            : ($deliveryDistance === null ? 0 : round($deliveryDistance * $rate, 2));
+
+        return ['delivery_distance_km' => $deliveryDistance, 'delivery_rate_per_km' => $rate, 'delivery_fee' => $deliveryFee, 'delivery_latitude' => $hasDelivery ? (float) $data['delivery_latitude'] : null, 'delivery_longitude' => $hasDelivery ? (float) $data['delivery_longitude'] : null, 'return_distance_km' => $returnDistance, 'return_pickup_fee' => $returnDistance === null ? 0 : round($returnDistance * 2 * $rate, 2)];
     }
 
     private function hasCoordinates(array $data, string $latitudeKey, string $longitudeKey): bool
@@ -772,7 +778,7 @@ class BookingController extends Controller
             && is_numeric($data[$longitudeKey]);
     }
 
-    private function rentalBreakdown(Carbon|string $pickupAt, Carbon|string $returnAt, Vehicle $vehicle, float|string|null $rentalRate = null): array
+    private function rentalBreakdown(Carbon|string $pickupAt, Carbon|string $returnAt, Vehicle $vehicle, float|string|null $rentalRate = null, float|string|null $discountPercentOverride = null): array
     {
         $pickupAt = $pickupAt instanceof Carbon ? $pickupAt : Carbon::parse($pickupAt);
         $returnAt = $returnAt instanceof Carbon ? $returnAt : Carbon::parse($returnAt);
@@ -782,7 +788,9 @@ class BookingController extends Controller
             ? (float) $vehicle->twelve_hour_rate
             : $dailyRate * 0.5;
         if ($minutes <= 12 * 60) {
-            return ['rental' => $halfDayRate, 'discount' => 0, 'discount_percent' => 0, 'extension' => 0];
+            $discountPercent = $discountPercentOverride === null ? 0 : (float) $discountPercentOverride;
+            $discount = round($halfDayRate * ($discountPercent / 100), 2);
+            return ['rental' => max(0, $halfDayRate - $discount), 'discount' => $discount, 'discount_percent' => $discountPercent, 'extension' => 0];
         }
         $days = intdiv($minutes, 24 * 60);
         $settings = FleetSetting::findOrFail(1);
@@ -791,14 +799,17 @@ class BookingController extends Controller
         $remainingHours = (int) ceil($billableMinutes / 60);
         $hourlyRate = (float) ($vehicle->hour_extension_rate ?? $settings->default_hour_extension_rate);
         $rentalDays = max(1, $days);
-        $discountPercent = $this->discountPercent($settings, (string) $vehicle->type, $rentalDays);
+        $discountPercent = $discountPercentOverride === null
+            ? $this->discountPercent($settings, (string) $vehicle->type, $rentalDays)
+            : (float) $discountPercentOverride;
         $baseRental = $rentalDays * $dailyRate;
         $discount = round($baseRental * ($discountPercent / 100), 2);
         $discountedDailyRate = $dailyRate * (1 - ($discountPercent / 100));
+        $discountedHalfDayRate = $halfDayRate * (1 - ($discountPercent / 100));
         $extension = $remainingHours === 0
             ? 0
             : ($billableMinutes === 12 * 60
-                ? $halfDayRate
+                ? $discountedHalfDayRate
                 : ($remainingHours >= $settings->full_day_extension_threshold_hours ? $discountedDailyRate : $remainingHours * $hourlyRate));
 
         return ['rental' => max(0, $baseRental - $discount), 'discount' => $discount, 'discount_percent' => $discountPercent, 'extension' => $extension];
