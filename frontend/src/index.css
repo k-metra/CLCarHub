@@ -127,10 +127,37 @@ html.theme-dark .dashboard-theme [class~="hover:text-[#151515]"]:hover {
 html.theme-dark .dashboard-theme [class~="bg-orange-50"] {
   background-color: #4a281b;
 }
+html.theme-dark .dashboard-theme [class~="bg-amber-50\/70"] {
+  background-color: #332b1a;
+}
+html.theme-dark .dashboard-theme [class~="bg-amber-100"] {
+  background-color: #4a3a18;
+}
+html.theme-dark .dashboard-theme [class~="bg-amber-200"] {
+  background-color: #6b531f;
+}
+html.theme-dark .dashboard-theme [class~="bg-white\/80"] {
+  background-color: #242424;
+}
 html.theme-dark .dashboard-theme [class~="text-orange-700"],
 html.theme-dark .dashboard-theme [class~="text-[#d94f12]"],
 html.theme-dark .dashboard-theme [class~="text-[#d94d10]"] {
   color: #ffb18e;
+}
+html.theme-dark .dashboard-theme [class~="text-amber-950"],
+html.theme-dark .dashboard-theme [class~="text-amber-900"] {
+  color: #f4e4b0;
+}
+html.theme-dark .dashboard-theme [class~="text-amber-800"] {
+  color: #ddc785;
+}
+html.theme-dark .dashboard-theme [class~="text-amber-700"] {
+  color: #d8bd68;
+}
+html.theme-dark .dashboard-theme [class~="border-amber-300"],
+html.theme-dark .dashboard-theme [class~="border-amber-200"],
+html.theme-dark .dashboard-theme [class~="border-amber-700"] {
+  border-color: #806a2c;
 }
 html.theme-dark .dashboard-theme [class~="bg-yellow-100/70"],
 html.theme-dark .dashboard-theme [class~="bg-amber-50"] {
