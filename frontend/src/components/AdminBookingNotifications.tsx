@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import type { BookingRecord, Paginated, VehicleRecord } from "../types";
+import { useAuth } from "../lib/AuthContext";
 
 const SOUND_KEY = "clcarhub_admin_notification_sound";
 const DESKTOP_KEY = "clcarhub_admin_desktop_notifications";
@@ -18,7 +19,7 @@ type Notice = {
   url: string;
 };
 type Snapshot = {
-  bookings: Record<number, { status: string; paymentIds: number[]; creatorRole?: string; creatorName?: string }>;
+  bookings: Record<number, { status: string; paymentIds: number[]; creatorRole?: string; creatorName?: string; assignedToUserId?: number | null }>;
   vehicles: number[];
   transactions: number[];
   expenses: number[];
@@ -72,11 +73,13 @@ function playNotificationSound() {
 }
 
 function snapshotBookings(bookings: BookingRecord[]) {
-  return Object.fromEntries(bookings.map(booking => [booking.id, { status: booking.status, paymentIds: (booking.payments ?? []).map(payment => payment.id), creatorRole: booking.creator?.role, creatorName: booking.creator?.name }]));
+  return Object.fromEntries(bookings.map(booking => [booking.id, { status: booking.status, paymentIds: (booking.payments ?? []).map(payment => payment.id), creatorRole: booking.creator?.role, creatorName: booking.creator?.name, assignedToUserId: booking.assigned_to_user_id ?? null }]));
 }
 
 export function AdminBookingNotifications() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.id;
   const [notices, setNotices] = useState<Notice[]>(() => readJson<Notice[]>(NOTICES_KEY, []));
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(() => readJson<number>(UNREAD_KEY, 0));
@@ -171,6 +174,15 @@ export function AdminBookingNotifications() {
         };
         bookings.forEach(booking => {
           const previous = snapshot.current.bookings[booking.id];
+          if (userId && booking.assigned_to_user_id === userId && previous?.assignedToUserId !== userId) {
+            addNotice({
+              key: `booking-assigned-${booking.id}-${booking.assigned_to_user_id}`,
+              title: "Booking assigned to you",
+              body: `${booking.reference} for ${booking.customer?.name ?? "a customer"} is assigned to you.`,
+              receivedAt: Date.now(),
+              url: `/admin/bookings?booking=${booking.id}`,
+            });
+          }
           if (!previous) {
             const customerSubmitted = booking.creator?.role === "customer";
             addNotice({
@@ -219,7 +231,7 @@ export function AdminBookingNotifications() {
       document.removeEventListener("visibilitychange", refreshOnActivity);
       window.removeEventListener("online", refreshOnActivity);
     };
-  }, []);
+  }, [userId]);
 
   const toggleDesktopNotifications = async () => {
     if (!("Notification" in window)) return;
