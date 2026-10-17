@@ -81,6 +81,8 @@ type BookingForm = {
   car_wash_fees: string;
   extension_fees: string;
   additional_charges: string;
+  security_deposit_type: "cash" | "asset";
+  security_deposit_asset: string;
   addons: number[];
   payments: Payment[];
   status: string;
@@ -120,6 +122,8 @@ const emptyForm: BookingForm = {
   car_wash_fees: "",
   extension_fees: "",
   additional_charges: "",
+  security_deposit_type: "cash",
+  security_deposit_asset: "",
   addons: [],
   payments: [],
   status: "pending",
@@ -625,6 +629,14 @@ export default function BookingsPage() {
   const [quickPaymentSaving, setQuickPaymentSaving] = useState(false);
   const [settlingBooking, setSettlingBooking] = useState(false);
   const [settlementFundId, setSettlementFundId] = useState("");
+  const [returningSecurityDeposit, setReturningSecurityDeposit] =
+    useState(false);
+  const [confirmingSecurityDepositReturn, setConfirmingSecurityDepositReturn] =
+    useState(false);
+  const [confirmingAllSecurityDeposits, setConfirmingAllSecurityDeposits] =
+    useState(false);
+  const [returningAllSecurityDeposits, setReturningAllSecurityDeposits] =
+    useState(false);
   const [bookingSaving, setBookingSaving] = useState(false);
   const [invoiceGenerating, setInvoiceGenerating] = useState(false);
 
@@ -991,6 +1003,8 @@ export default function BookingsPage() {
       damage_fees: booking.damage_fees ?? "",
       car_wash_fees: booking.car_wash_fees ?? "",
       extension_fees: booking.extension_fees ?? "",
+      security_deposit_type: booking.security_deposit_type ?? "cash",
+      security_deposit_asset: booking.security_deposit_asset ?? "",
       payments:
         booking.payments?.map((payment) => ({
           amount: payment.amount,
@@ -1269,6 +1283,64 @@ export default function BookingsPage() {
     setSettlementFundId(String(funds[0].id));
     setShowActions(false);
   };
+  const returnSecurityDeposit = async () => {
+    if (!selectedBooking || returningSecurityDeposit) return;
+    setReturningSecurityDeposit(true);
+    try {
+      const result = await api.post<BookingRecord>(
+        `/bookings/${selectedBooking.id}/security-deposit/return`,
+      );
+      setSelectedBooking({
+        ...result.data,
+        returnPhotos: returnPhotos(result.data),
+      });
+      await loadBookings();
+      setConfirmingSecurityDepositReturn(false);
+      showToast("Security deposit marked as returned.", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Unable to mark the security deposit as returned.",
+        "error",
+      );
+    } finally {
+      setReturningSecurityDeposit(false);
+    }
+  };
+  const returnAllSecurityDeposits = async () => {
+    if (
+      returningAllSecurityDeposits ||
+      pendingSecurityDepositReturns.length === 0
+    )
+      return;
+    setReturningAllSecurityDeposits(true);
+    try {
+      const result = await api.post<{ returned: number }>(
+        "/bookings/security-deposits/return-all",
+        {
+          booking_ids: pendingSecurityDepositReturns.map(
+            (booking) => booking.id,
+          ),
+        },
+      );
+      await loadBookings();
+      setConfirmingAllSecurityDeposits(false);
+      showToast(
+        `${result.data.returned} security deposit${result.data.returned === 1 ? "" : "s"} marked as returned.`,
+        "success",
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Unable to confirm all security deposit returns.",
+        "error",
+      );
+    } finally {
+      setReturningAllSecurityDeposits(false);
+    }
+  };
   const requestSelectedStatus = (nextStatus: string) => {
     if (!selectedBooking) return;
     requestStatusChange(selectedBooking, nextStatus);
@@ -1350,7 +1422,10 @@ export default function BookingsPage() {
     0,
   );
   const reservationFee = Number(fleetSettings.reservation_fee);
-  const securityDeposit = Number(selectedVehicle?.security_deposit_fee ?? 0);
+  const securityDeposit =
+    form.security_deposit_type === "cash"
+      ? Number(selectedVehicle?.security_deposit_fee ?? 0)
+      : 0;
   const deliveryFee = Number(form.delivery_fee || 0);
   const returnPickupFee = Number(form.return_pickup_fee || 0);
   const formTotal =
@@ -1535,6 +1610,14 @@ export default function BookingsPage() {
         Number(selectedBooking.additional_charges ?? 0) - ledgerAddonTotal,
       )
     : 0;
+  const pendingSecurityDepositReturns = bookings.filter(
+    (booking) =>
+      booking.status === "complete" &&
+      !booking.security_deposit_returned_at &&
+      (booking.security_deposit_type === "asset"
+        ? Boolean(booking.security_deposit_asset)
+        : Number(booking.deposit ?? 0) > 0),
+  );
   return (
     <>
       <ConfirmDialog
@@ -1973,6 +2056,126 @@ export default function BookingsPage() {
           </form>
         </div>
       )}
+      {selectedBooking &&
+        confirmingSecurityDepositReturn &&
+        !selectedBooking.security_deposit_returned_at && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 p-4">
+            <div
+              className="theme-surface w-full max-w-md bg-white p-6 shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="return-security-deposit-title"
+            >
+              <p className="text-xs uppercase tracking-widest text-[#ff641f]">
+                Confirm return
+              </p>
+              <h2
+                id="return-security-deposit-title"
+                className="mt-2 text-xl font-semibold"
+              >
+                Mark security deposit as returned?
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-[#666]">
+                Confirm that the{" "}
+                <strong className="text-[#151515]">
+                  {selectedBooking.security_deposit_type === "asset"
+                    ? selectedBooking.security_deposit_asset
+                    : `₱${Number(selectedBooking.deposit ?? 0).toLocaleString()} cash deposit`}
+                </strong>{" "}
+                was returned to the customer.
+              </p>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="border border-black/10 px-4 py-2 text-sm"
+                  onClick={() => setConfirmingSecurityDepositReturn(false)}
+                  disabled={returningSecurityDeposit}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="bg-[#ff641f] px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
+                  onClick={() => void returnSecurityDeposit()}
+                  disabled={returningSecurityDeposit}
+                >
+                  {returningSecurityDeposit
+                    ? "Saving..."
+                    : "Confirm returned"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      {confirmingAllSecurityDeposits &&
+        pendingSecurityDepositReturns.length > 0 && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 p-4">
+            <div
+              className="theme-surface w-full max-w-lg bg-white p-6 shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="return-all-security-deposits-title"
+            >
+              <p className="text-xs uppercase tracking-widest text-[#ff641f]">
+                Bulk return confirmation
+              </p>
+              <h2
+                id="return-all-security-deposits-title"
+                className="mt-2 text-xl font-semibold"
+              >
+                Confirm return of all security deposits?
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-[#666]">
+                This will mark all{" "}
+                <strong className="text-[#151515]">
+                  {pendingSecurityDepositReturns.length} outstanding deposits
+                </strong>{" "}
+                as returned. Only use this after every listed cash deposit or
+                held asset has been handed back to its customer.
+              </p>
+              <div className="mt-4 max-h-48 space-y-2 overflow-y-auto rounded border border-black/10 p-3 text-sm">
+                {pendingSecurityDepositReturns.map((booking) => (
+                  <div
+                    className="flex items-center justify-between gap-3"
+                    key={booking.id}
+                  >
+                    <span className="min-w-0 truncate">
+                      <span className="font-semibold">{booking.reference}</span>
+                      <span className="ml-2 text-[#777]">
+                        {booking.customer?.name || "Customer unavailable"}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs text-[#777]">
+                      {booking.security_deposit_type === "asset"
+                        ? "Asset"
+                        : `₱${Number(booking.deposit ?? 0).toLocaleString()}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="border border-black/10 px-4 py-2 text-sm"
+                  onClick={() => setConfirmingAllSecurityDeposits(false)}
+                  disabled={returningAllSecurityDeposits}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="bg-[#ff641f] px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
+                  onClick={() => void returnAllSecurityDeposits()}
+                  disabled={returningAllSecurityDeposits}
+                >
+                  {returningAllSecurityDeposits
+                    ? "Confirming..."
+                    : "Confirm return all"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       {selectedBooking && settlementFundId && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 p-4">
           <div
@@ -2053,6 +2256,31 @@ export default function BookingsPage() {
                 <p className="mt-1 text-sm text-[#777]">
                   {statusLabel(selectedBooking.status)}
                 </p>
+                {selectedBooking.status === "complete" &&
+                  !selectedBooking.security_deposit_returned_at &&
+                  (selectedBooking.security_deposit_type === "asset"
+                    ? Boolean(selectedBooking.security_deposit_asset)
+                    : Number(selectedBooking.deposit ?? 0) > 0) && (
+                    <div className="mt-4 max-w-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                      <p className="font-semibold">
+                        Security deposit still needs to be returned
+                      </p>
+                      <p className="mt-1">
+                        {selectedBooking.security_deposit_type === "asset"
+                          ? selectedBooking.security_deposit_asset
+                          : `₱${Number(selectedBooking.deposit ?? 0).toLocaleString()} cash deposit`}
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-3 border border-amber-700 px-3 py-2 text-xs font-bold text-amber-900"
+                        onClick={() =>
+                          setConfirmingSecurityDepositReturn(true)
+                        }
+                      >
+                        Confirm deposit returned
+                      </button>
+                    </div>
+                  )}
               </div>
               <div className="relative">
                 <button
@@ -2388,13 +2616,22 @@ export default function BookingsPage() {
                         </p>
                       </div>{" "}
                       <div>
-                        <p className="text-xs text-[#888]">Security deposit</p>
+                        <p className="text-xs text-[#888]">Security deposit held</p>
                         <p className="mt-1 font-semibold">
-                          ₱
-                          {Number(
-                            selectedBooking.vehicle?.security_deposit_fee ?? 0,
-                          ).toLocaleString()}
+                          {selectedBooking.security_deposit_type === "asset"
+                            ? selectedBooking.security_deposit_asset || "Asset"
+                            : Number(selectedBooking.deposit ?? 0) > 0
+                              ? `₱${Number(selectedBooking.deposit ?? 0).toLocaleString()} cash`
+                              : "None"}
                         </p>
+                        {selectedBooking.security_deposit_returned_at && (
+                          <p className="mt-1 text-xs text-emerald-700">
+                            Returned{" "}
+                            {new Date(
+                              selectedBooking.security_deposit_returned_at,
+                            ).toLocaleDateString()}
+                          </p>
+                        )}
                       </div>{" "}
                       <div>
                         <p className="text-xs text-[#888]">Delivery fee</p>
@@ -2637,10 +2874,101 @@ export default function BookingsPage() {
               + Add booking
             </button>
           </div>
+          {pendingSecurityDepositReturns.length > 0 && (
+            <div className="mt-5 overflow-hidden rounded-lg border border-amber-300 bg-amber-50/70 text-amber-950 shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-amber-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-5">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-200 text-lg text-amber-900">
+                    !
+                  </span>
+                  <div>
+                    <p className="font-semibold">
+                      Security deposits awaiting return
+                    </p>
+                    <p className="mt-1 text-xs text-amber-800">
+                      {pendingSecurityDepositReturns.length} completed booking
+                      {pendingSecurityDepositReturns.length === 1 ? "" : "s"}{" "}
+                      still need{pendingSecurityDepositReturns.length === 1 ? "s" : ""}{" "}
+                      a return confirmation.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  <span className="rounded-full bg-amber-200 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-900">
+                    Action required
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded bg-[#ff641f] px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#e95716]"
+                    onClick={() => setConfirmingAllSecurityDeposits(true)}
+                  >
+                    Confirm return all
+                  </button>
+                </div>
+              </div>
+              <div className="grid gap-3 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-3">
+                {pendingSecurityDepositReturns.slice(0, 6).map((booking) => {
+                  const vehicle = booking.vehicle;
+                  const vehicleImage = vehicle ? vehicleImageUrl(vehicle) : null;
+                  const returnedAt =
+                    booking.actual_return_at ?? booking.return_at;
+                  return (
+                    <button
+                      type="button"
+                      className="group flex min-w-0 items-center gap-3 rounded-md border border-amber-200 bg-white/80 p-3 text-left transition hover:border-[#ff641f] hover:bg-white"
+                      key={booking.id}
+                      onClick={() => void openDetails(booking)}
+                    >
+                      <span className="h-16 w-20 shrink-0 overflow-hidden rounded bg-amber-100">
+                        {vehicleImage ? (
+                          <img
+                            src={vehicleImage}
+                            alt=""
+                            className="h-full w-full object-cover transition group-hover:scale-105"
+                          />
+                        ) : (
+                          <span className="flex h-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                            No image
+                          </span>
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-bold text-[#ff641f]">
+                          {booking.reference}
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm font-semibold">
+                          {vehicle
+                            ? `${vehicle.brand} ${vehicle.model}`
+                            : "Vehicle unavailable"}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-amber-800">
+                          {booking.customer?.name || "Customer unavailable"}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-amber-700">
+                          Returned {bookingDateTime(returnedAt)}
+                        </span>
+                        <span className="mt-1 block truncate text-xs font-medium text-amber-900">
+                          {booking.security_deposit_type === "asset"
+                            ? booking.security_deposit_asset || "Held asset"
+                            : `Cash · ₱${Number(booking.deposit ?? 0).toLocaleString()}`}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {pendingSecurityDepositReturns.length > 6 && (
+                <p className="border-t border-amber-200 px-5 py-3 text-xs text-amber-800">
+                  Showing 6 of {pendingSecurityDepositReturns.length}. Open the
+                  booking list to review the remaining notices.
+                </p>
+              )}
+            </div>
+          )}
           {showForm && (
             <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
               <form
-                className="max-h-[85vh] w-full max-w-[64rem] overflow-y-auto bg-white p-6 shadow-2xl"
+                className="theme-surface max-h-[85vh] w-full max-w-[64rem] overflow-y-auto bg-white p-6 shadow-2xl"
                 onSubmit={saveBooking}
               >
                 <div className="flex items-center justify-between">
@@ -2825,6 +3153,66 @@ export default function BookingsPage() {
                       className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
                     />
                   </label>
+                  {Number(selectedVehicle?.security_deposit_fee ?? 0) > 0 && (
+                    <fieldset className="md:col-span-2 border border-black/10 p-4">
+                      <legend className="px-1 text-xs text-[#777]">
+                        Security deposit
+                      </legend>
+                      <p className="text-[11px] text-[#888]">
+                        This vehicle requires a security deposit of ₱
+                        {Number(
+                          selectedVehicle?.security_deposit_fee ?? 0,
+                        ).toLocaleString()}
+                        .
+                      </p>
+                      <div className="mt-3 flex gap-5 text-sm">
+                        {[
+                          ["cash", "Cash"],
+                          ["asset", "Asset left in place"],
+                        ].map(([value, label]) => (
+                          <label className="flex items-center gap-2" key={value}>
+                            <input
+                              type="radio"
+                              name="security_deposit_type"
+                              value={value}
+                              checked={form.security_deposit_type === value}
+                              onChange={() =>
+                                setForm((current) => ({
+                                  ...current,
+                                  security_deposit_type: value as
+                                    | "cash"
+                                    | "asset",
+                                  security_deposit_asset:
+                                    value === "asset"
+                                      ? current.security_deposit_asset
+                                      : "",
+                                }))
+                              }
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                      {form.security_deposit_type === "asset" && (
+                        <label className="mt-3 block text-xs text-[#777]">
+                          Asset held in place of cash
+                          <textarea
+                            required
+                            rows={2}
+                            className="mt-1 w-full border border-black/10 px-3 py-2 text-sm"
+                            placeholder="e.g. 2020 Honda Click 125, plate ABC 1234"
+                            value={form.security_deposit_asset}
+                            onChange={(event) =>
+                              setField(
+                                "security_deposit_asset",
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      )}
+                    </fieldset>
+                  )}
                   <label className="text-xs text-[#777]">
                     Destination
                     <input
