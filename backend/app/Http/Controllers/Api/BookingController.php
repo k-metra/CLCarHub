@@ -7,11 +7,13 @@ use App\Models\Booking;
 use App\Models\Vehicle;
 use App\Models\Addon;
 use App\Models\FundTransaction;
+use App\Models\Fund;
 use App\Models\FleetSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 use App\Services\PushNotificationService;
@@ -258,17 +260,17 @@ class BookingController extends Controller
     {
         $data = $request->validate([
             'photos' => ['required', 'array', 'min:1'],
-            'photos.*.file' => ['required', 'image', 'max:20480'],
+            'photos.*.file' => ['required', 'file', 'mimetypes:image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm', 'max:51200'],
             'photos.*.label' => ['nullable', 'string', 'max:120'],
         ]);
-        abort_if($booking->returnPhotos()->count() + count($data['photos']) > 30, 422, 'A booking can have up to 30 return photos.');
+        abort_if($booking->returnPhotos()->count() + count($data['photos']) > 30, 422, 'A booking can have up to 30 return media files.');
 
         foreach ($data['photos'] as $photo) {
             /** @var UploadedFile $file */
             $file = $photo['file'];
             $path = $file->store('booking-returns', 'public');
-            abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The return photo could not be saved. Check storage permissions and disk configuration.');
-            $booking->returnPhotos()->create(['path' => $path, 'label' => filled($photo['label'] ?? null) ? trim($photo['label']) : null]);
+            abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The return media could not be saved. Check storage permissions and disk configuration.');
+            $booking->returnPhotos()->create(['path' => $path, 'media_type' => str_starts_with((string) $file->getMimeType(), 'video/') ? 'video' : 'image', 'label' => filled($photo['label'] ?? null) ? trim($photo['label']) : null]);
         }
 
         return $booking->fresh('returnPhotos');
@@ -281,6 +283,20 @@ class BookingController extends Controller
         $photo->delete();
 
         return response()->noContent();
+    }
+
+    public function settle(Request $request, Booking $booking)
+    {
+        $data = $request->validate(['fund_id' => ['required', 'exists:funds,id']]);
+
+        return DB::transaction(function () use ($booking, $data, $request) {
+            $booking = Booking::lockForUpdate()->findOrFail($booking->id);
+            $amount = $this->bookingBalance($booking);
+            abort_if($amount <= 0, 422, 'This booking has no outstanding balance.');
+            $this->createSettlementPayment($booking, $amount, (int) $data['fund_id'], $request->user()?->id, 'Booking balance settled');
+
+            return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos']);
+        });
     }
 
     public function invoice(Request $request, Booking $booking)
@@ -353,7 +369,9 @@ class BookingController extends Controller
         }
         unset($data['status_reason']);
         $payments = $data['payments'] ?? null;
+        $settlementFundId = $data['settlement_fund_id'] ?? null;
         unset($data['payments']);
+        unset($data['settlement_fund_id']);
         $vehicle = Vehicle::findOrFail($data['vehicle_id'] ?? $booking->vehicle_id);
         $fleetSettings = FleetSetting::findOrFail(1);
         $effectiveStatus = $data['status'] ?? $booking->status;
@@ -398,6 +416,9 @@ class BookingController extends Controller
         $booking->save();
         $this->recalculateTotal($booking);
         if ($payments !== null) $this->syncPayments($booking, $payments);
+        if ($booking->status === Booking::COMPLETE) {
+            $this->settleBaseBalance($booking, $settlementFundId, $request->user()?->id);
+        }
         if ($oldStatus !== $booking->status) {
             $booking->load('customer');
             app(PushNotificationService::class)->sendToAdmins(
@@ -422,7 +443,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function authenticatedCustomer(Request $request)
@@ -550,6 +571,68 @@ class BookingController extends Controller
             }
         }
     }
+
+    private function bookingBalance(Booking $booking): float
+    {
+            $booking->loadMissing('payments');
+
+            return max(0, round((float) $booking->total_amount - (float) $booking->payments->sum('amount'), 2));
+        }
+
+        private function extraChargeTotal(Booking $booking): float
+        {
+            $addonTotal = collect($booking->addons ?? [])->sum(fn (array $addon) => (float) ($addon['total'] ?? 0));
+            $manualAdditionalCharges = max(0, (float) $booking->additional_charges - $addonTotal);
+
+            return round($manualAdditionalCharges
+                + (float) $booking->fuel_charge
+                + (float) $booking->rfid_charge
+                + (float) $booking->damage_fees
+                + (float) $booking->car_wash_fees
+                + (float) $booking->extension_fees, 2);
+        }
+
+        private function settleBaseBalance(Booking $booking, ?int $fundId, ?int $userId): void
+        {
+            $amount = max(0, round($this->bookingBalance($booking) - $this->extraChargeTotal($booking), 2));
+            if ($amount <= 0) {
+                return;
+            }
+
+            $fundId ??= Fund::query()->orderBy('id')->value('id');
+            if (! $fundId) {
+                Log::warning('Completed booking could not be automatically settled because no fund exists.', [
+                    'booking_id' => $booking->id,
+                    'reference' => $booking->reference,
+                    'amount' => $amount,
+                ]);
+                return;
+            }
+            $this->createSettlementPayment($booking, $amount, (int) $fundId, $userId, 'Base booking balance settled on completion');
+        }
+
+        private function createSettlementPayment(Booking $booking, float $amount, int $fundId, ?int $userId, string $note): void
+        {
+            $payment = $booking->payments()->create([
+                'amount' => round($amount, 2),
+                'fund_id' => $fundId,
+                'notes' => $note,
+                'paid_at' => now(),
+                'payment_method' => null,
+                'status' => 'paid',
+            ]);
+            FundTransaction::create([
+                'fund_id' => $fundId,
+                'payment_id' => $payment->id,
+                'type' => 'inflow',
+                'transacted_at' => $payment->paid_at,
+                'amount' => $payment->amount,
+                'description' => "Booking payment {$booking->reference}",
+                'notes' => $note,
+                'created_by' => $userId ?? $booking->created_by,
+            ]);
+            $booking->update(['payment_status' => $this->bookingBalance($booking) <= 0 ? 'paid' : 'partial']);
+        }
 
     private function recalculateTotal(Booking $booking): void
     {
