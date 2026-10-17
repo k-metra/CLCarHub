@@ -219,13 +219,17 @@ class BookingController extends Controller
             $fleetSettings = FleetSetting::findOrFail(1);
             $reservationFee = (float) $fleetSettings->reservation_fee;
             $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0);
-            $deposit = (float) ($data['deposit'] ?? $securityDeposit);
+            $securityDepositType = $data['security_deposit_type'] ?? 'cash';
+            $securityDeposit = $securityDepositType === 'cash' ? $securityDeposit : 0;
+            $deposit = $securityDepositType === 'cash'
+                ? (float) ($data['deposit'] ?? $securityDeposit)
+                : 0;
             $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees'])->sum(fn ($fee) => (float) ($data[$fee] ?? 0));
             $extensionFees = array_key_exists('extension_fees', $data) ? (float) $data['extension_fees'] : $rentalBreakdown['extension'];
             $delivery = $this->deliveryBreakdown($data, $vehicle, $fleetSettings);
             $data['additional_charges'] = (float) ($data['additional_charges'] ?? 0) + $addonBreakdown['total'];
             $total = $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) $data['additional_charges'], $fees, $extensionFees, (float) $delivery['delivery_fee'] + (float) $delivery['return_pickup_fee'], $fleetSettings) - (float) ($data['discount'] ?? 0);
-            $booking = Booking::create([...$data, ...$delivery, 'addons' => $addonBreakdown['items'], 'status' => Booking::UPCOMING, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'rental_discount' => $rentalBreakdown['discount'], 'total_amount' => max(0, $total), 'deposit' => $deposit, 'created_by' => $request->user()?->id]);
+            $booking = Booking::create([...$data, ...$delivery, 'addons' => $addonBreakdown['items'], 'status' => Booking::UPCOMING, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'rental_discount' => $rentalBreakdown['discount'], 'total_amount' => max(0, $total), 'deposit' => $deposit, 'security_deposit_type' => $securityDepositType, 'security_deposit_asset' => $securityDepositType === 'asset' ? ($data['security_deposit_asset'] ?? null) : null, 'created_by' => $request->user()?->id]);
             $this->syncPayments($booking, $payments);
             $booking->load(['customer', 'creator']);
             $customerName = $booking->customer?->name ?? 'A customer';
@@ -283,6 +287,59 @@ class BookingController extends Controller
         $photo->delete();
 
         return response()->noContent();
+    }
+
+    public function returnSecurityDeposit(Request $request, Booking $booking)
+    {
+        abort_if($booking->security_deposit_returned_at, 422, 'The security deposit has already been marked as returned.');
+        abort_if($booking->status !== Booking::COMPLETE, 422, 'The security deposit can only be returned after the booking is complete.');
+        abort_if(
+            $booking->security_deposit_type === 'cash'
+                ? (float) $booking->deposit <= 0
+                : blank($booking->security_deposit_asset),
+            422,
+            'This booking does not have a recorded security deposit to return.'
+        );
+
+        $booking->update([
+            'security_deposit_returned_at' => now(),
+            'security_deposit_returned_by' => $request->user()?->id,
+        ]);
+
+        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos']);
+    }
+
+    public function returnAllSecurityDeposits(Request $request)
+    {
+        $data = $request->validate([
+            'booking_ids' => ['required', 'array', 'min:1'],
+            'booking_ids.*' => ['integer', 'distinct', 'exists:bookings,id'],
+        ]);
+
+        $returned = DB::transaction(function () use ($data, $request): int {
+            return Booking::query()
+                ->whereIn('id', $data['booking_ids'])
+                ->where('status', Booking::COMPLETE)
+                ->whereNull('security_deposit_returned_at')
+                ->where(function ($query): void {
+                    $query
+                        ->where(function ($cash): void {
+                            $cash->where('security_deposit_type', 'cash')
+                                ->where('deposit', '>', 0);
+                        })
+                        ->orWhere(function ($asset): void {
+                            $asset->where('security_deposit_type', 'asset')
+                                ->whereNotNull('security_deposit_asset')
+                                ->where('security_deposit_asset', '!=', '');
+                        });
+                })
+                ->update([
+                    'security_deposit_returned_at' => now(),
+                    'security_deposit_returned_by' => $request->user()?->id,
+                ]);
+        });
+
+        return response()->json(['returned' => $returned]);
     }
 
     public function settle(Request $request, Booking $booking)
@@ -412,7 +469,12 @@ class BookingController extends Controller
         if (! array_key_exists('extension_fees', $data)) {
             $booking->extension_fees = $rentalBreakdown['extension'];
         }
-        $booking->deposit = (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0);
+        $booking->deposit = ($booking->security_deposit_type ?? 'cash') === 'cash'
+            ? (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0)
+            : 0;
+        if (($booking->security_deposit_type ?? 'cash') !== 'asset') {
+            $booking->security_deposit_asset = null;
+        }
         $booking->save();
         $this->recalculateTotal($booking);
         if ($payments !== null) $this->syncPayments($booking, $payments);
@@ -443,7 +505,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function authenticatedCustomer(Request $request)
@@ -640,7 +702,9 @@ class BookingController extends Controller
         $fleetSettings = FleetSetting::findOrFail(1);
         $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees'])->sum(fn ($fee) => (float) $booking->{$fee});
         $reservationFee = (float) $fleetSettings->reservation_fee;
-        $securityDeposit = (float) ($vehicle->security_deposit_fee ?? $booking->deposit ?? $vehicle->deposit ?? 0);
+        $securityDeposit = ($booking->security_deposit_type ?? 'cash') === 'cash'
+            ? (float) ($vehicle->security_deposit_fee ?? $booking->deposit ?? $vehicle->deposit ?? 0)
+            : 0;
         $booking->update(['total_amount' => max(0, $this->totalBeforeDiscount((float) $booking->rental_amount, $reservationFee, $securityDeposit, (float) $booking->additional_charges, $fees, (float) $booking->extension_fees, (float) $booking->delivery_fee + (float) $booking->return_pickup_fee, $fleetSettings) - (float) $booking->discount)]);
     }
 
