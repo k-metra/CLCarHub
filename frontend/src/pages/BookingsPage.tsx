@@ -1418,6 +1418,10 @@ export default function BookingsPage() {
   const dailyRate = form.rental_rate
     ? Number(form.rental_rate)
     : Number(selectedVehicle?.daily_rate ?? 0);
+  const twelveHourRate =
+    selectedVehicle?.twelve_hour_rate == null
+      ? dailyRate * 0.5
+      : Number(selectedVehicle.twelve_hour_rate);
   const milestonePercent = discountPercent(
     fleetSettings.discount_structures,
     selectedVehicle?.type,
@@ -1425,14 +1429,20 @@ export default function BookingsPage() {
   );
   const discountedDailyRate = discountedRental(dailyRate, milestonePercent);
   const extensionAmount =
-    extensionHours === 0
+    durationMinutes > 12 * 60
+    ? durationMinutes % (24 * 60) === 12 * 60
+      ? twelveHourRate
+      : extensionHours === 0
       ? 0
       : extensionHours >= fleetSettings.full_day_extension_threshold_hours
         ? discountedDailyRate
-        : extensionHours * hourlyRate;
+        : extensionHours * hourlyRate
+    : 0;
   const subtotal =
-    discountedRental(rentalDays * dailyRate, milestonePercent) +
-    extensionAmount;
+    durationMinutes > 0 && durationMinutes <= 12 * 60
+      ? twelveHourRate
+      : discountedRental(rentalDays * dailyRate, milestonePercent) +
+        extensionAmount;
   const eligibleAddons = addons.filter(
     (addon) =>
       selectedVehicle && addon.vehicle_types.includes(selectedVehicle.type),
