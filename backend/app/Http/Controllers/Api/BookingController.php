@@ -9,6 +9,7 @@ use App\Models\Addon;
 use App\Models\FundTransaction;
 use App\Models\Fund;
 use App\Models\FleetSetting;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -19,6 +20,7 @@ use Illuminate\Http\UploadedFile;
 use App\Services\PushNotificationService;
 use App\Models\BookingReturnPhoto;
 use App\Services\PayMongoService;
+use App\Services\StaffAssignmentSmsService;
 
 class BookingController extends Controller
 {
@@ -159,7 +161,7 @@ class BookingController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $now = now();
         $query = Booking::query()->visibleToAdmin($request->boolean('include_archived'))
-            ->with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'creator'])
+            ->with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'creator', 'assignedTo'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('reference', 'like', "%{$search}%")
@@ -426,10 +428,22 @@ class BookingController extends Controller
         }
         unset($data['status_reason']);
         $payments = $data['payments'] ?? null;
+        $assignedToUserId = array_key_exists('assigned_to_user_id', $data)
+            ? $data['assigned_to_user_id']
+            : $booking->assigned_to_user_id;
+        unset($data['assigned_to_user_id']);
         $settlementFundId = $data['settlement_fund_id'] ?? null;
         unset($data['payments']);
         unset($data['settlement_fund_id']);
         $vehicle = Vehicle::findOrFail($data['vehicle_id'] ?? $booking->vehicle_id);
+        if ($assignedToUserId !== null) {
+            $assignedStaff = User::findOrFail($assignedToUserId);
+            abort_unless($assignedStaff->role === 'staff' && $assignedStaff->status === 'active', 422, 'Bookings can only be assigned to active staff accounts.');
+            abort_unless($request->user()->canManageAccounts(), 403, 'Only ITM and above can assign bookings.');
+        } elseif ($booking->assigned_to_user_id !== null) {
+            abort_unless($request->user()->canManageAccounts(), 403, 'Only ITM and above can remove booking assignments.');
+        }
+        $assignmentChanged = $assignedToUserId !== $booking->assigned_to_user_id;
         $fleetSettings = FleetSetting::findOrFail(1);
         $effectiveStatus = $data['status'] ?? $booking->status;
         if (
@@ -456,7 +470,7 @@ class BookingController extends Controller
         if (array_key_exists('delivery_address', $data) || array_key_exists('delivery_latitude', $data) || array_key_exists('delivery_longitude', $data) || array_key_exists('return_address', $data) || array_key_exists('return_latitude', $data) || array_key_exists('return_longitude', $data) || array_key_exists('payment_method', $data) || array_key_exists('vehicle_id', $data)) {
             $data = [...$data, ...$this->deliveryBreakdown([...$booking->toArray(), ...$data], $vehicle, $fleetSettings)];
         }
-        $booking->update($data);
+        $booking->update([...$data, 'assigned_to_user_id' => $assignedToUserId]);
         if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
             $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $booking->status, 'reason' => $reason, 'changed_by' => $request->user()?->id]);
         } elseif ($reason !== null && trim($reason) !== '') {
@@ -481,6 +495,10 @@ class BookingController extends Controller
         if ($booking->status === Booking::COMPLETE) {
             $this->settleBaseBalance($booking, $settlementFundId, $request->user()?->id);
         }
+        if ($assignmentChanged && $booking->assigned_to_user_id) {
+            $booking->load(['assignedTo', 'vehicle']);
+            app(StaffAssignmentSmsService::class)->send($booking, $booking->assignedTo);
+        }
         if ($oldStatus !== $booking->status) {
             $booking->load('customer');
             app(PushNotificationService::class)->sendToAdmins(
@@ -491,7 +509,7 @@ class BookingController extends Controller
             );
         }
 
-        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos']);
+        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos', 'assignedTo']);
     }
 
     public function destroy(Booking $booking)
@@ -505,7 +523,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function authenticatedCustomer(Request $request)
