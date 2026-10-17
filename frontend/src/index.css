@@ -326,8 +326,8 @@ html.theme-dark .booking-detail-panel .text-\[\#999\] {
 
   .contract-paper {
     padding: 0.7rem !important;
-    font-size: 9.5px;
-    line-height: 1.2 !important;
+    font-size: 11px;
+    line-height: 1.3 !important;
   }
   .contract-paper > div,
   .contract-paper > section {
@@ -352,11 +352,34 @@ html.theme-dark .booking-detail-panel .text-\[\#999\] {
     margin-top: 0.25rem !important;
   }
   .contract-paper .contract-terms {
-    font-size: 8.25px !important;
-    line-height: 1.08 !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+  }
+  .contract-paper .contract-charges,
+  .contract-paper .contract-effectivity,
+  .contract-paper .contract-details,
+  .contract-paper .contract-rental-period {
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+  }
+  .contract-paper .contract-charges p,
+  .contract-paper .contract-charges table,
+  .contract-paper .contract-charges td,
+  .contract-paper .contract-charges h3,
+  .contract-paper .contract-effectivity h4,
+  .contract-paper .contract-details h3,
+  .contract-paper .contract-rental-period h3 {
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+  }
+  .contract-paper .contract-details p,
+  .contract-paper .contract-rental-period p,
+  .contract-paper .contract-rental-period > div {
+    font-size: 11px !important;
+    line-height: 1.3 !important;
   }
   .contract-paper .contract-terms h3 {
-    font-size: 9px !important;
+    font-size: 11px !important;
   }
   .contract-paper .contract-terms ul {
     padding-left: 1rem !important;
