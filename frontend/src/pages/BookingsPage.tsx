@@ -67,7 +67,9 @@ type BookingForm = {
   delivery_latitude: string;
   delivery_longitude: string;
   delivery_distance_km: string;
+  delivery_rate_override: string;
   delivery_fee: string;
+  custom_delivery_fee: string;
   return_location_mode: "garage" | "location";
   return_address: string;
   return_latitude: string;
@@ -82,6 +84,7 @@ type BookingForm = {
   car_wash_fees: string;
   extension_fees: string;
   additional_charges: string;
+  discount_percent_override: string;
   security_deposit_type: "cash" | "asset";
   security_deposit_asset: string;
   addons: number[];
@@ -108,7 +111,9 @@ const emptyForm: BookingForm = {
   delivery_latitude: "",
   delivery_longitude: "",
   delivery_distance_km: "",
+  delivery_rate_override: "",
   delivery_fee: "",
+  custom_delivery_fee: "",
   return_location_mode: "garage",
   return_address: "",
   return_latitude: "",
@@ -123,6 +128,7 @@ const emptyForm: BookingForm = {
   car_wash_fees: "",
   extension_fees: "",
   additional_charges: "",
+  discount_percent_override: "",
   security_deposit_type: "cash",
   security_deposit_asset: "",
   addons: [],
@@ -996,11 +1002,14 @@ export default function BookingsPage() {
         : "",
       destination: booking.destination ?? "",
       rental_rate: booking.rental_rate ?? "",
+      discount_percent_override: booking.discount_percent_override ?? "",
       delivery_address: booking.delivery_address ?? "",
       delivery_latitude: booking.delivery_latitude ?? "",
       delivery_longitude: booking.delivery_longitude ?? "",
       delivery_distance_km: booking.delivery_distance_km ?? "",
+      delivery_rate_override: booking.delivery_rate_override ?? "",
       delivery_fee: booking.delivery_fee ?? "",
+      custom_delivery_fee: booking.custom_delivery_fee ?? "",
       return_location_mode:
         booking.return_latitude && booking.return_longitude
           ? "location"
@@ -1017,6 +1026,7 @@ export default function BookingsPage() {
       damage_fees: booking.damage_fees ?? "",
       car_wash_fees: booking.car_wash_fees ?? "",
       extension_fees: booking.extension_fees ?? "",
+      additional_charges: booking.additional_charges ?? "",
       security_deposit_type: booking.security_deposit_type ?? "cash",
       security_deposit_asset: booking.security_deposit_asset ?? "",
       payments:
@@ -1427,11 +1437,23 @@ export default function BookingsPage() {
     selectedVehicle?.type,
     rentalDays,
   );
-  const discountedDailyRate = discountedRental(dailyRate, milestonePercent);
+  const discountPercentOverride = form.discount_percent_override === ""
+    ? null
+    : Number(form.discount_percent_override);
+  const effectiveDiscountPercent = discountPercentOverride ?? milestonePercent;
+  const discountedDailyRate = discountedRental(dailyRate, effectiveDiscountPercent);
+  const undiscountedRentalBase =
+    durationMinutes > 0 && durationMinutes <= 12 * 60
+      ? twelveHourRate
+      : rentalDays * dailyRate;
+  const discountAmount = discountedRental(
+    undiscountedRentalBase,
+    effectiveDiscountPercent,
+  ) - undiscountedRentalBase;
   const extensionAmount =
     durationMinutes > 12 * 60
     ? durationMinutes % (24 * 60) === 12 * 60
-      ? twelveHourRate
+      ? discountedRental(twelveHourRate, effectiveDiscountPercent)
       : extensionHours === 0
       ? 0
       : extensionHours >= fleetSettings.full_day_extension_threshold_hours
@@ -1440,8 +1462,8 @@ export default function BookingsPage() {
     : 0;
   const subtotal =
     durationMinutes > 0 && durationMinutes <= 12 * 60
-      ? twelveHourRate
-      : discountedRental(rentalDays * dailyRate, milestonePercent) +
+      ? discountedRental(twelveHourRate, effectiveDiscountPercent)
+      : discountedRental(rentalDays * dailyRate, effectiveDiscountPercent) +
         extensionAmount;
   const eligibleAddons = addons.filter(
     (addon) =>
@@ -1476,7 +1498,11 @@ export default function BookingsPage() {
     form.security_deposit_type === "cash"
       ? Number(selectedVehicle?.security_deposit_fee ?? 0)
       : 0;
-  const deliveryFee = Number(form.delivery_fee || 0);
+  const deliveryRateOverride = form.delivery_rate_override === ""
+    ? null
+    : Number(form.delivery_rate_override);
+  const calculatedDeliveryRate = deliveryRateOverride ?? Number(selectedVehicle?.delivery_rate_per_km ?? fleetSettings.default_delivery_rate_per_km);
+  const deliveryFee = form.custom_delivery_fee === "" ? Number(form.delivery_fee || 0) : Number(form.custom_delivery_fee);
   const returnPickupFee = Number(form.return_pickup_fee || 0);
   const formTotal =
     subtotal +
@@ -1578,7 +1604,9 @@ export default function BookingsPage() {
             ? null
             : Number(selectedVehicle.delivery_rate_per_km);
         const rate =
-          vehicleRate !== null && vehicleRate > 0
+          deliveryRateOverride !== null
+            ? deliveryRateOverride
+            : vehicleRate !== null && vehicleRate > 0
             ? vehicleRate
             : Number(fleetSettings.default_delivery_rate_per_km);
         setForm((current) => ({
@@ -1588,7 +1616,9 @@ export default function BookingsPage() {
           delivery_fee:
             deliveryDistance === null
               ? ""
-              : String(Math.round(deliveryDistance * rate * 100) / 100),
+              : current.custom_delivery_fee !== ""
+                ? current.delivery_fee
+                : String(Math.round(deliveryDistance * rate * 100) / 100),
           return_distance_km:
             returnDistance === null ? "" : String(returnDistance),
           return_pickup_fee:
@@ -1644,6 +1674,11 @@ export default function BookingsPage() {
   const ledgerRentalDiscount = selectedBooking
     ? Number(selectedBooking.rental_discount ?? 0)
     : 0;
+  const ledgerDiscountLabel =
+    selectedBooking?.discount_percent_override !== null &&
+    selectedBooking?.discount_percent_override !== undefined
+      ? "Booking discount"
+      : "Milestone discount";
   const ledgerEffectiveDailyRate =
     ledgerRentalDays > 0
       ? ledgerRegularDailyRate - ledgerRentalDiscount / ledgerRentalDays
@@ -2614,8 +2649,8 @@ export default function BookingsPage() {
                         {ledgerRentalDiscount !== 0 && (
                           <p className="mt-1 text-xs text-emerald-700">
                             {ledgerRentalDiscount > 0
-                              ? `Milestone discount: -₱${ledgerRentalDiscount.toLocaleString()}`
-                              : `Milestone rate adjustment: +₱${Math.abs(ledgerRentalDiscount).toLocaleString()}`}
+                              ? `${ledgerDiscountLabel}: -₱${ledgerRentalDiscount.toLocaleString()}`
+                              : `${ledgerDiscountLabel} rate adjustment: +₱${Math.abs(ledgerRentalDiscount).toLocaleString()}`}
                           </p>
                         )}{" "}
                       </div>
@@ -3312,6 +3347,25 @@ export default function BookingsPage() {
                       Leave blank to use the vehicle’s base rate.
                     </span>
                   </label>
+                  <label className="text-xs text-[#777]">
+                    Discount override (optional)
+                    <input
+                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder={`${milestonePercent}% fleet discount`}
+                      value={form.discount_percent_override}
+                      onChange={(e) =>
+                        setField("discount_percent_override", e.target.value)
+                      }
+                    />
+                    <span className="mt-1 block text-[11px] text-[#888]">
+                      Leave blank for fleet settings. Enter 0 to disable the
+                      discount for this booking.
+                    </span>
+                  </label>
                   <fieldset className="md:col-span-2">
                     <legend className="text-xs text-[#777]">Add-ons</legend>
                     <p className="mt-1 text-[11px] text-[#888]">
@@ -3534,6 +3588,44 @@ export default function BookingsPage() {
                         Use delivery location as return pickup
                       </button>
                     )}
+                  <div className="grid gap-4 md:col-span-2 md:grid-cols-2">
+                    <label className="text-xs text-[#777]">
+                      Delivery rate override per km (optional)
+                      <input
+                        className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={`Uses calculated rate: ₱${calculatedDeliveryRate.toLocaleString()}`}
+                        value={form.delivery_rate_override}
+                        onChange={(e) =>
+                          setField("delivery_rate_override", e.target.value)
+                        }
+                      />
+                      <span className="mt-1 block text-[11px] text-[#888]">
+                        Leave blank to use the vehicle or fleet rate. Enter 0
+                        to waive the per-kilometre rate.
+                      </span>
+                    </label>
+                    <label className="text-xs text-[#777]">
+                      Custom delivery fee (optional)
+                      <input
+                        className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Uses the calculated delivery fee"
+                        value={form.custom_delivery_fee}
+                        onChange={(e) =>
+                          setField("custom_delivery_fee", e.target.value)
+                        }
+                      />
+                      <span className="mt-1 block text-[11px] text-[#888]">
+                        Overrides only the delivery leg. Return pickup remains
+                        based on the selected rate.
+                      </span>
+                    </label>
+                  </div>
                   {((form.delivery_latitude && form.delivery_longitude) ||
                     (form.return_latitude && form.return_longitude)) && (
                     <div className="md:col-span-2 border border-black/10 bg-[#f8f7f5] p-4 text-sm">
@@ -3786,7 +3878,9 @@ export default function BookingsPage() {
                     <div className="flex justify-between">
                       <span className="text-[#777]">
                         Rental fees (
-                        {`${peso}${dailyRate.toLocaleString()} regular; ${peso}${discountedDailyRate.toLocaleString()} effective × ${rentalDays} day${rentalDays === 1 ? "" : "s"}`}
+                        {durationMinutes > 0 && durationMinutes <= 12 * 60
+                          ? `${peso}${twelveHourRate.toLocaleString()} 12-hour rate`
+                          : `${peso}${dailyRate.toLocaleString()} regular; ${peso}${discountedDailyRate.toLocaleString()} effective × ${rentalDays} day${rentalDays === 1 ? "" : "s"}`}
                         )
                       </span>
                       <span>
@@ -3835,25 +3929,21 @@ export default function BookingsPage() {
                         </div>
                       );
                     })}
-                    {milestonePercent !== 0 && (
+                    {discountPercentOverride !== null || effectiveDiscountPercent !== 0 ? (
                       <div className="flex justify-between text-emerald-700">
                         <span>
-                          {milestonePercent > 0
-                            ? `${milestonePercent}% milestone discount`
-                            : `${Math.abs(milestonePercent)}% milestone rate adjustment`}
+                          {discountPercentOverride === null
+                            ? effectiveDiscountPercent > 0
+                              ? `${effectiveDiscountPercent}% milestone discount`
+                              : `${Math.abs(effectiveDiscountPercent)}% milestone rate adjustment`
+                            : `${discountPercentOverride}% booking discount override`}
                         </span>
                         <span>
                           {peso}
-                          {(
-                            discountedRental(
-                              rentalDays * dailyRate,
-                              milestonePercent,
-                            ) -
-                            rentalDays * dailyRate
-                          ).toLocaleString()}
+                          {discountAmount.toLocaleString()}
                         </span>
                       </div>
-                    )}
+                    ) : null}
                     {extensionHours > 0 && (
                       <div className="flex justify-between">
                         <span className="text-[#777]">
