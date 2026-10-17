@@ -4,7 +4,7 @@ import api from "../lib/api";
 import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { Skeleton, useToast } from "../components/Ui";
-import { displayName, useAuth } from "../lib/AuthContext";
+import { canManageAccounts, displayName, useAuth } from "../lib/AuthContext";
 import { vehicleTypeLabels, vehicleTypes, type BookingRecord, type VehicleRecord, type VehicleType } from "../types";
 
 type DashboardData = {
@@ -20,6 +20,7 @@ const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 });
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 type AvailabilityType = VehicleType | "all";
+type StaffAccount = { id: number; name: string; phone?: string | null };
 
 function imageUrl(booking: BookingRecord) {
   const value = booking.vehicle?.images?.[0]?.url;
@@ -45,11 +46,38 @@ export default function AdminDashboardPage() {
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
+  const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>([]);
+  const [assignmentBooking, setAssignmentBooking] = useState<BookingRecord | null>(null);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
   const loading = !data && !error;
 
+  const loadDashboard = () => api.get<DashboardData>("/dashboard").then(response => setData(response.data)).catch(e => setError(e instanceof Error ? e.message : "Unable to load dashboard"));
+  useEffect(() => { void loadDashboard(); }, []);
   useEffect(() => {
-    api.get<DashboardData>("/dashboard").then(response => setData(response.data)).catch(e => setError(e instanceof Error ? e.message : "Unable to load dashboard"));
-  }, []);
+    if (!canManageAccounts(user)) return;
+    api.get<{ data: StaffAccount[] }>("/accounts?role=staff&status=active")
+      .then(response => setStaffAccounts(response.data.data))
+      .catch(e => showToast(e instanceof Error ? e.message : "Unable to load staff accounts.", "error"));
+  }, [showToast, user]);
+
+  const assignBooking = async (booking: BookingRecord, staffId: number | null) => {
+    setAssignmentSaving(true);
+    try {
+      const response = await api.patch<BookingRecord>(`/bookings/${booking.id}`, {
+        assigned_to_user_id: staffId,
+      });
+      setData(current => current ? {
+        ...current,
+        upcoming_bookings: current.upcoming_bookings.map(item => item.id === booking.id ? response.data : item),
+      } : current);
+      setAssignmentBooking(null);
+      showToast(staffId ? "Booking assigned successfully." : "Booking assignment removed.", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Unable to assign booking.", "error");
+    } finally {
+      setAssignmentSaving(false);
+    }
+  };
 
   const maxRevenue = useMemo(() => Math.max(1, ...(data?.monthly.map(item => item.revenue) ?? [1])), [data]);
   const maxBookings = useMemo(() => Math.max(1, ...(data?.monthly.map(item => item.bookings) ?? [1])), [data]);
@@ -122,12 +150,24 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card><h3 className="font-semibold">Upcoming bookings</h3><div className="mt-4 space-y-3">{loading ? <BookingSkeletons /> : data?.upcoming_bookings.length ? data.upcoming_bookings.map(booking => <Link className="flex items-center gap-4 rounded bg-[#f4f3f0] p-3 hover:border-[#ff641f]" to={`/admin/bookings?edit=${booking.id}`} key={booking.id}>{imageUrl(booking) ? <img className="h-14 w-20 rounded object-contain" src={imageUrl(booking)!} alt="" /> : <div className="h-14 w-20 rounded bg-black/10" />}<div className="min-w-0"><p className="font-semibold">{booking.customer?.name ?? "Customer"}</p><p className="text-xs text-[#777]">{formatDate(booking.pickup_at)} → {formatDate(booking.return_at)}</p><p className="mt-1 text-xs font-medium text-[#555]">{booking.vehicle?.name || `${booking.vehicle?.brand ?? ""} ${booking.vehicle?.model ?? ""}`}</p></div></Link>) : <p className="py-8 text-sm text-[#777]">No upcoming bookings.</p>}</div></Card>
+        <Card><h3 className="font-semibold">Upcoming bookings</h3><div className="mt-4 space-y-3">{loading ? <BookingSkeletons /> : data?.upcoming_bookings.length ? data.upcoming_bookings.map(booking => <div className="flex items-center gap-4 rounded bg-[#f4f3f0] p-3 hover:border-[#ff641f]" key={booking.id}>{imageUrl(booking) ? <img className="h-14 w-20 rounded object-contain" src={imageUrl(booking)!} alt="" /> : <div className="h-14 w-20 rounded bg-black/10" />}<Link className="min-w-0 flex-1" to={`/admin/bookings?edit=${booking.id}`}><p className="font-semibold">{booking.customer?.name ?? "Customer"}</p><p className="text-xs text-[#777]">{formatDate(booking.pickup_at)} → {formatDate(booking.return_at)}</p><p className="mt-1 text-xs font-medium text-[#555]">{booking.vehicle?.name || `${booking.vehicle?.brand ?? ""} ${booking.vehicle?.model ?? ""}`}</p><p className="mt-1 text-xs text-[#777]">{booking.assigned_to?.name ? `Assigned to ${booking.assigned_to.name}` : "Unassigned"}</p></Link>{canManageAccounts(user) && <button type="button" className="self-start rounded px-2 py-1 text-xl leading-none text-[#777] hover:bg-black/10 hover:text-[#ff641f]" aria-label={`Actions for booking ${booking.reference}`} onClick={() => setAssignmentBooking(booking)}>⋯</button>}</div>) : <p className="py-8 text-sm text-[#777]">No upcoming bookings.</p>}</div></Card>
         <Card><h3 className="font-semibold">Top vehicles by total revenue</h3><div className="mt-5 space-y-4">{loading ? <>{[1, 2, 3, 4].map(item => <Skeleton className="h-8 w-full" key={item} />)}</> : data?.top_vehicles.length ? data.top_vehicles.map(vehicle => <div className="min-w-0" key={vehicle.id}><div className="mb-1 flex min-w-0 items-start justify-between gap-3 text-sm"><span className="min-w-0 break-words">{vehicle.name || `${vehicle.brand} ${vehicle.model}`} ({vehicle.year})</span><strong className="shrink-0">{money.format(vehicle.revenue)}</strong></div><div className="h-2 bg-black/5"><div className="h-2 bg-[#ff641f]" style={{ width: `${Math.max(4, vehicle.revenue / Math.max(1, data.top_vehicles[0].revenue) * 100)}%` }} /></div></div>) : <p className="py-8 text-sm text-[#777]">No completed revenue records yet.</p>}</div></Card>
       </div>
     </div>
     {availabilityOpen && <AvailabilityModal vehicles={availableVehicles} type={availabilityType} date={availabilityDate} onClose={() => setAvailabilityOpen(false)} showToast={showToast} />}
+    {assignmentBooking && <AssignStaffModal booking={assignmentBooking} staffAccounts={staffAccounts} saving={assignmentSaving} onClose={() => setAssignmentBooking(null)} onAssign={staffId => void assignBooking(assignmentBooking, staffId)} />}
   </AdminShell>;
+}
+
+function AssignStaffModal({ booking, staffAccounts, saving, onClose, onAssign }: { booking: BookingRecord; staffAccounts: StaffAccount[]; saving: boolean; onClose: () => void; onAssign: (staffId: number | null) => void }) {
+  const [selectedStaffId, setSelectedStaffId] = useState(booking.assigned_to_user_id ? String(booking.assigned_to_user_id) : "");
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="assign-staff-title">
+    <div className="theme-surface w-full max-w-md rounded p-6 shadow-2xl">
+      <div className="flex items-start justify-between gap-4"><div><h2 id="assign-staff-title" className="text-xl font-semibold">Assign staff</h2><p className="mt-1 text-sm text-[#777]">{booking.reference} · {booking.customer?.name ?? "Customer"}</p></div><button type="button" onClick={onClose} className="text-2xl text-[#777] hover:text-[#ff641f]" aria-label="Close assign staff modal">×</button></div>
+      <label className="mt-6 block text-sm font-semibold">Staff member<select className="mt-2 w-full border border-black/10 bg-transparent px-3 py-3 font-normal" value={selectedStaffId} onChange={event => setSelectedStaffId(event.target.value)}><option value="">Unassigned</option>{staffAccounts.map(staff => <option value={staff.id} key={staff.id}>{staff.name}{staff.phone ? ` · ${staff.phone}` : ""}</option>)}</select></label>
+      <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2.5 text-sm">Cancel</button><button type="button" disabled={saving} onClick={() => onAssign(selectedStaffId ? Number(selectedStaffId) : null)} className="bg-[#ff641f] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{saving ? "Saving..." : "Save assignment"}</button></div>
+    </div>
+  </div>;
 }
 
 function AvailabilityModal({ vehicles, type, date, onClose, showToast }: { vehicles: VehicleRecord[]; type: AvailabilityType; date: string; onClose: () => void; showToast: (message: string, tone?: "success" | "error" | "info") => void }) {
