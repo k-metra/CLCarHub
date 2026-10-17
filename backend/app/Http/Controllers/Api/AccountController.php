@@ -23,7 +23,7 @@ class AccountController extends Controller
             ->when($request->role, fn ($query, $role) => $query->where('role', $role))
             ->when($request->status, fn ($query, $status) => $query->where('status', $status))
             ->orderBy('name')
-            ->get(['id', 'name', 'username', 'email', 'role', 'status', 'last_login_at', 'created_at']);
+            ->get(['id', 'name', 'username', 'email', 'phone', 'role', 'status', 'last_login_at', 'created_at']);
 
         $customers = Customer::with('user')
             ->when($request->customer_search, function ($query, $search) {
@@ -51,7 +51,7 @@ class AccountController extends Controller
             'password' => Hash::make($data['password']),
         ]);
 
-        return response()->json($account->only(['id', 'name', 'username', 'email', 'role', 'status', 'last_login_at', 'created_at']), 201);
+        return response()->json($account->only(['id', 'name', 'username', 'email', 'phone', 'role', 'status', 'last_login_at', 'created_at']), 201);
     }
 
     public function update(Request $request, User $account)
@@ -73,7 +73,7 @@ class AccountController extends Controller
         }
         $account->update($data);
 
-        return $account->fresh()->only(['id', 'name', 'username', 'email', 'role', 'status', 'last_login_at', 'created_at']);
+        return $account->fresh()->only(['id', 'name', 'username', 'email', 'phone', 'role', 'status', 'last_login_at', 'created_at']);
     }
 
     public function destroy(Request $request, User $account)
@@ -91,6 +91,7 @@ class AccountController extends Controller
             'name' => [$updating ? 'sometimes' : 'required', 'string', 'max:255'],
             'username' => [$updating ? 'sometimes' : 'required', 'string', 'min:3', 'max:50', 'alpha_dash', 'unique:users,username'.($updating ? ','.$accountId : '')],
             'email' => [$updating ? 'sometimes' : 'required', 'email', 'max:255', 'unique:users,email'.($updating ? ','.$accountId : '')],
+            'phone' => ['nullable', 'string', 'max:40'],
             'password' => [$updating ? 'nullable' : 'required', 'string', 'min:8'],
             'role' => [$updating ? 'sometimes' : 'required', 'in:'.($updating ? 'owner,co_owner,it_management,staff' : 'co_owner,it_management,staff')],
             'status' => [$updating ? 'sometimes' : 'required', 'in:active,suspended'],
