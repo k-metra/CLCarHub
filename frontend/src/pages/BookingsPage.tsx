@@ -10,6 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import api from "../lib/api";
+import { useAuth } from "../lib/AuthContext";
 import type {
   AddonRecord,
   BookingRecord,
@@ -542,11 +543,18 @@ function RejectionNotice({
 
 export default function BookingsPage() {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [addons, setAddons] = useState<AddonRecord[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [funds, setFunds] = useState<FundRecord[]>([]);
+  const [staffAccounts, setStaffAccounts] = useState<
+    Array<{ id: number; name: string; phone?: string | null }>
+  >([]);
+  const [assignmentBooking, setAssignmentBooking] =
+    useState<BookingRecord | null>(null);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [fleetSettings, setFleetSettings] = useState<FleetSettings>({
     reservation_fee: "0",
     reservation_fee_deductible: true,
@@ -670,6 +678,9 @@ export default function BookingsPage() {
       api.get<{ funds: FundRecord[] }>("/funds"),
       api.get<FleetSettings>("/fleet-settings"),
       api.get<AddonRecord[]>("/addons?available_only=1"),
+      api.get<{ data: Array<{ id: number; name: string; phone?: string | null }> }>(
+        "/accounts?role=staff",
+      ),
     ])
       .then(
         ([
@@ -678,12 +689,14 @@ export default function BookingsPage() {
           fundResult,
           settingsResult,
           addonResult,
+          accountResult,
         ]) => {
           setVehicles(vehicleResult.data.data);
           setCustomers(customerResult.data.data);
           setFunds(fundResult.data.funds);
           setFleetSettings(settingsResult.data);
           setAddons(addonResult.data);
+          setStaffAccounts(accountResult.data.data);
         },
       )
       .catch((e) =>
@@ -1345,6 +1358,32 @@ export default function BookingsPage() {
     if (!selectedBooking) return;
     requestStatusChange(selectedBooking, nextStatus);
     setShowActions(false);
+  };
+  const assignBooking = async (booking: BookingRecord, value: string) => {
+    setAssignmentSaving(true);
+    try {
+      const result = await api.patch<BookingRecord>(`/bookings/${booking.id}`, {
+        assigned_to_user_id: value ? Number(value) : null,
+      });
+      setSelectedBooking({
+        ...result.data,
+        returnPhotos: returnPhotos(result.data),
+      });
+      await loadBookings();
+      showToast(
+        value
+          ? `Booking assigned to ${result.data.assigned_to?.name ?? "staff"}.`
+          : "Booking assignment removed.",
+        "success",
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Unable to assign booking.",
+        "error",
+      );
+    } finally {
+      setAssignmentSaving(false);
+    }
   };
   const selectedVehicle = vehicles.find(
     (vehicle) => String(vehicle.id) === form.vehicle_id,
@@ -2256,6 +2295,30 @@ export default function BookingsPage() {
                 <p className="mt-1 text-sm text-[#777]">
                   {statusLabel(selectedBooking.status)}
                 </p>
+                {user && ["owner", "co_owner", "it_management"].includes(user.role) && (
+                  <label className="mt-4 block max-w-sm text-xs text-[#777]">
+                    Assigned staff
+                    <select
+                      className="mt-1 w-full border border-black/10 bg-white px-3 py-2 text-sm"
+                      value={selectedBooking.assigned_to_user_id ?? ""}
+                      onChange={(event) =>
+                        void assignBooking(selectedBooking, event.target.value)
+                      }
+                    >
+                      <option value="">Unassigned</option>
+                      {staffAccounts.map((staff) => (
+                        <option value={staff.id} key={staff.id}>
+                          {staff.name}
+                          {staff.phone ? ` · ${staff.phone}` : " · no phone"}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-[11px] text-[#888]">
+                      Assignment sends an in-app notice and SMS when the gateway
+                      is configured.
+                    </span>
+                  </label>
+                )}
                 {selectedBooking.status === "complete" &&
                   !selectedBooking.security_deposit_returned_at &&
                   (selectedBooking.security_deposit_type === "asset"
@@ -3971,7 +4034,17 @@ export default function BookingsPage() {
                         onClick={() => openDetails(booking)}
                       >
                         <td className="py-4 font-semibold text-[#ff641f]">
-                          {booking.reference}
+                          <span className="inline-flex flex-wrap items-center gap-2">
+                            <span>{booking.reference}</span>
+                            {booking.assigned_to?.name && (
+                              <span
+                                className="rounded-full bg-orange-50 px-2 py-1 text-[10px] font-semibold leading-none text-[#d94f12]"
+                                title={`Assigned to ${booking.assigned_to.name}`}
+                              >
+                                {booking.assigned_to.name}
+                              </span>
+                            )}
+                          </span>
                         </td>
                         <td className="py-4">
                           {booking.customer?.name ?? "—"}
@@ -4024,6 +4097,18 @@ export default function BookingsPage() {
                                 label: "View Details",
                                 onClick: () => openDetails(booking),
                               },
+                              ...(user &&
+                              ["owner", "co_owner", "it_management"].includes(
+                                user.role,
+                              )
+                                ? [
+                                    {
+                                      label: "Assign staff",
+                                      onClick: () =>
+                                        setAssignmentBooking(booking),
+                                    },
+                                  ]
+                                : []),
                               ...(["ongoing", "for_completion"].includes(
                                 booking.status,
                               )
@@ -4094,6 +4179,99 @@ export default function BookingsPage() {
           </div>
         </div>
       </AdminShell>
+      {assignmentBooking && (
+        <AssignStaffModal
+          booking={assignmentBooking}
+          staffAccounts={staffAccounts}
+          saving={assignmentSaving}
+          onClose={() => setAssignmentBooking(null)}
+          onAssign={(staffId) =>
+            void assignBooking(
+              assignmentBooking,
+              staffId ? String(staffId) : "",
+            )
+          }
+        />
+      )}
     </>
+  );
+}
+
+function AssignStaffModal({
+  booking,
+  staffAccounts,
+  saving,
+  onClose,
+  onAssign,
+}: {
+  booking: BookingRecord;
+  staffAccounts: Array<{ id: number; name: string; phone?: string | null }>;
+  saving: boolean;
+  onClose: () => void;
+  onAssign: (staffId: number | null) => void;
+}) {
+  const [selectedStaffId, setSelectedStaffId] = useState(
+    booking.assigned_to_user_id ? String(booking.assigned_to_user_id) : "",
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="assign-staff-title"
+    >
+      <div className="theme-surface w-full max-w-md rounded p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 id="assign-staff-title" className="text-xl font-semibold">
+              Assign staff
+            </h2>
+            <p className="mt-1 text-sm text-[#777]">
+              {booking.reference} · {booking.customer?.name ?? "Customer"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-2xl text-[#777] hover:text-[#ff641f]"
+            aria-label="Close assign staff modal"
+          >
+            ×
+          </button>
+        </div>
+        <label className="mt-6 block text-sm font-semibold">
+          Staff member
+          <select
+            className="mt-2 w-full border border-black/10 bg-transparent px-3 py-3 font-normal"
+            value={selectedStaffId}
+            onChange={(event) => setSelectedStaffId(event.target.value)}
+          >
+            <option value="">Unassigned</option>
+            {staffAccounts.map((staff) => (
+              <option value={staff.id} key={staff.id}>
+                {staff.name}
+                {staff.phone ? ` · ${staff.phone}` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="px-4 py-2.5 text-sm">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() =>
+              onAssign(selectedStaffId ? Number(selectedStaffId) : null)
+            }
+            className="bg-[#ff641f] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save assignment"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
