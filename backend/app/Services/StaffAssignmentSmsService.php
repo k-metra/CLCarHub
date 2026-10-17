@@ -21,11 +21,22 @@ class StaffAssignmentSmsService
             return;
         }
 
+        $vehicle = $booking->vehicle;
+        $vehicleDetails = $vehicle
+            ? trim(sprintf(
+                '%s, %s %s, plate %s',
+                $vehicle->name ?: 'Vehicle',
+                $vehicle->brand,
+                $vehicle->model,
+                $vehicle->plate_number,
+            ))
+            : 'Vehicle details unavailable';
         $message = sprintf(
-            'CL CarHub: Booking %s has been assigned to you. Pickup: %s. Vehicle: %s.',
+            'CL CarHub: Booking %s assigned to you. Pickup: %s. Vehicle: %s. Open the CL CarHub admin dashboard, go to Bookings, and search for reference %s to view the full details.',
             $booking->reference,
             $booking->pickup_at?->format('M j, Y g:i A'),
-            trim(($booking->vehicle?->brand ?? '').' '.($booking->vehicle?->model ?? '')),
+            $vehicleDetails,
+            $booking->reference,
         );
 
         try {
