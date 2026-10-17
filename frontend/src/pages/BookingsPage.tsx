@@ -6,7 +6,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
 import api from "../lib/api";
@@ -542,6 +542,7 @@ function RejectionNotice({
 }
 
 export default function BookingsPage() {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
@@ -2417,14 +2418,11 @@ export default function BookingsPage() {
                     <button
                       className="block w-full px-3 py-2 text-left text-sm hover:bg-[#f8f7f5]"
                       onClick={() => {
-                        showToast(
-                          "Contract preview will be available in a future update.",
-                          "info",
-                        );
+                        navigate(`/admin/contracts?booking=${selectedBooking.id}`);
                         setShowActions(false);
                       }}
                     >
-                      Contract preview
+                      Open contract
                     </button>
                     {statusTransitions[selectedBooking.status]?.includes(
                       "cancelled",
