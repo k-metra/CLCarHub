@@ -45,6 +45,7 @@ class AccountController extends Controller
     {
         $data = $request->validate($this->rules());
         abort_unless($request->user()->canManageRole($data['role']), 403, 'You cannot assign this role.');
+        $data['phone'] = $this->normalizePhone($data['phone'] ?? null);
 
         $account = User::create([
             ...$data,
@@ -58,6 +59,9 @@ class AccountController extends Controller
     {
         abort_unless($account->role !== 'owner' || $request->user()->isOwner(), 403, 'Only the owner can update an owner account.');
         $data = $request->validate($this->rules(true, $account->id));
+        if (array_key_exists('phone', $data)) {
+            $data['phone'] = $this->normalizePhone($data['phone']);
+        }
         $isSelf = $account->id === $request->user()->id;
         if (isset($data['role'])) {
             abort_unless(($isSelf && $data['role'] === $account->role) || $request->user()->canManageRole($account->role), 403, 'You cannot manage this account.');
@@ -96,6 +100,19 @@ class AccountController extends Controller
             'role' => [$updating ? 'sometimes' : 'required', 'in:'.($updating ? 'owner,co_owner,it_management,staff' : 'co_owner,it_management,staff')],
             'status' => [$updating ? 'sometimes' : 'required', 'in:active,suspended'],
         ];
+    }
+
+    private function normalizePhone(?string $phone): ?string
+    {
+        if (blank($phone)) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', $phone);
+        $digits = preg_replace('/^63/', '', $digits);
+        $digits = preg_replace('/^0/', '', $digits);
+
+        return $digits ? '+63'.$digits : null;
     }
 
 }
