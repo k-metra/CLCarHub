@@ -333,6 +333,81 @@ npm run build
 
 Serve `frontend/dist` from the frontend domain. Configure the web server to fall back to `index.html` for React Router routes.
 
+## Automatic production deployment
+
+The repository includes a GitHub Actions workflow at
+`.github/workflows/deploy-production.yml`. Every push to `main` builds the
+frontend on GitHub, uploads the built frontend and backend application code over
+SSH, then runs Composer, migrations, Laravel cache optimization, permissions,
+and Nginx validation on the VPS. It can also be started manually from the
+workflow's **Run workflow** action.
+
+The workflow intentionally does not upload or delete these server-owned paths:
+
+- `backend/.env`
+- `backend/vendor`
+- `backend/storage`
+- `backend/public/storage`
+- `backend/bootstrap/cache`
+
+This means the production environment file, Composer dependencies, uploaded
+images, storage symlink, and generated cache remain on the VPS. The workflow
+uses `rsync --delete` only for deployable frontend files and application source
+outside those paths.
+
+### One-time VPS setup
+
+Create a deployment account and give it ownership of the application files. The
+account needs SSH access and passwordless `sudo` for only the commands used by
+the workflow:
+
+```bash
+sudo adduser --disabled-password --gecos "" deploy
+sudo usermod -aG www-data deploy
+sudo chown -R deploy:www-data /var/www/clcarhub
+sudo chmod -R ug+rwX /var/www/clcarhub
+```
+
+Create `/etc/sudoers.d/clcarhub-deploy` with `sudo visudo -f
+/etc/sudoers.d/clcarhub-deploy`:
+
+```text
+deploy ALL=(root) NOPASSWD: /usr/bin/chown -R www-data\:www-data /var/www/clcarhub/backend/storage /var/www/clcarhub/backend/bootstrap/cache /var/www/clcarhub/backend/public, /usr/bin/chmod -R ug+rwx /var/www/clcarhub/backend/storage /var/www/clcarhub/backend/bootstrap/cache /var/www/clcarhub/backend/public, /usr/sbin/nginx -t, /usr/bin/systemctl reload nginx
+```
+
+The exact executable paths can be checked with `command -v chown chmod nginx
+systemctl` on the VPS. Ensure the deployment account has the expected PHP CLI,
+Composer, and Node-independent runtime available; Node is only required by the
+GitHub runner because the frontend is built before upload.
+
+### GitHub configuration
+
+Add these secrets to the repository's `production` environment:
+
+- `DEPLOY_HOST`: VPS hostname or IP
+- `DEPLOY_USER`: `deploy`
+- `DEPLOY_SSH_KEY`: private Ed25519 key whose public key is in
+  `/home/deploy/.ssh/authorized_keys`
+- `DEPLOY_KNOWN_HOSTS`: output of
+  `ssh-keyscan -H your-vps-hostname`
+- `VITE_API_URL`: production API URL, for example
+  `https://clcarhub.com/api`
+
+Use a dedicated deploy key, not a personal SSH key. Restrict the key in
+`authorized_keys` if your SSH policy supports it, and rotate it if it is ever
+exposed. Before the first automated deployment, confirm that these commands
+work as the deploy account:
+
+```bash
+ssh deploy@your-vps-hostname 'cd /var/www/clcarhub/backend && php artisan about'
+ssh deploy@your-vps-hostname 'composer --version && php --version'
+```
+
+The first push to `main` will then deploy automatically. Review the Actions log
+and verify the site, login, an API request, and an uploaded image after the
+first run. Keep independent backups of MySQL and
+`backend/storage/app/public`; deployment cannot recover deleted uploads.
+
 ## Important production checks
 
 - Set `APP_DEBUG=false`; never expose Laravel stack traces publicly.
