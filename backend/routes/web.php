@@ -15,6 +15,7 @@ Route::get('/sitemap.xml', function () {
     $urls = [
         ['loc' => "{$siteUrl}/", 'lastmod' => null],
         ['loc' => "{$siteUrl}/vehicles", 'lastmod' => null],
+        ['loc' => "{$siteUrl}/host-partnership", 'lastmod' => null],
         ['loc' => "{$siteUrl}/terms", 'lastmod' => null],
         ['loc' => "{$siteUrl}/privacy", 'lastmod' => null],
     ];
@@ -43,6 +44,10 @@ Route::get('/sitemap.xml', function () {
 
     return response($xml.'</urlset>', 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
 })->name('sitemap');
+
+Route::get('/host-partnership', function () {
+    return view('host-partnership');
+})->name('host-partnership');
 
 Route::get('/vehicles/{vehicle}', function (Vehicle $vehicle) {
     abort_unless($vehicle->status === 'available', 404);
