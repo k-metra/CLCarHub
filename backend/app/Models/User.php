@@ -15,7 +15,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Notifications\VerifyEmailNotification;
 
-#[Fillable(['name', 'first_name', 'middle_name', 'last_name', 'date_of_birth', 'username', 'email', 'phone', 'password', 'role', 'status', 'last_login_ip'])]
+#[Fillable(['name', 'first_name', 'middle_name', 'last_name', 'date_of_birth', 'username', 'email', 'phone', 'password', 'role', 'status', 'last_login_ip', 'email_verified_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -52,6 +52,16 @@ class User extends Authenticatable implements MustVerifyEmail
     public function customer(): HasOne
     {
         return $this->hasOne(Customer::class);
+    }
+
+    public function partner(): HasOne
+    {
+        return $this->hasOne(Partner::class);
+    }
+
+    public function isHost(): bool
+    {
+        return $this->role === 'host';
     }
 
     public function socialAccounts(): HasMany

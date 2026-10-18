@@ -19,8 +19,10 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 use App\Services\PushNotificationService;
 use App\Models\BookingReturnPhoto;
+use App\Models\PartnerEarning;
 use App\Services\PayMongoService;
 use App\Services\StaffAssignmentSmsService;
+use App\Services\PartnerAssignmentSmsService;
 
 class BookingController extends Controller
 {
@@ -87,6 +89,7 @@ class BookingController extends Controller
             $paymentAmount = $data['payment_amount'] ?? null;
             unset($data['payment_amount']);
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
+            abort_unless($vehicle->hasActivePartnerContract(), 422, 'This partner vehicle is not eligible for rental until its contract is approved.');
             abort_if(
                 $vehicle->status !== 'available'
                     || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)
@@ -214,6 +217,7 @@ class BookingController extends Controller
 
         return DB::transaction(function () use ($data, $payments, $request) {
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
+            abort_unless($vehicle->hasActivePartnerContract(), 422, 'This partner vehicle is not eligible for rental until its contract is approved.');
             abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
             $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null, $data['discount_percent_override'] ?? null);
             $rental = $rentalBreakdown['rental'];
@@ -241,6 +245,7 @@ class BookingController extends Controller
                 "/admin/bookings?booking={$booking->id}",
                 "booking-created-{$booking->id}",
             );
+            app(PartnerAssignmentSmsService::class)->send($booking);
 
             return response()->json($booking->load(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user']), 201);
         });
@@ -437,6 +442,8 @@ class BookingController extends Controller
         unset($data['payments']);
         unset($data['settlement_fund_id']);
         $vehicle = Vehicle::findOrFail($data['vehicle_id'] ?? $booking->vehicle_id);
+        abort_unless($vehicle->hasActivePartnerContract(), 422, 'This partner vehicle is not eligible for rental until its contract is approved.');
+        $vehicleChanged = array_key_exists('vehicle_id', $data) && (int) $data['vehicle_id'] !== (int) $booking->vehicle_id;
         $assignmentChanged = $assignmentProvided && $assignedToUserId !== $booking->assigned_to_user_id;
         if ($assignmentChanged && $assignedToUserId !== null) {
             $assignedStaff = User::findOrFail($assignedToUserId);
@@ -495,10 +502,14 @@ class BookingController extends Controller
         if ($payments !== null) $this->syncPayments($booking, $payments);
         if ($booking->status === Booking::COMPLETE) {
             $this->settleBaseBalance($booking, $settlementFundId, $request->user()?->id);
+            $this->createPartnerEarning($booking);
         }
         if ($assignmentChanged && $booking->assigned_to_user_id) {
             $booking->load(['assignedTo', 'vehicle']);
             app(StaffAssignmentSmsService::class)->send($booking, $booking->assignedTo);
+        }
+        if ($vehicleChanged) {
+            app(PartnerAssignmentSmsService::class)->send($booking);
         }
         if ($oldStatus !== $booking->status) {
             $booking->load('customer');
@@ -690,6 +701,35 @@ class BookingController extends Controller
                 return;
             }
             $this->createSettlementPayment($booking, $amount, (int) $fundId, $userId, 'Base booking balance settled on completion');
+        }
+
+        private function createPartnerEarning(Booking $booking): void
+        {
+            $booking->loadMissing('vehicle.partner');
+            $partner = $booking->vehicle?->partner;
+
+            if (! $partner || PartnerEarning::where('booking_id', $booking->id)->exists()) {
+                return;
+            }
+
+            $grossAmount = $partner->commission_based_on === 'total_booking_amount'
+                ? (float) $booking->total_amount
+                : (float) $booking->rental_amount;
+            $partnerShare = $partner->commission_type === 'fixed_amount'
+                ? (float) $partner->commission_value
+                : $grossAmount * ((float) $partner->commission_value / 100);
+            $partnerShare = min($partnerShare, $grossAmount);
+
+            PartnerEarning::create([
+                'partner_id' => $partner->id,
+                'vehicle_id' => $booking->vehicle_id,
+                'booking_id' => $booking->id,
+                'gross_amount' => round($grossAmount, 2),
+                'commission_amount' => round(max(0, $grossAmount - $partnerShare), 2),
+                'net_amount' => round($partnerShare, 2),
+                'status' => 'pending',
+                'earned_at' => now()->toDateString(),
+            ]);
         }
 
         private function createSettlementPayment(Booking $booking, float $amount, int $fundId, ?int $userId, string $note): void
