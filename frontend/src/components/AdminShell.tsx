@@ -11,11 +11,13 @@ export function AdminShell({
   title,
   reportsOnly = false,
   bare = false,
+  allowHost = false,
 }: {
   children: ReactNode;
   title: string;
   reportsOnly?: boolean;
   bare?: boolean;
+  allowHost?: boolean;
 }) {
   const { user, loading } = useAuth();
   const signOut = useSignOut();
@@ -25,6 +27,7 @@ export function AdminShell({
   if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
   if (user.role === "customer") return <Navigate to="/account" replace />;
+  if (user.role === "host" && !allowHost) return <Navigate to="/host" replace />;
   if (reportsOnly && !canViewReports(user)) return <Navigate to="/admin" replace />;
 
   return (

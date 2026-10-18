@@ -74,6 +74,9 @@ html.theme-dark .theme-surface [class*="border-black"] {
 html.theme-dark .theme-surface .bg-\[\#f8f7f5\] {
   background-color: #303030;
 }
+html.theme-dark .theme-surface .bg-\[\#fff7f3\] {
+  background-color: #4a281b;
+}
 html.theme-dark .theme-surface .hover\:bg-\[\#f8f7f5\]:hover,
 html.theme-dark .theme-surface .hover\:bg-orange-50:hover {
   background-color: #303030;

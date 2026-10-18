@@ -15,6 +15,7 @@ export type AuthUser = {
   last_name?: string | null
   date_of_birth?: string | null
   email_verified_at?: string | null
+  partner?: { id: number; name: string; host_access_status: string } | null
 }
 
 export function displayName(user: Pick<AuthUser, 'first_name' | 'middle_name' | 'last_name' | 'username' | 'name'>) {
@@ -93,6 +94,7 @@ export function useAuth() {
 }
 
 export function accountPath(user: AuthUser) {
+  if (user.role === 'host') return '/host'
   return user.role === 'customer' ? '/account' : '/admin'
 }
 
