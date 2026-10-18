@@ -64,7 +64,7 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          rsync -az --delete \
+          rsync -az --delete --no-perms --no-owner --no-group --omit-dir-times \
             --exclude='.env' \
             --exclude='vendor/' \
             --exclude='storage/' \
