@@ -1,0 +1,97 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: |
+          printf 'VITE_API_URL=%s\n' "$VITE_API_URL" > .env.production
+          npm ci
+          npm run build
+
+      - name: Install SSH tools
+        run: sudo apt-get update && sudo apt-get install --yes rsync
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Upload frontend
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          rsync -az --delete frontend/dist/ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/clcarhub/frontend/"
+
+      - name: Upload backend code
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='vendor/' \
+            --exclude='storage/' \
+            --exclude='public/storage' \
+            --exclude='bootstrap/cache/' \
+            backend/ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/clcarhub/backend/"
+
+      - name: Run Laravel deployment steps
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          set -Eeuo pipefail
+
+          cd /var/www/clcarhub/backend
+          test -f .env
+          test -d storage/app/public
+
+          composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+          if [ ! -L public/storage ]; then
+            php artisan storage:link
+          fi
+          php artisan migrate --force
+          php artisan optimize
+
+          sudo /usr/local/sbin/clcarhub-deploy-permissions
+          sudo nginx -t
+          sudo systemctl reload nginx
+          REMOTE
