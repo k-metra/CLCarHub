@@ -428,22 +428,23 @@ class BookingController extends Controller
         }
         unset($data['status_reason']);
         $payments = $data['payments'] ?? null;
-        $assignedToUserId = array_key_exists('assigned_to_user_id', $data)
-            ? $data['assigned_to_user_id']
+        $assignmentProvided = array_key_exists('assigned_to_user_id', $data);
+        $assignedToUserId = $assignmentProvided
+            ? ($data['assigned_to_user_id'] !== null ? (int) $data['assigned_to_user_id'] : null)
             : $booking->assigned_to_user_id;
         unset($data['assigned_to_user_id']);
         $settlementFundId = $data['settlement_fund_id'] ?? null;
         unset($data['payments']);
         unset($data['settlement_fund_id']);
         $vehicle = Vehicle::findOrFail($data['vehicle_id'] ?? $booking->vehicle_id);
-        if ($assignedToUserId !== null) {
+        $assignmentChanged = $assignmentProvided && $assignedToUserId !== $booking->assigned_to_user_id;
+        if ($assignmentChanged && $assignedToUserId !== null) {
             $assignedStaff = User::findOrFail($assignedToUserId);
             abort_unless($assignedStaff->role === 'staff' && $assignedStaff->status === 'active', 422, 'Bookings can only be assigned to active staff accounts.');
             abort_unless($request->user()->canManageAccounts(), 403, 'Only ITM and above can assign bookings.');
-        } elseif ($booking->assigned_to_user_id !== null) {
+        } elseif ($assignmentChanged) {
             abort_unless($request->user()->canManageAccounts(), 403, 'Only ITM and above can remove booking assignments.');
         }
-        $assignmentChanged = $assignedToUserId !== $booking->assigned_to_user_id;
         $fleetSettings = FleetSetting::findOrFail(1);
         $effectiveStatus = $data['status'] ?? $booking->status;
         if (
