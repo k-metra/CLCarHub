@@ -8,6 +8,7 @@ const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
 const BookingsPage = lazy(() => import("./pages/BookingsPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
+const HostPartnershipPage = lazy(() => import("./pages/HostPartnershipPage"));
 const VehiclesPage = lazy(() => import("./pages/VehiclesPage"));
 const AddOnsPage = lazy(() => import("./pages/AddOnsPage"));
 const CustomerAccountPage = lazy(() => import("./pages/CustomerAccountPage"));
@@ -39,6 +40,7 @@ export default function App() {
           <Suspense fallback={<LoadingScreen />}>
             <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/host-partnership" element={<HostPartnershipPage />} />
           <Route path="/vehicles" element={<FleetGalleryPage />} />
           <Route path="/vehicles/:vehicleId" element={<VehicleDetailPage />} />
           <Route path="/terms" element={<LegalPage />} />
