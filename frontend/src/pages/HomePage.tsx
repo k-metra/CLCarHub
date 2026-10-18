@@ -224,6 +224,30 @@ export default function HomePage() {
             </span>
           )}
         </section>
+        <section className="mx-auto mt-16 w-[calc(100%-36px)] max-w-[1160px]" aria-labelledby="host-partnership-heading">
+          <Link
+            to="/host-partnership"
+            className="group relative block overflow-hidden border border-[#ff641f]/35 bg-[#17110d] p-6 transition hover:border-[#ff641f] hover:shadow-[0_18px_45px_#ff641f1c] sm:p-8"
+          >
+            <div className="pointer-events-none absolute -right-16 -top-28 h-72 w-72 rounded-full bg-[#ff641f]/15 blur-3xl transition group-hover:bg-[#ff641f]/25" />
+            <div className="relative flex flex-col gap-7 md:flex-row md:items-center md:justify-between">
+              <div className="max-w-[680px]">
+                <p className="text-[10px] font-bold uppercase tracking-[2.4px] text-[#ff8a55]">Own a vehicle?</p>
+                <h2 id="host-partnership-heading" className="mt-3 font-['Space_Grotesk'] text-3xl font-semibold leading-tight sm:text-4xl">
+                  Turn your car into
+                  <em className="not-italic text-[#ff641f]"> extra income.</em>
+                </h2>
+                <p className="mt-3 max-w-[590px] text-sm leading-6 text-[#b9a69c]">
+                  Join the CL CarHub Host Partnership Program and put your vehicle to work with a flexible rental partnership.
+                </p>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-3 text-sm font-bold text-white">
+                Explore the program
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#ff641f] text-lg transition group-hover:translate-x-1" aria-hidden="true">→</span>
+              </span>
+            </div>
+          </Link>
+        </section>
         <section
           className="mx-auto w-[calc(100%-36px)] max-w-[1160px] py-20 md:py-[120px]"
           id="fleet"
