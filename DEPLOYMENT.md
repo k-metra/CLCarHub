@@ -24,6 +24,15 @@ location = /sitemap.xml {
 }
 ```
 
+The public host partnership page is also server-rendered by Laravel at
+`/host-partnership` for SEO. Route it to Laravel before the React SPA fallback:
+
+```nginx
+location = /host-partnership {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+```
+
 Do not keep a static `frontend/public/sitemap.xml`, because it can intercept
 the request before Laravel and prevent future vehicles from appearing.
 
