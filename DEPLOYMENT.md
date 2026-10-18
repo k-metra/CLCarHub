@@ -131,7 +131,7 @@ Uploaded files are not stored in Git and are not recreated by
 files separately, or exclude the persistent storage directory:
 
 ```bash
-rsync -a --delete \
+rsync -a --delete --no-perms --no-owner --no-group --omit-dir-times \
   --exclude='.env' \
   --exclude='storage/app/public/' \
   /path/to/new/backend/ /var/www/clcarhub/backend/
