@@ -183,6 +183,38 @@ class BookingAvailabilityTest extends TestCase
         $this->assertSame(1500.0, Booking::firstOrFail()->balance);
     }
 
+    public function test_staff_can_update_payments_without_reassigning_an_existing_booking(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $staff = User::factory()->create(['role' => 'staff', 'status' => 'active']);
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000002',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'assigned_to_user_id' => $staff->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        Sanctum::actingAs($staff);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'payments' => [
+                ['amount' => 500, 'paid_at' => '2030-01-10', 'notes' => 'Deposit'],
+            ],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('payments', [
+            'booking_id' => $booking->id,
+            'amount' => 500,
+        ]);
+        $this->assertSame($staff->id, $booking->fresh()->assigned_to_user_id);
+    }
+
     public function test_booking_invoice_contains_itemized_totals_and_payments(): void
     {
         [$vehicle, $customer] = $this->authenticate();
