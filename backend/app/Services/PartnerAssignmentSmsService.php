@@ -34,10 +34,11 @@ class PartnerAssignmentSmsService
             $vehicle->plate_number,
         ));
         $message = sprintf(
-            'CL CarHub: Booking %s has been assigned to your %s. Pickup: %s. Please review the booking in your Host Dashboard.',
+            'CL CarHub: Booking %s has been assigned to your %s. Pickup: %s. Please deliver the unit to the CL CarHub garage by %s (3 hours before pickup). Please review the booking in your Host Dashboard.',
             $booking->reference,
             $vehicleDetails,
             $booking->pickup_at?->format('M j, Y g:i A'),
+            $booking->pickup_at?->copy()->subHours(3)->format('M j, Y g:i A'),
         );
 
         try {
