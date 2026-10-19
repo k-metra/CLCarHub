@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Partner;
+use App\Models\Fund;
+use App\Models\FundTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Models\User;
@@ -14,6 +16,7 @@ use Illuminate\Support\Str;
 use App\Notifications\HostInvitationNotification;
 use App\Models\PartnerEarning;
 use App\Services\PartnerAssignmentSmsService;
+use App\Services\PartnerPayoutSmsService;
 use App\Models\PartnerPayoutMethod;
 
 class PartnerController extends Controller
@@ -43,7 +46,8 @@ class PartnerController extends Controller
             'vehicleContracts.vehicle',
             'earnings.vehicle.images',
             'earnings.booking.customer',
-            'payouts',
+            'payouts.fund',
+            'payouts.payoutMethod',
             'payoutMethods',
         ]);
     }
@@ -263,7 +267,7 @@ class PartnerController extends Controller
 
     public function payouts(Request $request, Partner $partner)
     {
-        return $partner->payouts()->with('processor')->latest()->paginate(50);
+        return $partner->payouts()->with(['processor', 'fund'])->latest()->paginate(50);
     }
 
     public function storePayout(Request $request, Partner $partner)
@@ -271,6 +275,8 @@ class PartnerController extends Controller
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
             'status' => ['required', Rule::in(['pending', 'paid', 'cancelled'])],
+            'fund_id' => ['required', 'exists:funds,id'],
+            'partner_payout_method_id' => ['required', 'exists:partner_payout_methods,id'],
             'paid_at' => ['nullable', 'date'],
             'payment_reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
@@ -283,22 +289,78 @@ class PartnerController extends Controller
             ->sum('amount');
         $remaining = round($eligibleNet - $paidOrPending, 2);
         abort_if((float) $data['amount'] > $remaining, 422, "Payout amount exceeds the partner's eligible outstanding balance.");
-        $payout = $partner->payouts()->create([...$data, 'processed_by' => $request->user()->id]);
+        abort_unless($partner->payoutMethods()->whereKey($data['partner_payout_method_id'])->exists(), 422, 'The selected payout method does not belong to this partner.');
+        $payout = DB::transaction(function () use ($partner, $data, $request) {
+            $payout = $partner->payouts()->create([...$data, 'processed_by' => $request->user()->id]);
+            if ($payout->status === 'paid') {
+                $this->recordPayoutFundTransaction($payout, $request);
+            }
 
-        return response()->json($payout, 201);
+            return $payout;
+        });
+        if ($payout->status === 'paid') {
+            app(PartnerPayoutSmsService::class)->send($payout);
+        }
+
+        return response()->json($payout->fresh(['fund', 'payoutMethod']), 201);
     }
 
     public function updatePayout(Request $request, \App\Models\PartnerPayout $partnerPayout)
     {
         $data = $request->validate([
             'status' => ['sometimes', Rule::in(['pending', 'paid', 'cancelled'])],
+            'fund_id' => ['sometimes', 'required', 'exists:funds,id'],
+            'partner_payout_method_id' => ['sometimes', 'required', 'exists:partner_payout_methods,id'],
             'paid_at' => ['nullable', 'date'],
             'payment_reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
         ]);
-        $partnerPayout->update($data);
+        abort_if($partnerPayout->status === 'paid' && ($data['status'] ?? 'paid') !== 'paid', 422, 'A paid payout cannot be cancelled or reopened.');
+        if (isset($data['partner_payout_method_id'])) {
+            abort_unless($partnerPayout->partner->payoutMethods()->whereKey($data['partner_payout_method_id'])->exists(), 422, 'The selected payout method does not belong to this partner.');
+        }
+        if (($data['status'] ?? $partnerPayout->status) === 'paid') {
+            abort_unless($partnerPayout->fund_id || isset($data['fund_id']), 422, 'A fund is required before marking the payout as paid.');
+            abort_unless($partnerPayout->partner_payout_method_id || isset($data['partner_payout_method_id']), 422, 'A payout destination is required before marking the payout as paid.');
+            $partnerPayout->update($data);
+            $this->recordPayoutFundTransaction($partnerPayout->fresh(), $request);
+            app(PartnerPayoutSmsService::class)->send($partnerPayout->fresh());
+        } else {
+            $partnerPayout->update($data);
+        }
 
-        return $partnerPayout->fresh();
+        return $partnerPayout->fresh(['fund', 'payoutMethod']);
+    }
+
+    private function recordPayoutFundTransaction(\App\Models\PartnerPayout $payout, Request $request): void
+    {
+        DB::transaction(function () use ($payout, $request): void {
+            $payout->refresh();
+            abort_unless($payout->fund_id, 422, 'A fund is required for this payout.');
+            if (FundTransaction::where('partner_payout_id', $payout->id)->exists()) {
+                return;
+            }
+
+            $fund = Fund::query()->lockForUpdate()->findOrFail($payout->fund_id);
+            $balance = (float) $fund->opening_balance
+                + (float) $fund->transactions()->where('type', 'inflow')->sum('amount')
+                - (float) $fund->transactions()->where('type', 'outflow')->sum('amount');
+            abort_if((float) $payout->amount > $balance, 422, "The selected fund does not have enough available balance.");
+
+            FundTransaction::create([
+                'fund_id' => $fund->id,
+                'partner_payout_id' => $payout->id,
+                'type' => 'outflow',
+                'transacted_at' => $payout->paid_at ?? now(),
+                'amount' => $payout->amount,
+                'description' => "Partner payout to {$payout->partner->name}",
+                'notes' => trim(collect([
+                    $payout->payment_reference ? "Payment reference: {$payout->payment_reference}" : null,
+                    $payout->notes,
+                ])->filter()->implode("\n")),
+                'created_by' => $request->user()?->id,
+            ]);
+        });
     }
 
     public function update(Request $request, Partner $partner)
