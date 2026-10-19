@@ -6,7 +6,7 @@ import Seo from "../components/Seo";
 type ReviewPlatform = "google" | "facebook";
 
 const reviewLinks = {
-  facebook: "https://m.facebook.com/clcarhub/reviews",
+  facebook: "https://m.facebook.com/clcarhub",
   google: {
     cabuyao: "https://g.page/r/CVS5DIpvkKPkEBM/review",
     calamba: "https://g.page/r/Cdt4yVVcP-FsEAI/review",
