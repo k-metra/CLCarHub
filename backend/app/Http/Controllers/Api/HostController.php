@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Vehicle;
+use App\Services\AikaGpsService;
 use Illuminate\Http\Request;
 
 class HostController extends Controller
@@ -36,5 +38,13 @@ class HostController extends Controller
                 'outstanding' => max(0, (float) $net - (float) $paid),
             ],
         ];
+    }
+
+    public function vehicleLocation(Request $request, Vehicle $vehicle, AikaGpsService $aikaGps)
+    {
+        $partner = $request->user()->partner()->firstOrFail();
+        abort_unless($vehicle->partner_id === $partner->id, 404);
+
+        return $aikaGps->location($vehicle);
     }
 }
