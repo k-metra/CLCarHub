@@ -5,9 +5,10 @@ import { displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import { ThemeToggle, useTheme } from "../lib/ThemeContext";
 
 const navigation = [
-  { label: "Overview", href: "#overview", icon: "⌂" },
-  { label: "My vehicles", href: "#vehicles", icon: "▱" },
-  { label: "Earnings", href: "#earnings", icon: "◒" },
+  { label: "Overview", href: "/host", icon: "⌂" },
+  { label: "My vehicles", href: "/host/vehicles", icon: "▱" },
+  { label: "Bookings", href: "/host/bookings", icon: "◷" },
+  { label: "Earnings", href: "/host/earnings", icon: "◒" },
 ];
 
 function HostSidebar({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
@@ -17,15 +18,15 @@ function HostSidebar({ mobile = false, onNavigate }: { mobile?: boolean; onNavig
         <p className="mb-8 px-3 text-[10px] font-bold uppercase tracking-[2.5px] text-[#ff641f]">HOST MENU</p>
         <nav className="space-y-1" aria-label="Host navigation">
           {navigation.map(item => (
-            <a
+            <Link
               key={item.href}
-              href={item.href}
+              to={item.href}
               onClick={onNavigate}
               className="flex items-center gap-3 rounded px-3 py-2.5 text-[13px] text-[#aaa] transition hover:bg-white/[.06] hover:text-white"
             >
               <span className="w-5 text-center text-base">{item.icon}</span>
               {item.label}
-            </a>
+            </Link>
           ))}
         </nav>
         <div className="mt-8 border-t border-white/10 pt-6">
