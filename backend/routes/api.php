@@ -52,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::middleware(EnsureRole::class.':host')->prefix('host')->group(function () {
         Route::get('/dashboard', [\App\Http\Controllers\Api\HostController::class, 'dashboard']);
+        Route::get('/bookings', [\App\Http\Controllers\Api\HostController::class, 'bookings']);
         Route::get('/vehicles/{vehicle}/location', [\App\Http\Controllers\Api\HostController::class, 'vehicleLocation']);
     });
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
