@@ -5,7 +5,8 @@ import api from "../lib/api";
 
 type Vehicle = { id: number; name?: string; brand: string; model: string; plate_number: string; partner_contracts: Array<{ id: number; status: string; starts_at?: string | null; ends_at?: string | null }> };
 type Earning = { id: number; net_amount: string; status: string; earned_at: string; booking?: { id: number; reference: string; customer?: { name: string } | null } | null; vehicle?: { name?: string; brand: string; model: string; images?: Array<{ url: string; is_primary?: boolean }> } | null };
-type Payout = { id: number; amount: string; status: string; paid_at?: string | null; payment_reference?: string | null; notes?: string | null };
+type Payout = { id: number; amount: string; status: string; paid_at?: string | null; payment_reference?: string | null; notes?: string | null; fund?: { id: number; name: string } | null; payout_method?: PayoutMethod | null };
+type Fund = { id: number; name: string; balance: number };
 type PayoutMethod = { id: number; type: "bank" | "e_wallet"; provider_name: string; account_name: string; account_number: string; notes?: string | null; is_primary: boolean };
 type Partner = { id: number; name: string; email: string; contact_number: string; address: string; host_access_status: string; user?: { name: string; email: string; status: string; email_verified_at?: string | null } | null; vehicles: Vehicle[]; earnings: Earning[]; payouts: Payout[]; payout_methods: PayoutMethod[] };
 
@@ -17,11 +18,23 @@ export default function PartnerDetailPage() {
   const [payoutStatus, setPayoutStatus] = useState<"pending" | "paid">("paid");
   const [paymentReference, setPaymentReference] = useState("");
   const [payoutNotes, setPayoutNotes] = useState("");
+  const [funds, setFunds] = useState<Fund[]>([]);
+  const [payoutFundId, setPayoutFundId] = useState("");
+  const [payoutMethodId, setPayoutMethodId] = useState("");
+  const [pendingPayoutFunds, setPendingPayoutFunds] = useState<Record<number, string>>({});
+  const [pendingPayoutMethods, setPendingPayoutMethods] = useState<Record<number, string>>({});
   const [savingPayout, setSavingPayout] = useState(false);
   const [updatingPayoutId, setUpdatingPayoutId] = useState<number | null>(null);
   const [methodForm, setMethodForm] = useState({ type: "bank" as "bank" | "e_wallet", provider_name: "", account_name: "", account_number: "", notes: "", is_primary: false });
   const [savingMethod, setSavingMethod] = useState(false);
-  const load = () => api.get<Partner>(`/partners/${partnerId}`).then(response => setPartner(response.data)).catch(error => setError(error instanceof Error ? error.message : "Unable to load partner"));
+  const load = () => Promise.all([
+    api.get<Partner>(`/partners/${partnerId}`),
+    api.get<{ funds: Fund[] }>("/funds"),
+  ]).then(([partnerResponse, fundsResponse]) => {
+    setPartner(partnerResponse.data);
+    setFunds(fundsResponse.data.funds);
+    setPayoutMethodId(current => current || String(partnerResponse.data.payout_methods.find(method => method.is_primary)?.id ?? ""));
+  }).catch(error => setError(error instanceof Error ? error.message : "Unable to load partner"));
   useEffect(() => { void load(); }, [partnerId]);
   const setContract = async (vehicle: Vehicle, status: string) => {
     try {
@@ -42,6 +55,8 @@ export default function PartnerDetailPage() {
       await api.post(`/partners/${partnerId}/payouts`, {
         amount: Number(payoutAmount),
         status: payoutStatus,
+        fund_id: Number(payoutFundId),
+        partner_payout_method_id: Number(payoutMethodId),
         paid_at: payoutStatus === "paid" ? new Date().toISOString().slice(0, 10) : null,
         payment_reference: paymentReference || null,
         notes: payoutNotes || null,
@@ -49,6 +64,8 @@ export default function PartnerDetailPage() {
       setPayoutAmount("");
       setPaymentReference("");
       setPayoutNotes("");
+      setPayoutFundId("");
+      setPayoutMethodId("");
       await load();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Unable to create payout");
@@ -69,9 +86,16 @@ export default function PartnerDetailPage() {
     setUpdatingPayoutId(payout.id);
     setError("");
     try {
+      const updateData = status === "paid"
+        ? {
+          status,
+          fund_id: payout.fund?.id ?? Number(pendingPayoutFunds[payout.id]),
+          partner_payout_method_id: payout.payout_method?.id ?? Number(pendingPayoutMethods[payout.id]),
+          paid_at: new Date().toISOString().slice(0, 10),
+        }
+        : { status };
       await api.patch(`/partner-payouts/${payout.id}`, {
-        status,
-        paid_at: status === "paid" ? new Date().toISOString().slice(0, 10) : null,
+        ...updateData,
       });
       await load();
     } catch (error) {
@@ -174,13 +198,16 @@ export default function PartnerDetailPage() {
         <form className="mt-6 grid gap-4 border-t border-black/10 pt-6 md:grid-cols-2 lg:grid-cols-4" onSubmit={createPayout}>
           <label className="text-sm font-medium">Amount<input className="mt-2 w-full border border-black/15 bg-white p-3" type="number" min="0.01" max={outstanding.toFixed(2)} step="0.01" value={payoutAmount} onChange={event => setPayoutAmount(event.target.value)} required disabled={outstanding <= 0} /></label>
           <label className="text-sm font-medium">Status<select className="mt-2 w-full border border-black/15 bg-white p-3" value={payoutStatus} onChange={event => setPayoutStatus(event.target.value as "pending" | "paid")} disabled={outstanding <= 0}><option value="paid">Paid</option><option value="pending">Pending review</option></select></label>
+          <label className="text-sm font-medium">Source fund<select className="mt-2 w-full border border-black/15 bg-white p-3" value={payoutFundId} onChange={event => setPayoutFundId(event.target.value)} disabled={outstanding <= 0} required><option value="">Select fund</option>{funds.map(fund => <option value={fund.id} key={fund.id}>{fund.name} · ₱{Number(fund.balance).toLocaleString()} available</option>)}</select></label>
+          <label className="text-sm font-medium">Payout destination<select className="mt-2 w-full border border-black/15 bg-white p-3" value={payoutMethodId} onChange={event => setPayoutMethodId(event.target.value)} disabled={outstanding <= 0 || partner.payout_methods.length === 0} required><option value="">Select saved bank or e-wallet</option>{partner.payout_methods.map(method => <option value={method.id} key={method.id}>{method.provider_name} · {method.account_name} · {method.account_number}{method.is_primary ? " · Primary" : ""}</option>)}</select></label>
           <label className="text-sm font-medium">Payment reference<input className="mt-2 w-full border border-black/15 bg-white p-3" placeholder="Bank or wallet reference" value={paymentReference} onChange={event => setPaymentReference(event.target.value)} disabled={outstanding <= 0} /></label>
           <label className="text-sm font-medium">Notes<input className="mt-2 w-full border border-black/15 bg-white p-3" placeholder="Optional note" value={payoutNotes} onChange={event => setPayoutNotes(event.target.value)} disabled={outstanding <= 0} /></label>
-          <button className="bg-[#151515] p-3 font-semibold text-white hover:bg-[#ff641f] disabled:cursor-not-allowed disabled:opacity-40 md:col-span-2 lg:col-span-4" type="submit" disabled={savingPayout || outstanding <= 0}>{savingPayout ? "Recording payout..." : payoutStatus === "paid" ? "Record payout" : "Create payout for review"}</button>
+          {partner.payout_methods.length === 0 && <p className="text-sm text-amber-700 md:col-span-2 lg:col-span-4">Add a bank or e-wallet payout destination above before recording a payout.</p>}
+          <button className="bg-[#151515] p-3 font-semibold text-white hover:bg-[#ff641f] disabled:cursor-not-allowed disabled:opacity-40 md:col-span-2 lg:col-span-4" type="submit" disabled={savingPayout || outstanding <= 0 || partner.payout_methods.length === 0}>{savingPayout ? "Recording payout..." : payoutStatus === "paid" ? "Record payout" : "Create payout for review"}</button>
         </form>
         <div className="mt-6 divide-y divide-black/10 border-t border-black/10">
           {partner.payouts.length === 0 && <p className="py-4 text-sm text-[#777]">No payouts recorded yet.</p>}
-          {partner.payouts.map(payout => <div className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm" key={payout.id}><span>₱{Number(payout.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}{payout.payment_reference ? ` · ${payout.payment_reference}` : ""}</span><span className="flex items-center gap-3 uppercase text-[#777]">{payout.status}{payout.status === "pending" && <><button type="button" className="bg-[#151515] px-3 py-2 text-xs font-semibold text-white hover:bg-[#ff641f] disabled:opacity-50" onClick={() => void updatePayout(payout, "paid")} disabled={updatingPayoutId === payout.id}>{updatingPayoutId === payout.id ? "Updating..." : "Mark paid"}</button><button type="button" className="border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50" onClick={() => void updatePayout(payout, "cancelled")} disabled={updatingPayoutId === payout.id}>Cancel</button></>}</span></div>)}
+          {partner.payouts.map(payout => <div className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm" key={payout.id}><span>₱{Number(payout.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}{payout.fund?.name ? ` · ${payout.fund.name}` : ""}{payout.payout_method?.provider_name ? ` · ${payout.payout_method.provider_name} ${payout.payout_method.account_number}` : ""}{payout.payment_reference ? ` · ${payout.payment_reference}` : ""}</span><span className="flex flex-wrap items-center justify-end gap-3 uppercase text-[#777]">{payout.status}{payout.status === "pending" && <>{!payout.fund && <select className="border border-black/15 bg-white px-2 py-2 text-xs normal-case" value={pendingPayoutFunds[payout.id] ?? ""} onChange={event => setPendingPayoutFunds({ ...pendingPayoutFunds, [payout.id]: event.target.value })}><option value="">Select fund</option>{funds.map(fund => <option value={fund.id} key={fund.id}>{fund.name}</option>)}</select>}{!payout.payout_method && <select className="border border-black/15 bg-white px-2 py-2 text-xs normal-case" value={pendingPayoutMethods[payout.id] ?? ""} onChange={event => setPendingPayoutMethods({ ...pendingPayoutMethods, [payout.id]: event.target.value })}><option value="">Select destination</option>{partner.payout_methods.map(method => <option value={method.id} key={method.id}>{method.provider_name} · {method.account_number}</option>)}</select>}<button type="button" className="bg-[#151515] px-3 py-2 text-xs font-semibold text-white hover:bg-[#ff641f] disabled:opacity-50" onClick={() => void updatePayout(payout, "paid")} disabled={updatingPayoutId === payout.id || (!payout.fund && !pendingPayoutFunds[payout.id]) || (!payout.payout_method && !pendingPayoutMethods[payout.id])}>{updatingPayoutId === payout.id ? "Updating..." : payout.fund && payout.payout_method ? "Mark paid" : "Assign fund and destination first"}</button><button type="button" className="border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50" onClick={() => void updatePayout(payout, "cancelled")} disabled={updatingPayoutId === payout.id}>Cancel</button></>}</span></div>)}
         </div>
       </section>
     </div>}
