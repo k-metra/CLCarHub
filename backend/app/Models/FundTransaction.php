@@ -38,6 +38,11 @@ class FundTransaction extends Model
         return $this->belongsTo(Expense::class);
     }
 
+    public function partnerPayout(): BelongsTo
+    {
+        return $this->belongsTo(PartnerPayout::class);
+    }
+
     public function isTransfer(): bool
     {
         return filled($this->transfer_reference)
