@@ -32,6 +32,9 @@ const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
 const RentalOperationsPage = lazy(() => import("./pages/RentalOperationsPage"));
 const ReviewUsPage = lazy(() => import("./pages/ReviewUsPage"));
 const HostDashboardPage = lazy(() => import("./pages/HostDashboardPage"));
+const HostBookingsPage = lazy(() => import("./pages/HostBookingsPage"));
+const HostVehiclesPage = lazy(() => import("./pages/HostVehiclesPage"));
+const HostEarningsPage = lazy(() => import("./pages/HostEarningsPage"));
 const HostActivationPage = lazy(() => import("./pages/HostActivationPage"));
 
 export default function App() {
@@ -52,6 +55,9 @@ export default function App() {
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/host/activate" element={<HostActivationPage />} />
           <Route path="/host" element={<HostDashboardPage />} />
+          <Route path="/host/vehicles" element={<HostVehiclesPage />} />
+          <Route path="/host/bookings" element={<HostBookingsPage />} />
+          <Route path="/host/earnings" element={<HostEarningsPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
           <Route path="/profile" element={<ProfilePage />} />
