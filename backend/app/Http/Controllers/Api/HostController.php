@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\Vehicle;
 use App\Services\AikaGpsService;
 use Illuminate\Http\Request;
@@ -46,5 +47,33 @@ class HostController extends Controller
         abort_unless($vehicle->partner_id === $partner->id, 404);
 
         return $aikaGps->location($vehicle);
+    }
+
+    public function bookings(Request $request)
+    {
+        $partner = $request->user()->partner()->firstOrFail();
+        abort_unless($partner->host_access_status === 'active', 403, 'Host Dashboard access is not active.');
+
+        return Booking::query()
+            ->whereIn('vehicle_id', $partner->vehicles()->select('id'))
+            ->with(['vehicle.images'])
+            ->orderByDesc('pickup_at')
+            ->get()
+            ->map(fn (Booking $booking): array => [
+                'id' => $booking->id,
+                'reference' => $booking->reference,
+                'status' => $booking->status,
+                'pickup_at' => $booking->pickup_at,
+                'return_at' => $booking->return_at,
+                'vehicle' => [
+                    'id' => $booking->vehicle?->id,
+                    'name' => $booking->vehicle?->name,
+                    'brand' => $booking->vehicle?->brand,
+                    'model' => $booking->vehicle?->model,
+                    'plate_number' => $booking->vehicle?->plate_number,
+                    'image_url' => ($booking->vehicle?->images?->firstWhere('is_primary', true) ?: $booking->vehicle?->images?->first())?->url,
+                ],
+            ])
+            ->values();
     }
 }
