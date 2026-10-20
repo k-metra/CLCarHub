@@ -48,7 +48,7 @@ jobs:
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519Ano
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
 
@@ -92,6 +92,7 @@ jobs:
           php artisan optimize
 
           sudo /usr/local/sbin/clcarhub-deploy-permissions
+          sudo systemctl reload php8.4-fpm
           sudo nginx -t
           sudo systemctl reload nginx
           REMOTE
