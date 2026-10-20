@@ -1,5 +1,6 @@
 import { HostShell } from "../components/HostShell";
 import { useHostDashboard } from "../lib/hostPortal";
+import { formatPartnerName } from "../lib/partners";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 function resolveDocumentUrl(value: string): string {
@@ -22,7 +23,7 @@ export default function HostDashboardPage() {
           {Object.entries(data.summary).map(([label, value]) => <div className="border border-black/10 bg-white p-5" key={label}><p className="text-xs uppercase tracking-widest text-[#777]">{label.replaceAll("_", " ")}</p><p className="mt-3 text-2xl font-semibold">₱{value.toLocaleString()}</p></div>)}
         </section>
         <section className="border border-black/10 bg-white p-6">
-          <h2 className="text-xl font-semibold">{data.partner.name}</h2>
+          <h2 className="text-xl font-semibold">{formatPartnerName(data.partner)}</h2>
           <p className="mt-1 text-sm text-[#777]">{data.partner.email}</p>
           <p className="mt-6 text-sm text-[#777]">Use the host navigation to review your authorized vehicles, unit bookings, earnings, and payout history.</p>
         </section>
