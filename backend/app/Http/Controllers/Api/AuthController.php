@@ -22,7 +22,7 @@ class AuthController extends Controller
         $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
         AuditLogger::record('account', 'login', "User logged in: {$user->name}", $user, null, $request);
 
-        return ['user' => $user, 'token' => $user->createToken($user->role.'-session')->plainTextToken];
+        return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken];
     }
 
     public function activateHost(Request $request)
