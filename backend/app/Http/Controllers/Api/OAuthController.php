@@ -119,7 +119,7 @@ class OAuthController extends Controller
         $user = User::findOrFail($payload['user_id']);
         abort_unless($user->status === 'active', 403, 'This account is not active.');
 
-        return ['user' => $user, 'token' => $user->createToken($user->role.'-session')->plainTextToken];
+        return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken];
     }
 
     private function validateProvider(string $provider): void
