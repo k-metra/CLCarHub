@@ -69,6 +69,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/partners/{partner}/reactivate-access', [PartnerController::class, 'reactivate']);
         Route::post('/partners/{partner}/vehicle-contracts', [\App\Http\Controllers\Api\PartnerVehicleContractController::class, 'store']);
         Route::patch('/partner-vehicle-contracts/{partnerVehicleContract}', [\App\Http\Controllers\Api\PartnerVehicleContractController::class, 'update']);
+        Route::post('/partners/{partner}/contract-documents', [\App\Http\Controllers\Api\PartnerContractDocumentController::class, 'store']);
+        Route::delete('/partners/{partner}/contract-documents/{partnerContractDocument}', [\App\Http\Controllers\Api\PartnerContractDocumentController::class, 'destroy']);
         Route::get('/partners/{partner}/earnings', [PartnerController::class, 'earnings']);
         Route::post('/partners/{partner}/earnings', [PartnerController::class, 'storeEarning']);
         Route::patch('/partner-earnings/{partnerEarning}', [PartnerController::class, 'updateEarning']);
