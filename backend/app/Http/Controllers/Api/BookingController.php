@@ -713,7 +713,7 @@ class BookingController extends Controller
             }
 
             $grossAmount = $partner->commission_based_on === 'total_booking_amount'
-                ? (float) $booking->total_amount
+                ? max(0, (float) $booking->total_amount - $this->cashSecurityDeposit($booking))
                 : (float) $booking->rental_amount;
             $partnerShare = $partner->commission_type === 'fixed_amount'
                 ? (float) $partner->commission_value
@@ -730,6 +730,13 @@ class BookingController extends Controller
                 'status' => 'pending',
                 'earned_at' => now()->toDateString(),
             ]);
+        }
+
+        private function cashSecurityDeposit(Booking $booking): float
+        {
+            return ($booking->security_deposit_type ?? 'cash') === 'cash'
+                ? (float) $booking->deposit
+                : 0;
         }
 
         private function createSettlementPayment(Booking $booking, float $amount, int $fundId, ?int $userId, string $note): void
