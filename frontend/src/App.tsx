@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
-import { useAuth } from "./lib/AuthContext";
+import { accountPath, useAuth } from "./lib/AuthContext";
 import { ThemeProvider } from "./lib/ThemeContext";
 import { LoadingScreen, ToastProvider } from "./components/Ui";
 
@@ -46,12 +46,26 @@ function CustomerOnboardingGuard() {
   const needsOnboarding = user?.role === "customer" && !user.customer?.onboarding_completed_at;
 
   useEffect(() => {
-    if (!loading && needsOnboarding && location.pathname !== "/onboarding") {
+    if (!loading && needsOnboarding && location.pathname !== "/" && location.pathname !== "/onboarding") {
       navigate(`/onboarding?return_to=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
     }
   }, [loading, needsOnboarding, location.pathname, location.search, navigate]);
 
   return null;
+}
+
+function LandingRoute() {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <HomePage />;
+  }
+
+  if (user.role === "customer" && !user.customer?.onboarding_completed_at) {
+    return <Navigate to="/onboarding?return_to=%2Faccount" replace />;
+  }
+
+  return <Navigate to={accountPath(user)} replace />;
 }
 
 export default function App() {
@@ -63,7 +77,7 @@ export default function App() {
           <Suspense fallback={<LoadingScreen />}>
             <CustomerOnboardingGuard />
             <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<LandingRoute />} />
           <Route path="/host-partnership" element={<HostPartnershipPage />} />
           <Route path="/vehicles" element={<FleetGalleryPage />} />
           <Route path="/vehicles/:vehicleId" element={<VehicleDetailPage />} />
