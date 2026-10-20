@@ -491,12 +491,14 @@ html.theme-dark .vehicle-image-preview {
   color: #777;
 }
 .customer-mobile-nav .is-active { color: #ff641f; }
+.customer-mobile-nav .is-active-icon { background-color: #fff0e9; }
 .dashboard-theme.theme-dark .customer-mobile-nav {
   border-color: rgb(255 255 255 / 14%);
   background: rgb(36 36 36 / 95%);
   color: #aaa9a5;
 }
 .dashboard-theme.theme-dark .customer-mobile-nav .is-active { color: #ff8b5c; }
+.dashboard-theme.theme-dark .customer-mobile-nav .is-active-icon { background-color: #4a281b; }
 .dashboard-theme.theme-dark .bg-amber-50 { background-color: #3d2f14; }
 .dashboard-theme.theme-dark .text-amber-800,
 .dashboard-theme.theme-dark .text-amber-900 { color: #f4d58c; }
