@@ -3,7 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Partner;
+use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\User;
+use App\Models\Vehicle;
+use App\Http\Controllers\Api\BookingController;
 use App\Notifications\HostInvitationNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -14,6 +18,51 @@ use Tests\TestCase;
 class HostPartnershipTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_total_booking_amount_partner_share_excludes_cash_security_deposit(): void
+    {
+        $partner = Partner::create([
+            'name' => 'Commission Partner',
+            'email' => 'commission@example.com',
+            'contact_number' => '09170000010',
+            'address' => 'Manila',
+            'commission_based_on' => 'total_booking_amount',
+            'commission_type' => 'percentage',
+            'commission_value' => 40,
+        ]);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota',
+            'model' => 'Vios',
+            'type' => 'sedan',
+            'plate_number' => 'COM-123',
+            'daily_rate' => 1600,
+            'status' => 'available',
+            'partner_id' => $partner->id,
+        ]);
+        $customer = Customer::create(['name' => 'Customer', 'phone' => '09170000010']);
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-010010',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => Booking::COMPLETE,
+            'payment_status' => 'paid',
+            'rental_amount' => 1600,
+            'deposit' => 2500,
+            'total_amount' => 4100,
+        ]);
+
+        $method = new \ReflectionMethod(BookingController::class, 'createPartnerEarning');
+        $method->invoke(new BookingController, $booking);
+
+        $this->assertDatabaseHas('partner_earnings', [
+            'booking_id' => $booking->id,
+            'gross_amount' => 1600,
+            'net_amount' => 640,
+            'commission_amount' => 960,
+        ]);
+    }
 
     public function test_admin_can_provision_and_activate_a_host_without_a_duplicate_partner(): void
     {
