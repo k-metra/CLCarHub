@@ -135,7 +135,8 @@ export default function PartnerDetailPage() {
   };
   const uploadDocuments = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const input = event.currentTarget.elements.namedItem("contract-files");
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("contract-files");
     if (!(input instanceof HTMLInputElement) || !input.files?.length) {
       showToast("Select at least one image or PDF to upload.", "error");
       return;
@@ -153,7 +154,7 @@ export default function PartnerDetailPage() {
           }
         },
       });
-      event.currentTarget.reset();
+      form.reset();
       setSelectedDocumentCount(0);
       await load();
       showToast("Partner contract documents uploaded successfully.", "success");
