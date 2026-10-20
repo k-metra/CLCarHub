@@ -42,6 +42,9 @@ export type HostContractDocument = {
 export type HostDashboardData = {
   partner: {
     name: string;
+    first_name?: string | null;
+    middle_name?: string | null;
+    last_name?: string | null;
     email: string;
     vehicles: HostVehicle[];
     contract_documents: HostContractDocument[];
