@@ -44,6 +44,7 @@ class PartnerController extends Controller
             'vehicles.bookings.customer',
             'vehicles.bookings.payments',
             'vehicleContracts.vehicle',
+            'contractDocuments',
             'earnings.vehicle.images',
             'earnings.booking.customer',
             'payouts.fund',
