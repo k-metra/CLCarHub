@@ -16,6 +16,7 @@ class HostController extends Controller
             ->with([
                 'vehicles.images',
                 'vehicles.partnerContracts',
+                'contractDocuments',
                 'vehicles.bookings' => fn ($query) => $query->with(['customer', 'payments', 'contract']),
                 'vehicleContracts.vehicle',
                 'earnings.vehicle',
