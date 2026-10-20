@@ -10,6 +10,9 @@
 /.idea
 /.nova
 /.phpunit.cache
+/database/testing.sqlite
+/database/database.sqlite.corrupt-*
+/database/database.sqlite.recovered
 /.vscode
 /.zed
 /auth.json
