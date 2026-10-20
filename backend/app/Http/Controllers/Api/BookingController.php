@@ -271,7 +271,7 @@ class BookingController extends Controller
     {
         $data = $request->validate([
             'photos' => ['required', 'array', 'min:1'],
-            'photos.*.file' => ['required', 'file', 'mimetypes:image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm', 'max:51200'],
+            'photos.*.file' => ['required', 'file', 'mimetypes:image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm', 'max:1048576'],
             'photos.*.label' => ['nullable', 'string', 'max:120'],
         ]);
         abort_if($booking->returnPhotos()->count() + count($data['photos']) > 30, 422, 'A booking can have up to 30 return media files.');
