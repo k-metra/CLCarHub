@@ -79,20 +79,45 @@ composer install --no-dev --optimize-autoloader
 Do not use `--ignore-platform-req=ext-curl` in production; Web Push requires
 the cURL extension to communicate with push services.
 
-Uploaded images are limited to 20 MB per file. The backend includes
-`backend/public/.user.ini` for PHP-FPM, with a 60 MB request allowance and a
-50 MB PHP transfer allowance so the server-level limit does not reject files
-before Laravel can validate them. If Nginx is configured with a request body
-limit, set it to at least 60 MB as well:
+Uploaded images are limited to 20 MB per file. Return-processing media uses the
+larger limits documented below. The backend includes `backend/public/.user.ini`
+for PHP-FPM so the server-level limit does not reject files before Laravel can
+validate them. If Nginx is configured with a request body limit, configure it
+for the return-media limit below:
 
 ```nginx
-client_max_body_size 60m;
+client_max_body_size 1100m;
 ```
 
 Reload PHP-FPM and Nginx after changing these limits. The production workflow
 reloads the detected PHP-FPM service after deployment so `.user.ini` changes
 take effect. The application returns a user-friendly 413 response when an
 upload exceeds the configured request size.
+
+### Return-media upload limits
+
+Return-processing photos and videos are limited to 1 GiB per file. The PHP
+settings in `backend/public/.user.ini` allow a 1 GiB file and a 1,100 MB
+multipart request. Nginx must allow the same request size:
+
+```nginx
+client_max_body_size 1100m;
+```
+
+After deploying these changes on the VPS:
+
+```bash
+sudo systemctl reload php8.4-fpm
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Replace `php8.4-fpm` with the PHP-FPM service installed on the server. Verify
+the active PHP-FPM configuration with `php-fpm8.4 -i | grep -E
+'upload_max_filesize|post_max_size'` (adjust the binary name if needed).
+
+The 1 GiB limit is per file. Multiple large videos selected in one request can
+still exceed the 1,100 MB request limit, so upload them in smaller batches.
 
 ## MySQL setup
 
