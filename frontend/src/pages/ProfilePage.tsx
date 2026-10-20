@@ -94,7 +94,7 @@ export default function ProfilePage() {
     </header>
     <header className="flex items-center justify-between bg-[#111] px-5 pb-6 pt-8 text-white sm:hidden">
       <div><p className="text-xs font-semibold uppercase tracking-[2px] text-white/65">CL CarHub</p><h1 className="mt-2 text-2xl font-bold">Profile settings</h1></div>
-      <ThemeToggle />
+      <div className="flex items-center gap-3"><ThemeToggle /><button type="button" className="text-xs font-semibold text-[#ffb18e]" onClick={signOut}>Sign out</button></div>
     </header>
     <main className="px-5 py-10 pb-28 sm:px-10 sm:pb-10">{renderedContent}</main>
     <CustomerMobileNav active="profile" />
