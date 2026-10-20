@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Notifications\HostInvitationNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class HostPartnershipTest extends TestCase
@@ -55,6 +57,39 @@ class HostPartnershipTest extends TestCase
         $this->actingAs($host)
             ->getJson('/api/host/dashboard')
             ->assertForbidden();
+    }
+
+    public function test_admin_can_upload_contract_documents_and_active_host_can_view_them(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->create(['role' => 'owner', 'status' => 'active']);
+        $host = User::factory()->create(['role' => 'host', 'status' => 'active']);
+        $partner = Partner::create([
+            'name' => 'Document Partner',
+            'email' => $host->email,
+            'contact_number' => '09170000009',
+            'address' => 'Manila',
+            'commission_based_on' => 'base_rent_only',
+            'commission_type' => 'percentage',
+            'commission_value' => 20,
+            'user_id' => $host->id,
+            'host_access_status' => 'active',
+        ]);
+
+        $response = $this->actingAs($admin)->post("/api/partners/{$partner->id}/contract-documents", [
+            'files' => [
+                UploadedFile::fake()->create('signed-contract.png', 100, 'image/png'),
+                UploadedFile::fake()->create('terms.pdf', 100, 'application/pdf'),
+            ],
+        ]);
+
+        $response->assertOk()->assertJsonCount(2, 'contract_documents');
+        $this->assertDatabaseCount('partner_contract_documents', 2);
+
+        $this->actingAs($host)
+            ->getJson('/api/host/dashboard')
+            ->assertOk()
+            ->assertJsonCount(2, 'partner.contract_documents');
     }
 
     public function test_admin_can_reactivate_revoked_host_access(): void
