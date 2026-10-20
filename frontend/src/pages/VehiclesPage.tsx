@@ -10,6 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
+import { formatPartnerName } from "../lib/partners";
 import { vehicleTypeLabels, vehicleTypes, type FleetGpsLocation, type FleetSettings, type Paginated, type PartnerRecord, type VehicleImage, type VehicleRecord } from "../types";
 import { ImageLightbox, RowActions, useToast } from "../components/Ui";
 
@@ -564,7 +565,7 @@ export default function VehiclesPage() {
             <option value="none">CL CarHub</option>
             {partners.map((partner) => (
               <option key={partner.id} value={partner.id}>
-                {partner.name}
+                {formatPartnerName(partner)}
               </option>
             ))}
           </select>
@@ -626,7 +627,7 @@ export default function VehiclesPage() {
                     <option value="">CL CarHub</option>
                     {partners.map((partner) => (
                       <option key={partner.id} value={partner.id}>
-                        {partner.name}
+                        {formatPartnerName(partner)}
                       </option>
                     ))}
                   </select>
