@@ -3,6 +3,7 @@ import { AdminShell } from "../components/AdminShell";
 import { RowActions, useToast } from "../components/Ui";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
+import { formatPartnerName } from "../lib/partners";
 import type { Paginated, PartnerRecord } from "../types";
 
 type PartnerForm = Omit<PartnerRecord, "id" | "vehicles_count" | "host_access_status" | "user">;
@@ -177,7 +178,7 @@ export default function PartnersPage() {
     }
   };
   const cancelInvitation = async (partner: PartnerRecord) => {
-    if (!window.confirm(`Cancel the pending host invitation for ${partner.name}? The current invitation link will stop working.`)) return;
+    if (!window.confirm(`Cancel the pending host invitation for ${formatPartnerName(partner)}? The current invitation link will stop working.`)) return;
     try {
       await api.post(`/partners/${partner.id}/revoke-access`);
       showToast("Pending host invitation canceled.", "success");
@@ -189,7 +190,7 @@ export default function PartnersPage() {
     }
   };
   const reactivate = async (partner: PartnerRecord) => {
-    if (!window.confirm(`Reactivate Host Dashboard access for ${partner.name}?`)) return;
+    if (!window.confirm(`Reactivate Host Dashboard access for ${formatPartnerName(partner)}?`)) return;
     try {
       await api.post(`/partners/${partner.id}/reactivate-access`);
       load();
@@ -355,7 +356,7 @@ export default function PartnersPage() {
               {partners.map((partner) => (
                 <tr className="border-b border-black/[.06]" key={partner.id}>
                   <td className="py-4">
-                    <p className="font-semibold">{partner.name}</p>
+                    <p className="font-semibold">{formatPartnerName(partner)}</p>
                     <p className="text-xs text-[#777]">{partner.email}</p>
                   </td>
                   <td className="py-4 text-[#777]">{partner.contact_number}</td>
