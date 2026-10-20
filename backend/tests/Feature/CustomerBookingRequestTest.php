@@ -8,7 +8,7 @@ use App\Models\FleetSetting;
 use App\Models\IpBlock;
 use App\Models\User;
 use App\Models\Vehicle;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
@@ -17,7 +17,17 @@ use Tests\TestCase;
 
 class CustomerBookingRequestTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTruncation;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        IpBlock::query()->delete();
+        FleetSetting::firstOrCreate(['id' => 1], [
+            'reservation_fee' => 0,
+            'reservation_fee_deductible' => true,
+        ]);
+    }
 
     public function test_customer_with_booking_history_is_archived_and_can_be_restored(): void
     {
@@ -60,21 +70,25 @@ class CustomerBookingRequestTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'customer', 'last_login_ip' => '203.0.113.10']);
         $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
-        IpBlock::create(['ip_address' => '127.0.0.1', 'scope' => 'bookings']);
         Sanctum::actingAs($user);
 
         $this->getJson('/api/customer/booking-requests')->assertOk();
-        $this->postJson('/api/customer/booking-requests', [])->assertForbidden();
+        IpBlock::create(['ip_address' => '::1', 'scope' => 'bookings']);
+        $this->withServerVariables(['REMOTE_ADDR' => '::1'])
+            ->postJson('/api/customer/booking-requests', [])
+            ->assertForbidden();
     }
 
     public function test_all_access_ip_blocks_prevent_api_access(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
         $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
-        IpBlock::create(['ip_address' => '127.0.0.1', 'scope' => 'all']);
+        IpBlock::create(['ip_address' => '::1', 'scope' => 'all']);
         Sanctum::actingAs($user);
 
-        $this->getJson('/api/auth/user')->assertForbidden();
+        $this->withServerVariables(['REMOTE_ADDR' => '::1'])
+            ->getJson('/api/auth/user')
+            ->assertForbidden();
     }
 
     public function test_customer_booking_submissions_are_rate_limited_by_ip(): void
@@ -83,12 +97,13 @@ class CustomerBookingRequestTest extends TestCase
         $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
         Sanctum::actingAs($user);
 
+        $request = $this->withServerVariables(['REMOTE_ADDR' => '::1']);
         foreach (range(1, 5) as $attempt) {
-            $this->postJson('/api/customer/booking-requests', [])
+            $request->postJson('/api/customer/booking-requests', [])
                 ->assertUnprocessable();
         }
 
-        $this->postJson('/api/customer/booking-requests', [])
+        $request->postJson('/api/customer/booking-requests', [])
             ->assertTooManyRequests();
     }
 
