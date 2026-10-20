@@ -13,12 +13,30 @@ class PartnerContractDocumentController extends Controller
 {
     public function store(Request $request, Partner $partner)
     {
+        $uploadErrors = collect($request->allFiles()['files'] ?? [])
+            ->filter(fn ($file): bool => $file instanceof UploadedFile && ! $file->isValid())
+            ->map(fn (UploadedFile $file): string => sprintf(
+                '%s (PHP error %d; upload_max_filesize=%s; post_max_size=%s)',
+                $file->getClientOriginalName(),
+                $file->getError(),
+                ini_get('upload_max_filesize'),
+                ini_get('post_max_size'),
+            ))
+            ->values();
+
+        if ($uploadErrors->isNotEmpty()) {
+            return response()->json([
+                'message' => 'PHP rejected the upload before Laravel could receive it.',
+                'errors' => ['files' => $uploadErrors->all()],
+            ], 422);
+        }
+
         $data = $request->validate([
             'files' => ['required', 'array', 'min:1'],
             'files.*' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
         ], [
             'files.required' => 'Select at least one contract document to upload.',
-            'files.*.uploaded' => 'A contract document could not be uploaded. Each file must be 20 MB or smaller, and the total upload must be 30 MB or smaller.',
+            'files.*.uploaded' => 'PHP rejected this upload before Laravel could receive it. Check the active PHP upload_max_filesize and post_max_size settings.',
             'files.*.mimes' => 'Contract documents must be JPG, PNG, WEBP, or PDF files.',
             'files.*.max' => 'Each contract document must be 20 MB or smaller.',
         ]);
