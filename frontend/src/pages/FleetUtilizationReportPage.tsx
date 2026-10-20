@@ -4,6 +4,7 @@ import { DateTimePicker } from "../components/DateTimePicker";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";
 import { vehicleTypeLabels, vehicleTypes, type PartnerRecord, type VehicleRecord } from "../types";
+import { formatPartnerName } from "../lib/partners";
 
 type UtilizationRow = {
   vehicle: VehicleRecord;
@@ -25,7 +26,7 @@ type ReportData = {
   booked_days: number;
   idle_days: number;
   average_utilization: number;
-  partners: Pick<PartnerRecord, "id" | "name">[];
+  partners: Pick<PartnerRecord, "id" | "name" | "first_name" | "middle_name" | "last_name">[];
 };
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
@@ -90,7 +91,7 @@ export default function FleetUtilizationReportPage() {
         <DateTimePicker value={from} onChange={setFrom} className="border border-black/10 bg-white px-3 py-2.5 text-sm" placeholder="From date" />
         <DateTimePicker value={to} onChange={setTo} className="border border-black/10 bg-white px-3 py-2.5 text-sm" placeholder="To date" />
         <select className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={type} onChange={event => setType(event.target.value)}><option value="">All types</option>{vehicleTypes.map(vehicleType => <option key={vehicleType} value={vehicleType}>{vehicleTypeLabels[vehicleType]}</option>)}</select>
-        <select className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={partnerId} onChange={event => setPartnerId(event.target.value)}><option value="">All partners</option><option value="none">No partner</option>{data?.partners.map(partner => <option value={partner.id} key={partner.id}>{partner.name}</option>)}</select>
+        <select className="border border-black/10 bg-white px-3 py-2.5 text-sm" value={partnerId} onChange={event => setPartnerId(event.target.value)}><option value="">All partners</option><option value="none">No partner</option>{data?.partners.map(partner => <option value={partner.id} key={partner.id}>{formatPartnerName(partner)}</option>)}</select>
         <select className="border border-black/10 bg-white px-3 py-2.5 text-sm lg:col-span-2" value={sort} onChange={event => setSort(event.target.value)}><option value="utilization_desc">Utilization: Highest</option><option value="utilization_asc">Utilization: Lowest</option><option value="bookings_desc">Bookings: Most</option><option value="bookings_asc">Bookings: Fewest</option><option value="booked_days_desc">Booked days: Most</option><option value="booked_days_asc">Booked days: Fewest</option><option value="name_asc">Vehicle: A-Z</option></select>
       </div>
       <div className="overflow-x-auto rounded border border-black/10 bg-white">
