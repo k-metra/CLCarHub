@@ -12,7 +12,13 @@ class Customer extends Model
 
     protected function casts(): array
     {
-        return ['archived_at' => 'datetime'];
+        return [
+            'archived_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
+            'phone_verification_expires_at' => 'datetime',
+            'phone_verification_sent_at' => 'datetime',
+            'onboarding_completed_at' => 'datetime',
+        ];
     }
 
     public function user(): BelongsTo
