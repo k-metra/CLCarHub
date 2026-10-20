@@ -1,6 +1,7 @@
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
+import { useAuth } from "./lib/AuthContext";
 import { ThemeProvider } from "./lib/ThemeContext";
 import { LoadingScreen, ToastProvider } from "./components/Ui";
 
@@ -36,6 +37,22 @@ const HostBookingsPage = lazy(() => import("./pages/HostBookingsPage"));
 const HostVehiclesPage = lazy(() => import("./pages/HostVehiclesPage"));
 const HostEarningsPage = lazy(() => import("./pages/HostEarningsPage"));
 const HostActivationPage = lazy(() => import("./pages/HostActivationPage"));
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+
+function CustomerOnboardingGuard() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const needsOnboarding = user?.role === "customer" && !user.customer?.onboarding_completed_at;
+
+  useEffect(() => {
+    if (!loading && needsOnboarding && location.pathname !== "/onboarding") {
+      navigate(`/onboarding?return_to=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
+    }
+  }, [loading, needsOnboarding, location.pathname, location.search, navigate]);
+
+  return null;
+}
 
 export default function App() {
   return (
@@ -44,6 +61,7 @@ export default function App() {
         <ThemeProvider>
           <AuthProvider>
           <Suspense fallback={<LoadingScreen />}>
+            <CustomerOnboardingGuard />
             <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/host-partnership" element={<HostPartnershipPage />} />
@@ -60,6 +78,7 @@ export default function App() {
           <Route path="/host/earnings" element={<HostEarningsPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin/vehicles" element={<VehiclesPage />} />
           <Route path="/admin/add-ons" element={<AddOnsPage />} />
