@@ -35,6 +35,7 @@ type Customer = {
 };
 type QuickAddCategory = "license" | "secondary_id" | "ltms";
 const peso = String.fromCodePoint(0x20b1);
+const maxReturnMediaBytes = 1024 * 1024 * 1024;
 const addonImageUrl = (value?: string | null) =>
   value
     ? value.startsWith("http")
@@ -808,13 +809,13 @@ export default function BookingsPage() {
         "Only 30 return media files can be attached to a booking.",
         "error",
       );
-    const oversized = selected.filter((file) => file.size > 50 * 1024 * 1024);
+    const oversized = selected.filter((file) => file.size > maxReturnMediaBytes);
     if (oversized.length)
       showToast(
-        "Each return photo or video must be 50 MB or smaller.",
+        "Each return photo or video must be 1 GB or smaller.",
         "error",
       );
-    const accepted = selected.filter((file) => file.size <= 50 * 1024 * 1024);
+    const accepted = selected.filter((file) => file.size <= maxReturnMediaBytes);
     setReturnProcessing((current) =>
       current
         ? {
@@ -1867,7 +1868,7 @@ export default function BookingsPage() {
                 <div>
                   <h3 className="font-semibold">Return photos or videos</h3>
                   <p className="mt-1 text-xs text-[#777]">
-                    Attach up to 30 photos or videos. Each file must be 50 MB or
+                    Attach up to 30 photos or videos. Each file must be 1 GB or
                     smaller.
                   </p>
                 </div>
