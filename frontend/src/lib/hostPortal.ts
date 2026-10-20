@@ -32,11 +32,19 @@ export type HostPayout = {
   notes?: string | null;
 };
 
+export type HostContractDocument = {
+  id: number;
+  original_name: string;
+  mime_type: string;
+  url: string;
+};
+
 export type HostDashboardData = {
   partner: {
     name: string;
     email: string;
     vehicles: HostVehicle[];
+    contract_documents: HostContractDocument[];
     earnings: HostEarning[];
     payouts: HostPayout[];
   };
