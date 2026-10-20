@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Expense;
+use App\Models\PartnerPayout;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,6 +61,7 @@ class DashboardController extends Controller
 
         $totalRevenue = (float) Booking::visibleToAdmin($includeArchived)->whereIn('status', $revenueStatuses)->sum('total_amount');
         $totalExpenses = (float) Expense::sum('amount');
+        $partnerPayouts = (float) PartnerPayout::where('status', 'paid')->sum('amount');
 
         return [
             'year' => $year,
@@ -68,7 +70,7 @@ class DashboardController extends Controller
                 'total_bookings' => Booking::visibleToAdmin($includeArchived)->count(),
                 'total_revenue' => $totalRevenue,
                 'total_expenses' => $totalExpenses,
-                'total_profit' => $totalRevenue - $totalExpenses,
+                'total_profit' => $totalRevenue - $totalExpenses - $partnerPayouts,
             ],
             'monthly' => collect(range(1, 12))->map(fn (int $month) => [
                 'month' => $month,

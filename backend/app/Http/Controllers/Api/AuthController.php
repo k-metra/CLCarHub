@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use App\Support\AuditLogger;
+use App\Models\HostActivationToken;
 
 class AuthController extends Controller
 {
@@ -17,11 +18,27 @@ class AuthController extends Controller
         $data = $request->validate(['email' => ['required', 'email'], 'password' => ['required', 'string']]);
         $user = User::where('email', $data['email'])->first();
         abort_unless($user && $user->status === 'active' && Hash::check($data['password'], $user->password), 422, 'The provided credentials are incorrect.');
-        abort_if($user->role === 'customer' && ! $user->hasVerifiedEmail(), 403, 'Please verify your email address before signing in.');
+        abort_if(in_array($user->role, ['customer', 'host'], true) && ! $user->hasVerifiedEmail(), 403, 'Please verify your email address before signing in.');
         $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
         AuditLogger::record('account', 'login', "User logged in: {$user->name}", $user, null, $request);
 
         return ['user' => $user, 'token' => $user->createToken($user->role.'-session')->plainTextToken];
+    }
+
+    public function activateHost(Request $request)
+    {
+        $data = $request->validate(['token' => ['required', 'string'], 'password' => ['required', 'confirmed', 'min:8']]);
+        $activation = HostActivationToken::where('token_hash', hash('sha256', $data['token']))
+            ->whereNull('used_at')
+            ->where('expires_at', '>', now())
+            ->firstOrFail();
+        $user = $activation->user;
+        abort_unless($user->role === 'host', 422, 'This host invitation is no longer valid.');
+        $user->update(['password' => Hash::make($data['password']), 'email_verified_at' => $user->email_verified_at ?: now()]);
+        $user->partner()->update(['host_access_status' => 'active', 'host_access_granted_at' => now(), 'host_access_revoked_at' => null]);
+        $activation->update(['used_at' => now()]);
+
+        return ['message' => 'Host account activated. You can now sign in.'];
     }
 
     public function register(Request $request)

@@ -92,6 +92,7 @@ jobs:
           php artisan optimize
 
           sudo /usr/local/sbin/clcarhub-deploy-permissions
+          sudo systemctl reload php8.4-fpm
           sudo nginx -t
           sudo systemctl reload nginx
           REMOTE

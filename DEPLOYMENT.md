@@ -12,6 +12,20 @@
 
 The repository contains a Laravel API in `backend/` and a separately built React/Vite frontend in `frontend/`.
 
+For local development on Windows, start the backend with the Composer command
+below rather than `php artisan serve`. The command uses
+`backend/php-development.ini` so the PHP web-server child process also receives
+the upload limits:
+
+```powershell
+cd backend
+composer serve
+```
+
+If port 8000 is already in use, stop the old Laravel/PHP server first. Only
+one backend should be listening on port 8000; otherwise the frontend may call
+an older server process that still has PHP's default 2 MB upload limit.
+
 Laravel serves the dynamic sitemap at `/sitemap.xml`. It queries available
 vehicles from the database, so future public vehicle pages are included
 automatically without a frontend rebuild. Because the frontend and API share
@@ -66,17 +80,19 @@ Do not use `--ignore-platform-req=ext-curl` in production; Web Push requires
 the cURL extension to communicate with push services.
 
 Uploaded images are limited to 20 MB per file. The backend includes
-`backend/public/.user.ini` for PHP-FPM, with a 30 MB request allowance for
-multipart overhead and multiple files. If Nginx is configured with a request
-body limit, set it to at least 30 MB as well:
+`backend/public/.user.ini` for PHP-FPM, with a 60 MB request allowance and a
+50 MB PHP transfer allowance so the server-level limit does not reject files
+before Laravel can validate them. If Nginx is configured with a request body
+limit, set it to at least 60 MB as well:
 
 ```nginx
-client_max_body_size 30m;
+client_max_body_size 60m;
 ```
 
-Reload PHP-FPM and Nginx after changing these limits. The application returns
-a user-friendly 413 response when an upload exceeds the configured request
-size.
+Reload PHP-FPM and Nginx after changing these limits. The production workflow
+reloads the detected PHP-FPM service after deployment so `.user.ini` changes
+take effect. The application returns a user-friendly 413 response when an
+upload exceeds the configured request size.
 
 ## MySQL setup
 
@@ -381,11 +397,12 @@ Create `/etc/sudoers.d/clcarhub-deploy` with `sudo visudo -f
 /etc/sudoers.d/clcarhub-deploy`:
 
 ```text
-deploy ALL=(root) NOPASSWD: /usr/bin/chown -R www-data\:www-data /var/www/clcarhub/backend/storage /var/www/clcarhub/backend/bootstrap/cache /var/www/clcarhub/backend/public, /usr/bin/chmod -R ug+rwx /var/www/clcarhub/backend/storage /var/www/clcarhub/backend/bootstrap/cache /var/www/clcarhub/backend/public, /usr/sbin/nginx -t, /usr/bin/systemctl reload nginx
+deploy ALL=(root) NOPASSWD: /usr/bin/chown -R www-data\:www-data /var/www/clcarhub/backend/storage /var/www/clcarhub/backend/bootstrap/cache /var/www/clcarhub/backend/public, /usr/bin/chmod -R ug+rwx /var/www/clcarhub/backend/storage /var/www/clcarhub/backend/bootstrap/cache /var/www/clcarhub/backend/public, /usr/sbin/nginx -t, /usr/bin/systemctl reload php8.4-fpm, /usr/bin/systemctl reload nginx
 ```
 
 The exact executable paths can be checked with `command -v chown chmod nginx
-systemctl` on the VPS. Ensure the deployment account has the expected PHP CLI,
+systemctl` on the VPS. Replace `php8.4-fpm` with the installed PHP-FPM service
+name if the server uses another PHP version. Ensure the deployment account has the expected PHP CLI,
 Composer, and Node-independent runtime available; Node is only required by the
 GitHub runner because the frontend is built before upload.
 

@@ -2045,7 +2045,7 @@ export default function BookingsPage() {
       {quickPaymentBooking && (
         <div className="fixed inset-0 z-[115] flex items-center justify-center bg-black/50 p-4">
           <form
-            className="w-full max-w-md bg-white p-6 shadow-2xl"
+            className="theme-surface w-full max-w-md bg-white p-6 shadow-2xl"
             onSubmit={saveQuickPayment}
           >
             <div className="flex items-center justify-between">
@@ -2412,11 +2412,10 @@ export default function BookingsPage() {
                         ? "Generating invoice..."
                         : "Generate invoice"}
                     </button>
-                    {!["cancelled", "rejected", "complete"].includes(
+                    {!["cancelled", "rejected"].includes(
                       selectedBooking.status,
                     ) && (
                       <>
-                        {" "}
                         <button
                           className="block w-full px-3 py-2 text-left text-sm hover:bg-[#f8f7f5]"
                           onClick={() => {
@@ -2426,7 +2425,7 @@ export default function BookingsPage() {
                         >
                           Add payment
                         </button>
-                        <button
+                        {selectedBooking.status !== "complete" && <button
                           className="block w-full px-3 py-2 text-left text-sm hover:bg-[#f8f7f5]"
                           onClick={() => {
                             openEdit(selectedBooking);
@@ -2435,7 +2434,7 @@ export default function BookingsPage() {
                           }}
                         >
                           Edit booking
-                        </button>
+                        </button>}
                       </>
                     )}
                     {Number(selectedBooking.balance ?? 0) > 0 && funds.length > 0 && (

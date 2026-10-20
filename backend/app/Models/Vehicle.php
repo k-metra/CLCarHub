@@ -35,6 +35,23 @@ class Vehicle extends Model
         return $this->belongsTo(Partner::class);
     }
 
+    public function partnerContracts(): HasMany
+    {
+        return $this->hasMany(PartnerVehicleContract::class);
+    }
+
+    public function hasActivePartnerContract(): bool
+    {
+        return $this->partner_id === null || $this->partnerContracts()->active()->exists();
+    }
+
+    public function scopeRentalEligible($query)
+    {
+        return $query->where(function ($query) {
+            $query->whereNull('partner_id')->orWhereHas('partnerContracts', fn ($contracts) => $contracts->active());
+        });
+    }
+
     public function getCodingDayAttribute(): ?string
     {
         if (strtolower($this->type) !== 'sedan' || $this->isElectricOrHybrid()) {

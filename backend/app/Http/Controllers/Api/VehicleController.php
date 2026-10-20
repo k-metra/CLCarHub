@@ -28,6 +28,7 @@ class VehicleController extends Controller
     {
         return Vehicle::with(['images', 'partner'])
             ->where('status', 'available')
+            ->rentalEligible()
             ->whereHas('images', fn ($query) => $query->where('image_type', 'thumbnail'))
             ->latest()
             ->get();
@@ -44,6 +45,7 @@ class VehicleController extends Controller
         return Vehicle::with(['images', 'partner'])
             ->when($data['type'] !== 'all', fn ($query) => $query->where('type', $data['type']))
             ->where('status', 'available')
+            ->rentalEligible()
             ->whereDoesntHave('bookings', fn ($query) => $query
                 ->whereIn('status', \App\Models\Booking::ACTIVE_STATUSES)
                 ->where('pickup_at', '<', $data['return_at'])

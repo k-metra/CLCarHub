@@ -24,6 +24,7 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/oauth/exchange', [\App\Http\Controllers\Api\OAuthController::class, 'exchange']);
 Route::post('/payments/paymongo/webhook', [PayMongoController::class, 'webhook']);
 Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/host/activate', [AuthController::class, 'activateHost']);
 Route::post('/auth/resend-verification', [AuthController::class, 'resendVerificationForEmail'])->middleware('throttle:6,1');
 Route::get('/vehicles', [VehicleController::class, 'index']);
 Route::get('/vehicles/featured', [VehicleController::class, 'featured']);
@@ -49,6 +50,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->get('/audit-logs', [AuditLogController::class, 'index']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::middleware(EnsureRole::class.':host')->prefix('host')->group(function () {
+        Route::get('/dashboard', [\App\Http\Controllers\Api\HostController::class, 'dashboard']);
+        Route::get('/bookings', [\App\Http\Controllers\Api\HostController::class, 'bookings']);
+        Route::get('/vehicles/{vehicle}/location', [\App\Http\Controllers\Api\HostController::class, 'vehicleLocation']);
+    });
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
         Route::apiResource('vehicles', VehicleController::class)->except(['index', 'show']);
         Route::post('/vehicles/{vehicle}/image', [VehicleController::class, 'uploadImage']);
@@ -56,6 +62,24 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/vehicles/{vehicle}/gallery-image/{imageType}', [VehicleController::class, 'deleteGalleryImage']);
         Route::post('/vehicles/{vehicle}/restore', [VehicleController::class, 'restore']);
         Route::apiResource('partners', PartnerController::class);
+        Route::post('/partners/{partner}/provision', [PartnerController::class, 'provision']);
+        Route::get('/partner-account-candidates', [PartnerController::class, 'accountCandidates']);
+        Route::post('/partners/{partner}/send-invitation', [PartnerController::class, 'sendInvitation']);
+        Route::post('/partners/{partner}/revoke-access', [PartnerController::class, 'revoke']);
+        Route::post('/partners/{partner}/reactivate-access', [PartnerController::class, 'reactivate']);
+        Route::post('/partners/{partner}/vehicle-contracts', [\App\Http\Controllers\Api\PartnerVehicleContractController::class, 'store']);
+        Route::patch('/partner-vehicle-contracts/{partnerVehicleContract}', [\App\Http\Controllers\Api\PartnerVehicleContractController::class, 'update']);
+        Route::post('/partners/{partner}/contract-documents', [\App\Http\Controllers\Api\PartnerContractDocumentController::class, 'store']);
+        Route::delete('/partners/{partner}/contract-documents/{partnerContractDocument}', [\App\Http\Controllers\Api\PartnerContractDocumentController::class, 'destroy']);
+        Route::get('/partners/{partner}/earnings', [PartnerController::class, 'earnings']);
+        Route::post('/partners/{partner}/earnings', [PartnerController::class, 'storeEarning']);
+        Route::patch('/partner-earnings/{partnerEarning}', [PartnerController::class, 'updateEarning']);
+        Route::get('/partners/{partner}/payouts', [PartnerController::class, 'payouts']);
+        Route::post('/partners/{partner}/payouts', [PartnerController::class, 'storePayout']);
+        Route::patch('/partner-payouts/{partnerPayout}', [PartnerController::class, 'updatePayout']);
+        Route::post('/partners/{partner}/payout-methods', [PartnerController::class, 'storePayoutMethod']);
+        Route::patch('/partner-payout-methods/{partnerPayoutMethod}', [PartnerController::class, 'updatePayoutMethod']);
+        Route::delete('/partner-payout-methods/{partnerPayoutMethod}', [PartnerController::class, 'destroyPayoutMethod']);
         Route::put('/fleet-settings', [FleetSettingController::class, 'update']);
     });
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('addons', AddonController::class)->except(['index', 'show']);

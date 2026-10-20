@@ -16,6 +16,7 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "laravel/boost": "*",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
@@ -46,7 +47,10 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "@php artisan dev"
+            "@php -c php-development.ini artisan dev --host=127.0.0.1 --port=8000"
+        ],
+        "serve": [
+            "@php -c php-development.ini artisan serve --host=127.0.0.1 --port=8000"
         ],
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",

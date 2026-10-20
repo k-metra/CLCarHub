@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api',
+  baseURL: import.meta.env.DEV ? 'http://localhost:8000/api' : (import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'),
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
@@ -26,10 +26,14 @@ api.interceptors.response.use(
       return Promise.reject(new Error('One or more uploaded files are too large. Please choose files within the allowed size limit and try again.'))
     }
     const validationErrors = error.response?.data?.errors
-    const message = error.response?.data?.message
-      ?? (validationErrors ? Object.values(validationErrors).flat().join(' ') : undefined)
-      ?? error.message
-      ?? 'Request failed'
+    const validationMessage = validationErrors ? Object.values(validationErrors).flat().join(' ') : ''
+    const responseMessage = error.response?.data?.message
+    const message = responseMessage && validationMessage
+      ? `${responseMessage} ${validationMessage}`
+      : responseMessage
+        ?? validationMessage
+        ?? error.message
+        ?? 'Request failed'
     return Promise.reject(new Error(message))
   },
 )

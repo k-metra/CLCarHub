@@ -13,6 +13,7 @@ const VehiclesPage = lazy(() => import("./pages/VehiclesPage"));
 const AddOnsPage = lazy(() => import("./pages/AddOnsPage"));
 const CustomerAccountPage = lazy(() => import("./pages/CustomerAccountPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
+const PartnerDetailPage = lazy(() => import("./pages/PartnerDetailPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const CustomersPage = lazy(() => import("./pages/CustomersPage"));
 const ExpensesPage = lazy(() => import("./pages/ExpensesPage"));
@@ -30,6 +31,11 @@ const LegalPage = lazy(() => import("./pages/LegalPage"));
 const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
 const RentalOperationsPage = lazy(() => import("./pages/RentalOperationsPage"));
 const ReviewUsPage = lazy(() => import("./pages/ReviewUsPage"));
+const HostDashboardPage = lazy(() => import("./pages/HostDashboardPage"));
+const HostBookingsPage = lazy(() => import("./pages/HostBookingsPage"));
+const HostVehiclesPage = lazy(() => import("./pages/HostVehiclesPage"));
+const HostEarningsPage = lazy(() => import("./pages/HostEarningsPage"));
+const HostActivationPage = lazy(() => import("./pages/HostActivationPage"));
 
 export default function App() {
   return (
@@ -47,6 +53,11 @@ export default function App() {
           <Route path="/privacy" element={<LegalPage />} />
           <Route path="/review-us" element={<ReviewUsPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/host/activate" element={<HostActivationPage />} />
+          <Route path="/host" element={<HostDashboardPage />} />
+          <Route path="/host/vehicles" element={<HostVehiclesPage />} />
+          <Route path="/host/bookings" element={<HostBookingsPage />} />
+          <Route path="/host/earnings" element={<HostEarningsPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
           <Route path="/profile" element={<ProfilePage />} />
@@ -72,6 +83,7 @@ export default function App() {
           <Route path="/admin/customers" element={<CustomersPage />} />
           <Route path="/admin/accounts" element={<AccountsPage />} />
           <Route path="/admin/partners" element={<PartnersPage />} />
+          <Route path="/admin/partners/:partnerId" element={<PartnerDetailPage />} />
           <Route
             path="/admin/reports/utilization"
             element={<FleetUtilizationReportPage />}
