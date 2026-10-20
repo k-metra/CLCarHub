@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell";
 import { useToast } from "../components/Ui";
 import api from "../lib/api";
+import { formatPartnerName } from "../lib/partners";
 
 type Vehicle = { id: number; name?: string; brand: string; model: string; plate_number: string; partner_contracts: Array<{ id: number; status: string; starts_at?: string | null; ends_at?: string | null }> };
 type Earning = { id: number; net_amount: string; status: string; earned_at: string; booking?: { id: number; reference: string; customer?: { name: string } | null } | null; vehicle?: { name?: string; brand: string; model: string; images?: Array<{ url: string; is_primary?: boolean }> } | null };
@@ -10,7 +11,7 @@ type Payout = { id: number; amount: string; status: string; paid_at?: string | n
 type Fund = { id: number; name: string; balance: number };
 type PayoutMethod = { id: number; type: "bank" | "e_wallet"; provider_name: string; account_name: string; account_number: string; notes?: string | null; is_primary: boolean };
 type ContractDocument = { id: number; original_name: string; mime_type: string; url: string };
-type Partner = { id: number; name: string; email: string; contact_number: string; address: string; host_access_status: string; user?: { name: string; email: string; status: string; email_verified_at?: string | null } | null; vehicles: Vehicle[]; contract_documents: ContractDocument[]; earnings: Earning[]; payouts: Payout[]; payout_methods: PayoutMethod[] };
+type Partner = { id: number; name: string; first_name?: string | null; middle_name?: string | null; last_name?: string | null; email: string; contact_number: string; address: string; host_access_status: string; user?: { name: string; email: string; status: string; email_verified_at?: string | null } | null; vehicles: Vehicle[]; contract_documents: ContractDocument[]; earnings: Earning[]; payouts: Payout[]; payout_methods: PayoutMethod[] };
 const MAX_DOCUMENT_SIZE = 20 * 1024 * 1024;
 const MAX_UPLOAD_SIZE = 30 * 1024 * 1024;
 
@@ -197,7 +198,7 @@ export default function PartnerDetailPage() {
     {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
     {partner && <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_2fr]">
       <section className="border border-black/10 bg-white p-6">
-        <h2 className="text-2xl font-semibold">{partner.name}</h2>
+        <h2 className="text-2xl font-semibold">{formatPartnerName(partner)}</h2>
         <p className="mt-2 text-sm text-[#777]">{partner.email}</p>
         <p className="mt-1 text-sm text-[#777]">{partner.contact_number}</p>
         <p className="mt-1 text-sm text-[#777]">{partner.address}</p>
