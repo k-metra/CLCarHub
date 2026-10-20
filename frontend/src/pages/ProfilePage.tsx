@@ -81,5 +81,18 @@ export default function ProfilePage() {
   </div>;
   const renderedContent = profileLoading ? loadingContent : content;
   if (user.role !== "customer") return <AdminShell title="Profile settings">{renderedContent}</AdminShell>;
-  return <div className={`dashboard-theme min-h-screen bg-[#f4f3f0] text-[#151515] ${theme === "dark" ? "theme-dark" : ""}`}><header className="border-b border-black/10 bg-[#111] px-5 text-white sm:px-8"><div className="mx-auto flex h-20 max-w-6xl items-center justify-between"><Link to="/" aria-label="CLCarHub home"><img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-16 w-28 object-contain object-left" /></Link><div className="flex items-center gap-4 text-sm"><span className="hidden sm:block">{displayName(user)}</span><ThemeToggle /><Link className="text-[#ffb18e] hover:text-white" to="/account">Dashboard</Link><button className="text-[#ffb18e] hover:text-white" onClick={signOut}>Sign out</button></div></div></header><main className="px-5 py-10 pb-28 sm:px-10 sm:pb-10">{renderedContent}</main><CustomerMobileNav active="profile" /></div>;
+  return <div className={`dashboard-theme min-h-screen bg-[#f4f3f0] text-[#151515] ${theme === "dark" ? "theme-dark" : ""}`}>
+    <header className="hidden border-b border-black/10 bg-[#111] px-5 text-white sm:block sm:px-8">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between">
+        <Link to="/" aria-label="CLCarHub home"><img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-16 w-28 object-contain object-left" /></Link>
+        <div className="flex items-center gap-4 text-sm"><span>{displayName(user)}</span><ThemeToggle /><Link className="text-[#ffb18e] hover:text-white" to="/account">Dashboard</Link><button className="text-[#ffb18e] hover:text-white" onClick={signOut}>Sign out</button></div>
+      </div>
+    </header>
+    <header className="flex items-center justify-between bg-[#111] px-5 pb-6 pt-8 text-white sm:hidden">
+      <div><p className="text-xs font-semibold uppercase tracking-[2px] text-white/65">CL CarHub</p><h1 className="mt-2 text-2xl font-bold">Profile settings</h1></div>
+      <ThemeToggle />
+    </header>
+    <main className="px-5 py-10 pb-28 sm:px-10 sm:pb-10">{renderedContent}</main>
+    <CustomerMobileNav active="profile" />
+  </div>;
 }
