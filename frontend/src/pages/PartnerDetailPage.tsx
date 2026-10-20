@@ -11,6 +11,8 @@ type Fund = { id: number; name: string; balance: number };
 type PayoutMethod = { id: number; type: "bank" | "e_wallet"; provider_name: string; account_name: string; account_number: string; notes?: string | null; is_primary: boolean };
 type ContractDocument = { id: number; original_name: string; mime_type: string; url: string };
 type Partner = { id: number; name: string; email: string; contact_number: string; address: string; host_access_status: string; user?: { name: string; email: string; status: string; email_verified_at?: string | null } | null; vehicles: Vehicle[]; contract_documents: ContractDocument[]; earnings: Earning[]; payouts: Payout[]; payout_methods: PayoutMethod[] };
+const MAX_DOCUMENT_SIZE = 20 * 1024 * 1024;
+const MAX_UPLOAD_SIZE = 30 * 1024 * 1024;
 
 export default function PartnerDetailPage() {
   const { partnerId } = useParams();
@@ -141,8 +143,19 @@ export default function PartnerDetailPage() {
       showToast("Select at least one image or PDF to upload.", "error");
       return;
     }
+    const files = Array.from(input.files);
+    const oversizedFile = files.find(file => file.size > MAX_DOCUMENT_SIZE);
+    if (oversizedFile) {
+      showToast(`${oversizedFile.name} is too large. Each document must be 20 MB or smaller.`, "error");
+      return;
+    }
+    const totalSize = files.reduce((total, file) => total + file.size, 0);
+    if (totalSize > MAX_UPLOAD_SIZE) {
+      showToast("The selected documents are too large to upload together. Keep the total size at 30 MB or less.", "error");
+      return;
+    }
     const formData = new FormData();
-    Array.from(input.files).forEach(file => formData.append("files[]", file));
+    files.forEach(file => formData.append("files[]", file));
     setUploadingDocuments(true);
     setUploadProgress(0);
     setError("");
