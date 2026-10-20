@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use App\Models\Booking;
 use App\Models\IpBlock;
+use App\Services\CustomerPhoneVerificationService;
 
 class CustomerController extends Controller
 {
@@ -17,6 +18,105 @@ class CustomerController extends Controller
     {
         return $request->user()?->customer?->load('attachments')
             ?? response()->json(['message' => 'Your account is not linked to a customer profile.'], 404);
+    }
+
+    public function completeOnboarding(Request $request, CustomerPhoneVerificationService $verification)
+    {
+        $customer = $request->user()?->customer;
+        abort_unless($customer, 404, 'Your account is not linked to a customer profile.');
+
+        $data = $request->validate([
+            'first_name' => ['required', 'string', 'min:2', 'max:100'],
+            'last_name' => ['required', 'string', 'min:2', 'max:100'],
+            'date_of_birth' => ['nullable', 'date', 'before:today'],
+            'address' => ['required', 'string', 'min:5', 'max:1000'],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'referral_source' => ['required', 'in:facebook,tiktok,google_search,word_of_mouth'],
+        ]);
+
+        $firstName = trim($data['first_name']);
+        $lastName = trim($data['last_name']);
+        abort_if($firstName === '' || $lastName === '', 422, 'First name and last name are required.');
+
+        $phone = $data['phone'] ? $verification->normalizePhone($data['phone']) : null;
+        abort_if($data['phone'] && ! $phone, 422, 'Enter a valid Philippine mobile number.');
+
+        DB::transaction(function () use ($customer, $data, $firstName, $lastName, $phone) {
+            $phoneChanged = ($customer->phone ?? null) !== $phone;
+            $name = trim($firstName.' '.$lastName);
+            $customer->update([
+                'name' => $name,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'date_of_birth' => $data['date_of_birth'] ?? null,
+                'address' => trim($data['address']),
+                'phone' => $phone,
+                'phone_verified_at' => $phoneChanged ? null : $customer->phone_verified_at,
+                'referral_source' => $data['referral_source'],
+                'onboarding_completed_at' => now(),
+            ]);
+            $customer->user()->update([
+                'name' => $name,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'date_of_birth' => $data['date_of_birth'] ?? null,
+                'phone' => $phone,
+            ]);
+        });
+
+        return $request->user()->fresh()->load('customer.attachments');
+    }
+
+    public function sendPhoneVerification(Request $request, CustomerPhoneVerificationService $verification)
+    {
+        $customer = $request->user()?->customer;
+        abort_unless($customer, 404, 'Your account is not linked to a customer profile.');
+        $data = $request->validate(['phone' => ['required', 'string', 'max:40']]);
+        $phone = $verification->normalizePhone($data['phone']);
+        abort_unless($phone, 422, 'Enter a valid Philippine mobile number.');
+
+        if ($customer->phone_verification_sent_at?->gt(now()->subSeconds(60))) {
+            abort(429, 'Please wait before requesting another verification code.');
+        }
+
+        try {
+            $verification->sendCode($customer, $phone);
+        } catch (\Illuminate\Http\Client\HttpClientException|\RuntimeException $exception) {
+            report($exception);
+            abort(502, 'Unable to send the verification code. Please try again.');
+        }
+
+        return ['phone' => $phone, 'message' => 'Verification code sent.'];
+    }
+
+    public function verifyPhone(Request $request, CustomerPhoneVerificationService $verification)
+    {
+        $customer = $request->user()?->customer;
+        abort_unless($customer, 404, 'Your account is not linked to a customer profile.');
+        $data = $request->validate(['code' => ['required', 'digits:6']]);
+
+        try {
+            $verification->verifyCode($customer, $data['code']);
+        } catch (\RuntimeException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        return ['phone_verified_at' => $customer->fresh()->phone_verified_at, 'message' => 'Phone number verified.'];
+    }
+
+    public function uploadOnboardingAttachments(Request $request)
+    {
+        $customer = $request->user()?->customer;
+        abort_unless($customer, 404, 'Your account is not linked to a customer profile.');
+        $data = $request->validate([
+            'attachments' => ['required', 'array', 'min:1'],
+            'attachments.*.category' => ['required', 'in:license,ltms,secondary_id,selfie_license'],
+            'attachments.*.file' => ['required', 'image', 'max:20480'],
+        ]);
+
+        DB::transaction(fn () => $this->storeAttachments($customer, $data['attachments']));
+
+        return $customer->fresh('attachments');
     }
 
     public function index(Request $request)
