@@ -255,7 +255,7 @@ export default function AdminLoginPage() {
               {verificationResent && <p className="text-xs text-emerald-300">If your account is eligible, a new verification email is on its way.</p>}
             </div>
           )}
-          <Button disabled={registering && !legalConsent}>
+          <Button type="submit" disabled={registering && !legalConsent}>
             {loading
               ? "Please wait..."
               : registering
