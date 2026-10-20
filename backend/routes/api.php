@@ -92,6 +92,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('customers', CustomerController::class);
     Route::post('/customers/{customer}/restore', [CustomerController::class, 'restore']);
     Route::middleware(EnsureRole::class.':customer')->get('/customer/profile', [CustomerController::class, 'profile']);
+    Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding', [CustomerController::class, 'completeOnboarding']);
+    Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding/phone/send', [CustomerController::class, 'sendPhoneVerification'])->middleware('throttle:3,1');
+    Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding/phone/verify', [CustomerController::class, 'verifyPhone'])->middleware('throttle:10,1');
+    Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding/attachments', [CustomerController::class, 'uploadOnboardingAttachments']);
     Route::get('/accounts', [AccountController::class, 'index']);
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('accounts', AccountController::class)->only(['store', 'update', 'destroy']);
     Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
