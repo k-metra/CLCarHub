@@ -401,6 +401,6 @@ class PartnerController extends Controller
     {
         $middleName = trim((string) ($data['middle_name'] ?? ''));
 
-        return $data['last_name'].', '.($middleName ? $middleName.', ' : '').$data['first_name'];
+        return $data['last_name'].', '.$data['first_name'].($middleName ? ' '.$middleName : '');
     }
 }
