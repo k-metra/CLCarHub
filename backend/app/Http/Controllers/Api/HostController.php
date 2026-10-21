@@ -57,7 +57,7 @@ class HostController extends Controller
 
         return Booking::query()
             ->whereIn('vehicle_id', $partner->vehicles()->select('id'))
-            ->with(['vehicle.images'])
+            ->with(['vehicle.images', 'contract'])
             ->orderByDesc('pickup_at')
             ->get()
             ->map(fn (Booking $booking): array => [
@@ -74,7 +74,58 @@ class HostController extends Controller
                     'plate_number' => $booking->vehicle?->plate_number,
                     'image_url' => ($booking->vehicle?->images?->firstWhere('is_primary', true) ?: $booking->vehicle?->images?->first())?->url,
                 ],
+                'contract' => $booking->contract ? [
+                    'id' => $booking->contract->id,
+                    'status' => $booking->contract->status,
+                    'host_details' => $booking->contract->host_details,
+                    'rate' => $booking->contract->host_details['rate'] ?? $booking->rental_rate,
+                    'total_amount' => $booking->contract->host_details['total_amount'] ?? null,
+                    'notes' => $booking->contract->host_details['notes'] ?? null,
+                    'special_terms' => $booking->contract->host_details['special_terms'] ?? $booking->contract->special_terms,
+                    'options' => $booking->contract->options,
+                ] : null,
             ])
             ->values();
+    }
+
+    public function contract(Request $request, Booking $booking)
+    {
+        $partner = $request->user()->partner()->firstOrFail();
+        abort_unless($booking->vehicle && $booking->vehicle->partner_id === $partner->id, 404);
+
+        $booking->load(['vehicle.images', 'contract']);
+
+        return [
+            'id' => $booking->id,
+            'reference' => $booking->reference,
+            'created_at' => $booking->created_at,
+            'pickup_at' => $booking->pickup_at,
+            'return_at' => $booking->return_at,
+            'status' => $booking->status,
+            'payment_method' => $booking->payment_method,
+            'total_amount' => $booking->total_amount,
+            'rental_amount' => $booking->rental_amount,
+            'rental_rate' => $booking->rental_rate,
+            'rental_discount' => $booking->rental_discount,
+            'additional_charges' => $booking->additional_charges,
+            'discount' => $booking->discount,
+            'deposit' => $booking->deposit,
+            'security_deposit_type' => $booking->security_deposit_type,
+            'security_deposit_asset' => $booking->security_deposit_asset,
+            'destination' => $booking->destination,
+            'delivery_address' => $booking->delivery_address,
+            'delivery_distance_km' => $booking->delivery_distance_km,
+            'delivery_rate_per_km' => $booking->delivery_rate_per_km,
+            'delivery_fee' => $booking->delivery_fee,
+            'return_address' => $booking->return_address,
+            'extension_fees' => $booking->extension_fees,
+            'fuel_charge' => $booking->fuel_charge,
+            'rfid_charge' => $booking->rfid_charge,
+            'damage_fees' => $booking->damage_fees,
+            'car_wash_fees' => $booking->car_wash_fees,
+            'addons' => $booking->addons,
+            'vehicle' => $booking->vehicle,
+            'contract' => $booking->contract,
+        ];
     }
 }
