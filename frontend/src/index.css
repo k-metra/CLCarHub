@@ -83,6 +83,30 @@ html.theme-dark::-webkit-scrollbar-thumb:hover,
 .theme-surface {
   color-scheme: light;
 }
+.dashboard-theme.theme-dark .contract-paper {
+  color-scheme: light;
+  background-color: #fff !important;
+  color: #151515 !important;
+}
+.dashboard-theme.theme-dark .contract-paper .bg-white,
+.dashboard-theme.theme-dark .contract-paper .bg-\[\#f8f7f5\],
+.dashboard-theme.theme-dark .contract-paper .bg-\[\#f4f3f0\],
+.dashboard-theme.theme-dark .contract-paper .bg-\[\#fff7f3\] {
+  background-color: #fff !important;
+}
+.dashboard-theme.theme-dark .contract-paper .text-\[\#151515\] { color: #151515 !important; }
+.dashboard-theme.theme-dark .contract-paper .text-\[\#222\] { color: #222 !important; }
+.dashboard-theme.theme-dark .contract-paper .text-\[\#444\] { color: #444 !important; }
+.dashboard-theme.theme-dark .contract-paper .text-\[\#555\] { color: #555 !important; }
+.dashboard-theme.theme-dark .contract-paper .text-\[\#666\] { color: #666 !important; }
+.dashboard-theme.theme-dark .contract-paper .text-\[\#777\] { color: #777 !important; }
+.dashboard-theme.theme-dark .contract-paper .text-\[\#888\] { color: #888 !important; }
+.dashboard-theme.theme-dark .contract-paper .text-\[\#999\] { color: #999 !important; }
+.dashboard-theme.theme-dark .contract-paper .border-black\/10,
+.dashboard-theme.theme-dark .contract-paper .border-black\/15,
+.dashboard-theme.theme-dark .contract-paper .border-black\/30 {
+  border-color: rgb(0 0 0 / 15%) !important;
+}
 html.theme-dark .theme-surface {
   color-scheme: dark;
   background-color: #242424;
