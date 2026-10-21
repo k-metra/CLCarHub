@@ -331,6 +331,49 @@ class BookingAvailabilityTest extends TestCase
             && str_contains($request['message'], 'Reason: Customer cancelled the reservation.'));
     }
 
+    public function test_garage_stored_partners_do_not_receive_booking_sms(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $partner = Partner::create([
+            'name' => 'Garage Partner',
+            'email' => 'garage@example.com',
+            'contact_number' => '09171234567',
+            'vehicles_stored_at_garage' => true,
+            'address' => 'Host address',
+            'commission_based_on' => 'rental',
+            'commission_type' => 'percentage',
+            'commission_value' => 20,
+        ]);
+        $vehicle->update(['partner_id' => $partner->id]);
+        PartnerVehicleContract::create([
+            'partner_id' => $partner->id,
+            'vehicle_id' => $vehicle->id,
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+        config()->set('services.sms_gateway.url', 'https://sms.example.test/send');
+        config()->set('services.sms_gateway.token', 'test-token');
+        Http::fake();
+
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/bookings/{$booking['id']}", [
+            'pickup_at' => '2030-01-12 10:00',
+            'return_at' => '2030-01-13 10:00',
+        ])->assertOk();
+        $this->patchJson("/api/bookings/{$booking['id']}", [
+            'status' => Booking::CANCELLED,
+            'status_reason' => 'Customer cancelled the reservation.',
+        ])->assertOk();
+
+        Http::assertNothingSent();
+    }
+
     public function test_pending_booking_cannot_become_ongoing_directly(): void
     {
         [$vehicle, $customer] = $this->authenticate();
