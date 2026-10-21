@@ -390,6 +390,7 @@ class PartnerController extends Controller
             'last_name' => ['required', 'string', 'max:100'],
             'email' => ['required', 'email', 'max:255'],
             'contact_number' => ['required', 'string', 'max:40'],
+            'vehicles_stored_at_garage' => ['sometimes', 'boolean'],
             'address' => ['required', 'string'],
             'commission_based_on' => ['required', Rule::in(['base_rent_only', 'total_booking_amount'])],
             'commission_type' => ['required', Rule::in(['percentage', 'fixed_amount'])],
