@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Partner;
+use App\Models\PartnerVehicleContract;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -282,6 +284,53 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonPath('message', 'A upcoming booking cannot be changed to pending.');
     }
 
+    public function test_host_is_texted_when_the_booking_is_cancelled_or_rescheduled(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $partner = Partner::create([
+            'name' => 'Host Partner',
+            'email' => 'host@example.com',
+            'contact_number' => '09171234567',
+            'address' => 'Host address',
+            'commission_based_on' => 'rental',
+            'commission_type' => 'percentage',
+            'commission_value' => 20,
+        ]);
+        $vehicle->update(['partner_id' => $partner->id]);
+        PartnerVehicleContract::create([
+            'partner_id' => $partner->id,
+            'vehicle_id' => $vehicle->id,
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+        config()->set('services.sms_gateway.url', 'https://sms.example.test/send');
+        config()->set('services.sms_gateway.token', 'test-token');
+        Http::fake();
+
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/bookings/{$booking['id']}", [
+            'pickup_at' => '2030-01-12 10:00',
+            'return_at' => '2030-01-13 10:00',
+        ])->assertOk();
+
+        $this->patchJson("/api/bookings/{$booking['id']}", [
+            'status' => 'cancelled',
+            'status_reason' => 'Customer cancelled the reservation.',
+        ])->assertOk();
+
+        Http::assertSentCount(3);
+        Http::assertSent(fn ($request) => str_contains($request['message'], 'has been assigned'));
+        Http::assertSent(fn ($request) => str_contains($request['message'], 'schedule') && str_contains($request['message'], 'New pickup'));
+        Http::assertSent(fn ($request) => str_contains($request['message'], 'was cancelled')
+            && str_contains($request['message'], 'Reason: Customer cancelled the reservation.'));
+    }
+
     public function test_pending_booking_cannot_become_ongoing_directly(): void
     {
         [$vehicle, $customer] = $this->authenticate();
@@ -296,6 +345,42 @@ class BookingAvailabilityTest extends TestCase
         $this->patchJson("/api/bookings/{$booking['id']}", ['status' => 'ongoing'])
             ->assertUnprocessable()
             ->assertJsonPath('message', 'A upcoming booking cannot be changed to ongoing.');
+    }
+
+    public function test_ongoing_booking_schedule_can_be_adjusted_for_late_arrival_extensions_and_early_return(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000103',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-12 10:00',
+            'status' => Booking::ONGOING,
+            'payment_status' => 'unpaid',
+            'rental_amount' => 4000,
+            'total_amount' => 4000,
+        ]);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'pickup_at' => '2030-01-10 12:00',
+            'return_at' => '2030-01-12 10:00',
+        ])->assertOk()
+            ->assertJsonPath('pickup_at', '2030-01-10T04:00:00.000000Z');
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'pickup_at' => '2030-01-10 12:00',
+            'return_at' => '2030-01-13 10:00',
+        ])->assertOk()
+            ->assertJsonPath('return_at', '2030-01-13T02:00:00.000000Z');
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'pickup_at' => '2030-01-10 12:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertOk()
+            ->assertJsonPath('return_at', '2030-01-11T02:00:00.000000Z')
+            ->assertJsonPath('status', Booking::ONGOING);
     }
 
     public function test_for_completion_booking_can_be_completed_after_return_processing(): void
@@ -328,6 +413,37 @@ class BookingAvailabilityTest extends TestCase
             ->assertJsonPath('fuel_charge', '150.00')
             ->assertJsonPath('damage_fees', '500.00')
             ->assertJsonPath('total_amount', '2650.00');
+    }
+
+    public function test_for_completion_booking_schedule_can_be_adjusted(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000104',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => now()->subHours(3),
+            'return_at' => now()->subHour(),
+            'status' => Booking::FOR_COMPLETION,
+            'payment_status' => 'unpaid',
+            'rental_amount' => 4000,
+            'total_amount' => 4000,
+        ]);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'pickup_at' => now()->subHours(2)->format('Y-m-d H:i'),
+            'return_at' => now()->addDay()->format('Y-m-d H:i'),
+            'status' => Booking::UPCOMING,
+        ])->assertOk()
+            ->assertJsonPath('status', Booking::ONGOING)
+            ->assertJsonPath('status_history.0.to_status', Booking::ONGOING);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'pickup_at' => now()->subHours(2)->format('Y-m-d H:i'),
+            'return_at' => now()->subHour()->format('Y-m-d H:i'),
+        ])->assertOk()
+            ->assertJsonPath('status', Booking::ONGOING);
     }
 
     public function test_return_processing_updates_are_saved_without_status_change(): void
