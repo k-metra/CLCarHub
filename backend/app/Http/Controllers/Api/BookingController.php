@@ -424,6 +424,14 @@ class BookingController extends Controller
         $booking->refresh();
         $data = $request->validate($this->rules(true));
         $oldStatus = $booking->status;
+        $scheduleFieldsProvided = array_key_exists('pickup_at', $data) || array_key_exists('return_at', $data);
+        if (
+            $scheduleFieldsProvided
+            && array_key_exists('status', $data)
+            && $this->isEarlierBookingStatus($data['status'], $booking->status)
+        ) {
+            unset($data['status']);
+        }
         $reason = $data['status_reason'] ?? null;
         if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
             abort_unless(in_array($data['status'], $this->allowedStatusTransitions()[$booking->status] ?? [], true), 422, "A {$booking->status} booking cannot be changed to {$data['status']}.");
@@ -479,8 +487,24 @@ class BookingController extends Controller
             $data = [...$data, ...$this->deliveryBreakdown([...$booking->toArray(), ...$data], $vehicle, $fleetSettings)];
         }
         $booking->update([...$data, 'assigned_to_user_id' => $assignedToUserId]);
+        $scheduleChanged = $booking->wasChanged(['pickup_at', 'return_at']);
+        $reopenedForExtension = $scheduleChanged
+            && $oldStatus === Booking::FOR_COMPLETION
+            && (! array_key_exists('status', $data) || $data['status'] === $oldStatus)
+            && $booking->pickup_at->lessThanOrEqualTo(now())
+            && $booking->return_at->isFuture();
+        if ($reopenedForExtension) {
+            $booking->update(['status' => Booking::ONGOING]);
+        }
         if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
             $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $booking->status, 'reason' => $reason, 'changed_by' => $request->user()?->id]);
+        } elseif ($reopenedForExtension) {
+            $booking->statusHistory()->create([
+                'from_status' => $oldStatus,
+                'to_status' => Booking::ONGOING,
+                'reason' => 'Automatically reopened because the booking schedule was extended.',
+                'changed_by' => $request->user()?->id,
+            ]);
         } elseif ($reason !== null && trim($reason) !== '') {
             $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $oldStatus, 'reason' => trim($reason), 'changed_by' => $request->user()?->id]);
         }
@@ -511,6 +535,11 @@ class BookingController extends Controller
         if ($vehicleChanged) {
             app(PartnerAssignmentSmsService::class)->send($booking);
         }
+        if ($booking->status === Booking::CANCELLED && $oldStatus !== Booking::CANCELLED) {
+            app(PartnerAssignmentSmsService::class)->sendCancellation($booking, $reason);
+        } elseif ($scheduleChanged) {
+            app(PartnerAssignmentSmsService::class)->sendScheduleUpdate($booking);
+        }
         if ($oldStatus !== $booking->status) {
             $booking->load('customer');
             app(PushNotificationService::class)->sendToAdmins(
@@ -527,6 +556,7 @@ class BookingController extends Controller
     public function destroy(Booking $booking)
     {
         $booking->update(['status' => 'cancelled']);
+        app(PartnerAssignmentSmsService::class)->sendCancellation($booking);
 
         return response()->noContent();
     }
@@ -536,6 +566,20 @@ class BookingController extends Controller
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date', 'after_or_equal:now'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
         return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_override' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'custom_delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'discount_percent_override' => ['nullable', 'numeric', 'between:0,100'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+    }
+
+    private function isEarlierBookingStatus(string $requestedStatus, string $currentStatus): bool
+    {
+        $statusOrder = [
+            Booking::PENDING => 0,
+            Booking::UPCOMING => 1,
+            Booking::ONGOING => 2,
+            Booking::FOR_COMPLETION => 3,
+            Booking::COMPLETE => 4,
+        ];
+
+        return isset($statusOrder[$requestedStatus], $statusOrder[$currentStatus])
+            && $statusOrder[$requestedStatus] < $statusOrder[$currentStatus];
     }
 
     private function authenticatedCustomer(Request $request)
