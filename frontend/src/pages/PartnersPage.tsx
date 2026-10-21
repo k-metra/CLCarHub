@@ -15,6 +15,7 @@ const emptyForm: PartnerForm = {
   last_name: "",
   email: "",
   contact_number: "",
+  vehicles_stored_at_garage: false,
   address: "",
   commission_based_on: "base_rent_only",
   commission_type: "percentage",
@@ -82,6 +83,7 @@ export default function PartnersPage() {
       last_name: partner.last_name ?? "",
       email: partner.email,
       contact_number: partner.contact_number,
+      vehicles_stored_at_garage: partner.vehicles_stored_at_garage ?? false,
       address: partner.address,
       commission_based_on: partner.commission_based_on,
       commission_type: partner.commission_type,
@@ -246,7 +248,7 @@ export default function PartnersPage() {
                       className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm text-[#151515]"
                       type={key === "email" ? "email" : key === "contact_number" ? "tel" : "text"}
                       placeholder={key === "contact_number" ? "09XXXXXXXXX or +639XXXXXXXXX" : undefined}
-                      value={form[key as keyof PartnerForm] ?? ""}
+                      value={String(form[key as keyof PartnerForm] ?? "")}
                       onChange={(e) =>
                         setForm({ ...form, [key]: e.target.value })
                       }
@@ -295,6 +297,30 @@ export default function PartnersPage() {
                     }
                     required
                   />
+                </label>
+                <label className="flex items-start gap-3 border border-black/10 p-4 text-sm text-[#555] md:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={Boolean(form.vehicles_stored_at_garage)}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        vehicles_stored_at_garage: e.target.checked,
+                      })
+                    }
+                  />
+                  <span>
+                    <span className="block font-semibold text-[#151515]">
+                      Vehicles stored at CL CarHub garage
+                    </span>
+                    <span className="mt-1 block text-xs text-[#777]">
+                      When enabled, this partner will not receive booking
+                      assignment, cancellation, or schedule-update SMS because
+                      their vehicles are already stored at the garage. Payout
+                      SMS notifications are not affected.
+                    </span>
+                  </span>
                 </label>
               </div>
               <div className="mt-6 flex justify-end gap-3">
