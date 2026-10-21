@@ -10,7 +10,21 @@ import { CustomerMobileNav } from "../components/CustomerMobileNav";
 import { useTheme } from "../lib/ThemeContext";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
-const imageUrl = (image: VehicleImage) => image.url.startsWith("http") ? image.url : `${apiOrigin}/storage/${image.url.replace(/^\/+/, "").replace(/^storage\//, "")}`;
+const imageUrl = (image: VehicleImage) => {
+  const rawUrl = image.url.trim();
+  if (!rawUrl) return "";
+  if (!rawUrl.startsWith("http")) {
+    return `${apiOrigin}/storage/${rawUrl.replace(/^\/+/, "").replace(/^storage\//, "")}`;
+  }
+  try {
+    const parsedUrl = new URL(rawUrl);
+    return parsedUrl.pathname.startsWith("/storage/")
+      ? `${apiOrigin}${parsedUrl.pathname}${parsedUrl.search}`
+      : rawUrl;
+  } catch {
+    return rawUrl;
+  }
+};
 const imageLabels: Record<string, string> = {
   thumbnail: "Thumbnail", front: "Front", back: "Back", left: "Left", right: "Right",
   interior_back: "Interior back", interior_front: "Interior front", trunk: "Trunk",
