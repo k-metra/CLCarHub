@@ -5,13 +5,13 @@ import { useToast } from "../components/Ui";
 import api from "../lib/api";
 import type { BookingRecord, Paginated } from "../types";
 
-type ContractOptions = {
+export type ContractOptions = {
   strict_destination: boolean;
   release_of_liability: boolean;
   no_smoking: boolean;
   carwash_payment: string;
 };
-type Contract = { id: number; booking_id: number; status: string; special_terms?: string | null; options?: Partial<ContractOptions> | null; signed_at?: string | null; booking: BookingRecord };
+export type Contract = { id: number; booking_id: number; status: string; special_terms?: string | null; options?: Partial<ContractOptions> | null; signed_at?: string | null; booking: BookingRecord };
 const defaultContractOptions: ContractOptions = { strict_destination: false, release_of_liability: false, no_smoking: false, carwash_payment: "" };
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 const dateTime = (value?: string) => value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
@@ -40,7 +40,7 @@ function BookingCard({ booking, selected, onSelect }: { booking: BookingRecord; 
   </button>;
 }
 
-function ContractPreview({ contract, booking, specialTerms, options }: { contract?: Contract | null; booking: BookingRecord; specialTerms: string; options: ContractOptions }) {
+export function ContractPreview({ contract, booking, specialTerms, options }: { contract?: Omit<Contract, "booking"> | null; booking: BookingRecord; specialTerms: string; options: ContractOptions }) {
   const paid = booking.payments?.reduce((sum, payment) => sum + Number(payment.amount), 0) ?? 0;
   const securityDeposit = booking.security_deposit_type === "asset"
     ? booking.security_deposit_asset || "Asset held in lieu of cash deposit"
