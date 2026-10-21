@@ -11,7 +11,7 @@ class Contract extends Model
 
     protected function casts(): array
     {
-        return ['signed_at' => 'datetime', 'options' => 'array'];
+        return ['signed_at' => 'datetime', 'options' => 'array', 'host_details' => 'array'];
     }
 
     public function booking(): BelongsTo
