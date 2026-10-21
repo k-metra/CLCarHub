@@ -23,21 +23,30 @@ Route::get('/sitemap.xml', function () {
     Vehicle::query()
         ->where('status', 'available')
         ->orderBy('id')
+        ->with('images')
         ->get(['id', 'updated_at'])
         ->each(function (Vehicle $vehicle) use (&$urls, $siteUrl): void {
             $urls[] = [
                 'loc' => "{$siteUrl}/vehicles/{$vehicle->id}",
                 'lastmod' => $vehicle->updated_at?->toDateString(),
+                'images' => $vehicle->images
+                    ->filter(fn ($image) => $image->image_type)
+                    ->map(fn ($image) => $image->url)
+                    ->values()
+                    ->all(),
             ];
         });
 
     $xml = '<?xml version="1.0" encoding="UTF-8"?>'
-        . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+        . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">';
 
     foreach ($urls as $url) {
         $xml .= '<url><loc>'.htmlspecialchars($url['loc'], ENT_XML1, 'UTF-8').'</loc>';
         if ($url['lastmod']) {
             $xml .= '<lastmod>'.$url['lastmod'].'</lastmod>';
+        }
+        foreach ($url['images'] ?? [] as $image) {
+            $xml .= '<image:image><image:loc>'.htmlspecialchars($image, ENT_XML1, 'UTF-8').'</image:loc></image:image>';
         }
         $xml .= '</url>';
     }
