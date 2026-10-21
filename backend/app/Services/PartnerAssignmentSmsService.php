@@ -71,11 +71,15 @@ class PartnerAssignmentSmsService
         $phone = $this->normalizePhone($partner?->contact_number);
         $url = config('services.sms_gateway.url');
 
-        if (! $partner || ! $phone || ! $url) {
+        if (! $partner || $partner->vehicles_stored_at_garage || ! $phone || ! $url) {
             Log::info("Partner {$notificationType} SMS skipped.", [
                 'booking_id' => $booking->id,
                 'partner_id' => $partner?->id,
-                'reason' => ! $partner ? 'Vehicle is CL CarHub-owned.' : (! $url ? 'SMS gateway is not configured.' : 'Partner has no valid mobile number.'),
+                'reason' => ! $partner
+                    ? 'Vehicle is CL CarHub-owned.'
+                    : ($partner->vehicles_stored_at_garage
+                        ? 'Partner vehicles are stored at the CL CarHub garage.'
+                        : (! $url ? 'SMS gateway is not configured.' : 'Partner has no valid mobile number.')),
             ]);
             return;
         }
