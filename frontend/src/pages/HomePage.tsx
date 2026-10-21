@@ -14,7 +14,21 @@ const imageUrl = (vehicle: VehicleRecord) => {
   if (!image) return null;
   return imageUrlFromImage(image);
 };
-const imageUrlFromImage = (image: VehicleImage) => image.url.startsWith("http") ? image.url : `${apiOrigin}/storage/${image.url.replace(/^\/+/, "").replace(/^storage\//, "")}`;
+const imageUrlFromImage = (image: VehicleImage) => {
+  const rawUrl = image.url.trim();
+  if (!rawUrl) return "";
+  if (!rawUrl.startsWith("http")) {
+    return `${apiOrigin}/storage/${rawUrl.replace(/^\/+/, "").replace(/^storage\//, "")}`;
+  }
+  try {
+    const parsedUrl = new URL(rawUrl);
+    return parsedUrl.pathname.startsWith("/storage/")
+      ? `${apiOrigin}${parsedUrl.pathname}${parsedUrl.search}`
+      : rawUrl;
+  } catch {
+    return rawUrl;
+  }
+};
 const imageLabels: Record<string, string> = {
   thumbnail: "Thumbnail", front: "Front", back: "Back", left: "Left", right: "Right",
   interior_back: "Interior Back", interior_front: "Interior Front", trunk: "Trunk",
