@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { HostShell } from "../components/HostShell";
 import api from "../lib/api";
 
@@ -29,6 +30,7 @@ type HostBooking = {
     plate_number: string;
     image_url?: string | null;
   };
+  contract?: { id: number; status: string; rate?: number | string | null; total_amount?: number | string | null; notes?: string | null; special_terms?: string | null } | null;
 };
 
 function formatDate(value: string): string {
@@ -52,6 +54,7 @@ function statusClass(status: string): string {
 }
 
 export default function HostBookingsPage() {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<HostBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -91,6 +94,15 @@ export default function HostBookingsPage() {
               <span className={`inline-block rounded px-2 py-1 text-xs font-semibold uppercase ${statusClass(booking.status)}`}>{booking.status.replaceAll("_", " ")}</span>
               <p className="mt-2 text-[#777]">{formatDate(booking.pickup_at)} – {formatDate(booking.return_at)}</p>
             </div>
+            {booking.contract && <div className="w-full border-t border-black/10 pt-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-semibold">Contract · {booking.contract.status}</p><button type="button" className="border border-[#ff641f] px-3 py-1.5 text-xs font-semibold text-[#d94e14]" onClick={() => navigate(`/host/bookings/${booking.id}/contract`)}>View contract PDF</button></div>
+              <div className="mt-2 grid gap-2 text-[#555] sm:grid-cols-2">
+                <p>Host rate: <strong>{booking.contract.rate == null ? "Not set" : `₱${Number(booking.contract.rate).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}</strong></p>
+                {booking.contract.total_amount != null && <p>Host total: <strong>₱{Number(booking.contract.total_amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong></p>}
+              </div>
+              {booking.contract.notes && <p className="mt-2 whitespace-pre-wrap text-[#777]">{booking.contract.notes}</p>}
+              {booking.contract.special_terms && <p className="mt-2 whitespace-pre-wrap border-l-2 border-[#ff641f] pl-3 text-[#555]"><strong>Contract terms:</strong> {booking.contract.special_terms}</p>}
+            </div>}
           </article>)}
         </div>}
         {!loading && !error && bookings.length > 0 && filteredBookings.length === 0 && <p className="mt-6 text-sm text-[#777]">No bookings match your search or filter.</p>}
