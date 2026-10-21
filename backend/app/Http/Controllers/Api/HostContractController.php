@@ -12,7 +12,7 @@ class HostContractController extends Controller
     public function index()
     {
         return Booking::query()
-            ->with(['vehicle.images', 'contract'])
+            ->with(['customer', 'vehicle.images', 'contract'])
             ->latest('pickup_at')
             ->get()
             ->map(fn (Booking $booking): array => $this->resource($booking));
@@ -57,6 +57,9 @@ class HostContractController extends Controller
                 'reference' => $booking->reference,
                 'pickup_at' => $booking->pickup_at,
                 'return_at' => $booking->return_at,
+                'customer' => [
+                    'name' => $booking->customer?->name,
+                ],
                 'rental_rate' => $booking->rental_rate,
                 'rental_amount' => $booking->rental_amount,
                 'total_amount' => $booking->total_amount,
