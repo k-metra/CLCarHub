@@ -19,6 +19,7 @@ const sections: SidebarSection[] = [
       { label: "Home", path: "/admin", icon: "⌂" },
       { label: "Calendar", path: "/admin/calendar", icon: "▦" },
       { label: "Contract Builder", path: "/admin/contracts", icon: "▤" },
+      { label: "Host Contract Views", path: "/admin/host-contracts", icon: "♧" },
     ],
   },
   {
