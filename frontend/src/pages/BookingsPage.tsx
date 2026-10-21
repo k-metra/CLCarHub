@@ -3248,6 +3248,14 @@ export default function BookingsPage() {
                       onChange={(value) => setField("pickup_at", value)}
                       className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
                     />
+                    {["ongoing", "for_completion"].includes(
+                      editingBooking?.status ?? "",
+                    ) && (
+                      <span className="mt-1 block text-[11px] text-[#888]">
+                        Adjust this time if the customer arrived late or the
+                        actual handover time changed.
+                      </span>
+                    )}
                   </label>
                   <label className="text-xs text-[#777]">
                     End date & time
@@ -3258,6 +3266,13 @@ export default function BookingsPage() {
                       onChange={(value) => setField("return_at", value)}
                       className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
                     />
+                    {["ongoing", "for_completion"].includes(
+                      editingBooking?.status ?? "",
+                    ) && (
+                      <span className="mt-1 block text-[11px] text-[#888]">
+                        Adjust this time for an extension or early return.
+                      </span>
+                    )}
                   </label>
                   {Number(selectedVehicle?.security_deposit_fee ?? 0) > 0 && (
                     <fieldset className="md:col-span-2 border border-black/10 p-4">
