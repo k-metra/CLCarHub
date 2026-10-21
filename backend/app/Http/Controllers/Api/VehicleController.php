@@ -115,6 +115,7 @@ class VehicleController extends Controller
         if ($image) {
             Storage::disk('public')->delete($image->path);
             $image->delete();
+            $vehicle->touch();
         }
 
         return $vehicle->fresh(['images', 'partner']);
@@ -213,6 +214,7 @@ class VehicleController extends Controller
         abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The vehicle image could not be saved. Check storage permissions and disk configuration.');
         $vehicle->images()->whereNull('image_type')->update(['is_primary' => false]);
         $vehicle->images()->create(['path' => $path, 'is_primary' => true, 'image_type' => null]);
+        $vehicle->touch();
     }
 
     private function removeImageBackground(UploadedFile $image): string
@@ -258,5 +260,6 @@ class VehicleController extends Controller
             $existingImage->delete();
         });
         $vehicle->images()->create(['path' => $path, 'is_primary' => false, 'image_type' => $imageType]);
+        $vehicle->touch();
     }
 }
