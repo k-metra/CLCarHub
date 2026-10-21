@@ -24,6 +24,7 @@ const VehicleRevenueReportPage = lazy(() => import("./pages/VehicleRevenueReport
 const FleetUtilizationReportPage = lazy(() => import("./pages/FleetUtilizationReportPage"));
 const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const ContractBuilderPage = lazy(() => import("./pages/ContractBuilderPage"));
+const HostContractBuilderPage = lazy(() => import("./pages/HostContractBuilderPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const FleetSettingsPage = lazy(() => import("./pages/FleetSettingsPage"));
 const FleetGalleryPage = lazy(() => import("./pages/FleetGalleryPage"));
@@ -34,6 +35,7 @@ const RentalOperationsPage = lazy(() => import("./pages/RentalOperationsPage"));
 const ReviewUsPage = lazy(() => import("./pages/ReviewUsPage"));
 const HostDashboardPage = lazy(() => import("./pages/HostDashboardPage"));
 const HostBookingsPage = lazy(() => import("./pages/HostBookingsPage"));
+const HostContractPage = lazy(() => import("./pages/HostContractPage"));
 const HostVehiclesPage = lazy(() => import("./pages/HostVehiclesPage"));
 const HostEarningsPage = lazy(() => import("./pages/HostEarningsPage"));
 const HostActivationPage = lazy(() => import("./pages/HostActivationPage"));
@@ -89,6 +91,7 @@ export default function App() {
           <Route path="/host" element={<HostDashboardPage />} />
           <Route path="/host/vehicles" element={<HostVehiclesPage />} />
           <Route path="/host/bookings" element={<HostBookingsPage />} />
+          <Route path="/host/bookings/:bookingId/contract" element={<HostContractPage />} />
           <Route path="/host/earnings" element={<HostEarningsPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
@@ -105,6 +108,7 @@ export default function App() {
             path="/admin/contracts"
             element={<ContractBuilderPage />}
           />
+          <Route path="/admin/host-contracts" element={<HostContractBuilderPage />} />
           <Route
             path="/admin/expenses"
             element={<ExpensesPage />}
