@@ -12,7 +12,10 @@ class Partner extends Model
 
     protected function casts(): array
     {
-        return ['commission_value' => 'decimal:2'];
+        return [
+            'commission_value' => 'decimal:2',
+            'vehicles_stored_at_garage' => 'boolean',
+        ];
     }
 
     public function vehicles(): HasMany
