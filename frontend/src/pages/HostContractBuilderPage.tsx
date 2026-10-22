@@ -17,8 +17,15 @@ type HostContract = {
     rental_rate?: number | string | null;
     rental_amount?: number | string | null;
     total_amount?: number | string | null;
-    vehicle?: { name?: string | null; brand: string; model: string; plate_number: string } | null;
+    vehicle?: { name?: string | null; brand: string; model: string; plate_number: string; partner?: { name?: string | null } | null } | null;
   };
+};
+
+type HostContractResponse = {
+  data: HostContract[];
+  current_page: number;
+  last_page: number;
+  total: number;
 };
 
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
@@ -33,13 +40,16 @@ export default function HostContractBuilderPage() {
   const [notes, setNotes] = useState("");
   const [specialTerms, setSpecialTerms] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [result, setResult] = useState<HostContractResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const response = await api.get<HostContract[]>("/host-contracts");
-    setContracts(response.data);
-    if (selectedId == null && response.data[0]) select(response.data[0]);
+    const response = await api.get<HostContractResponse>("/host-contracts", { params: { search: search.trim() || undefined, page, per_page: 15 } });
+    setResult(response.data);
+    setContracts(response.data.data);
+    if (selectedId == null && response.data.data[0]) select(response.data.data[0]);
   };
 
   const select = (contract: HostContract) => {
@@ -51,25 +61,11 @@ export default function HostContractBuilderPage() {
   };
 
   useEffect(() => {
+    setLoading(true);
     load().catch(error => showToast(error instanceof Error ? error.message : "Unable to load host contracts", "error")).finally(() => setLoading(false));
-  }, []);
+  }, [page, search]);
 
   const selected = contracts.find(contract => contract.id === selectedId);
-  const normalizedSearch = search.trim().toLowerCase();
-  const filteredContracts = normalizedSearch
-    ? contracts.filter(contract => {
-      const vehicle = contract.booking.vehicle;
-      const haystack = [
-        contract.booking.reference,
-        contract.booking.customer?.name,
-        vehicle?.name,
-        vehicle?.brand,
-        vehicle?.model,
-        vehicle?.plate_number,
-      ].filter(Boolean).join(" ").toLowerCase();
-      return haystack.includes(normalizedSearch);
-    })
-    : contracts;
   const calculatedTotal = selected && rate !== ""
     ? Number(selected.booking.total_amount ?? 0) - Number(selected.booking.rental_amount ?? 0) + Number(rate) * rentalDays(selected.booking)
     : null;
@@ -98,16 +94,17 @@ export default function HostContractBuilderPage() {
     <div className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
       <section className="rounded border border-black/10 bg-white p-4">
         <h2 className="font-semibold">Contracts</h2>
-        <input className="mt-3 w-full border border-black/10 px-3 py-2.5 text-sm" placeholder="Search reference, customer, unit, or plate" value={search} onChange={event => setSearch(event.target.value)} />
+        <input className="mt-3 w-full border border-black/10 px-3 py-2.5 text-sm" placeholder="Search reference, customer, unit, plate, or host" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} />
         {loading && <p className="mt-4 text-sm text-[#777]">Loading contracts...</p>}
-        {!loading && contracts.length === 0 && <p className="mt-4 text-sm text-[#777]">No bookings have been made yet.</p>}
-        {!loading && contracts.length > 0 && filteredContracts.length === 0 && <p className="mt-4 text-sm text-[#777]">No bookings match your search.</p>}
-        <div className="mt-3 space-y-2">{filteredContracts.map(contract => <button type="button" key={contract.id} onClick={() => select(contract)} className={`w-full rounded border p-3 text-left ${selectedId === contract.id ? "border-[#ff641f] bg-[#fff7f3]" : "border-black/10"}`}>
+        {!loading && contracts.length === 0 && <p className="mt-4 text-sm text-[#777]">{search.trim() ? "No bookings match your search." : "No bookings have been made yet."}</p>}
+        <div className="mt-3 space-y-2">{contracts.map(contract => <button type="button" key={contract.id} onClick={() => select(contract)} className={`w-full rounded border p-3 text-left ${selectedId === contract.id ? "border-[#ff641f] bg-[#fff7f3]" : "border-black/10"}`}>
           <p className="font-semibold">{contract.booking.reference}</p>
           <p className="mt-1 text-sm">{contract.booking.customer?.name ?? "Unknown customer"}</p>
           <p className="mt-1 text-sm">{contract.booking.vehicle?.name || `${contract.booking.vehicle?.brand ?? ""} ${contract.booking.vehicle?.model ?? ""}`}</p>
+          <p className="mt-1 text-xs font-semibold text-[#555]">Host: {contract.booking.vehicle?.partner?.name ?? "CL CarHub"}</p>
           <p className="mt-1 text-xs text-[#777]">{contract.booking.vehicle?.plate_number} · {contract.status === "not_created" ? "Host view not configured" : contract.status}</p>
         </button>)}</div>
+        {!loading && result && result.last_page > 1 && <div className="mt-4 flex items-center justify-between border-t border-black/10 pt-4 text-xs"><span className="text-[#777]">{result.total} total bookings</span><div className="flex items-center gap-2"><button type="button" disabled={page <= 1} className="border border-black/10 px-2 py-1.5 disabled:opacity-40" onClick={() => setPage(current => current - 1)}>←</button><span>Page {result.current_page} of {result.last_page}</span><button type="button" disabled={page >= result.last_page} className="border border-black/10 px-2 py-1.5 disabled:opacity-40" onClick={() => setPage(current => current + 1)}>→</button></div></div>}
       </section>
       {selected && <section className="rounded border border-black/10 bg-white p-6">
         <p className="text-xs font-bold uppercase tracking-widest text-[#ff641f]">Host-only content</p>
