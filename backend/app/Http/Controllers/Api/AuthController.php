@@ -20,10 +20,11 @@ class AuthController extends Controller
         $user = User::where('email', $data['email'])->first();
         abort_unless($user && $user->status === 'active' && Hash::check($data['password'], $user->password), 422, 'The provided credentials are incorrect.');
         abort_if(in_array($user->role, ['customer', 'host'], true) && ! $user->hasVerifiedEmail(), 403, 'Please verify your email address before signing in.');
+        $firstLogin = $user->last_login_at === null;
         $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
         AuditLogger::record('account', 'login', "User logged in: {$user->name}", $user, null, $request);
 
-        return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken];
+        return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken, 'first_login' => $firstLogin];
     }
 
     public function activateHost(Request $request)
