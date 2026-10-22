@@ -566,6 +566,7 @@ export default function BookingsPage() {
   const [fleetSettings, setFleetSettings] = useState<FleetSettings>({
     reservation_fee: "0",
     reservation_fee_deductible: true,
+    booking_sms_numbers: [],
     default_hour_extension_rate: "200",
     full_day_extension_threshold_hours: 12,
     late_return_grace_period_minutes: 60,
