@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Contract;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class HostContractController extends Controller
 {
@@ -39,6 +41,8 @@ class HostContractController extends Controller
             'host_details.total_amount' => ['nullable', 'numeric', 'min:0'],
             'host_details.notes' => ['nullable', 'string'],
             'host_details.special_terms' => ['nullable', 'string'],
+            'host_contract_images' => ['nullable', 'array', 'max:10'],
+            'host_contract_images.*' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:10240'],
         ]);
 
         $contract = $booking->contract()->firstOrCreate(
@@ -48,7 +52,19 @@ class HostContractController extends Controller
                 'created_by' => $request->user()?->id,
             ],
         );
-        $contract->update(['host_details' => $data['host_details']]);
+        $images = $contract->host_contract_images ?? [];
+        if (count($images) + count($request->file('host_contract_images', [])) > 10) {
+            throw ValidationException::withMessages([
+                'host_contract_images' => 'A booking may have up to 10 physical contract images.',
+            ]);
+        }
+        foreach ($request->file('host_contract_images', []) as $image) {
+            abort_if(count($images) >= 10, 422, 'A booking may have up to 10 physical contract images.');
+            $path = $image->store('contracts/host', 'public');
+            abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The physical contract image could not be saved.');
+            $images[] = $path;
+        }
+        $contract->update(['host_details' => $data['host_details'], 'host_contract_images' => $images]);
 
         return $this->resource($booking->fresh(['vehicle.images', 'contract']));
     }
@@ -63,6 +79,7 @@ class HostContractController extends Controller
             'contract_id' => $contract?->id,
             'status' => $contract?->status ?? 'not_created',
             'host_details' => $contract?->host_details,
+            'host_contract_images' => collect($contract?->host_contract_images ?? [])->map(fn (string $path): string => Storage::disk('public')->url($path))->values()->all(),
             'special_terms' => $contract?->special_terms,
             'options' => $contract?->options,
             'booking' => [
