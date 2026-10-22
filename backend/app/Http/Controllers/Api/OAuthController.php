@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\SocialAccount;
 use App\Models\User;
+use App\Models\Customer;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,25 +55,39 @@ class OAuthController extends Controller
                     return $social->user;
                 }
 
-                $user = User::where('email', $profile->getEmail())->first();
+                $email = strtolower(trim((string) $profile->getEmail()));
+                $user = User::whereRaw('lower(email) = ?', [$email])->first();
                 if ($user && $user->role !== 'customer') {
                     abort(422, 'This email belongs to a staff account. Use the staff sign-in form.');
                 }
+                $unclaimedProfile = Customer::query()
+                    ->whereNull('user_id')
+                    ->whereRaw('lower(email) = ?', [$email])
+                    ->lockForUpdate()
+                    ->first();
                 if (! $user) {
                     $username = $this->uniqueUsername($profile->getNickname() ?: $profile->getName() ?: Str::before($profile->getEmail(), '@'));
                     $user = User::create([
                         'name' => $profile->getName() ?: $username,
                         'username' => $username,
-                        'email' => $profile->getEmail(),
+                        'email' => $email,
                         'password' => Str::random(40),
                         'role' => 'customer',
                         'status' => 'active',
                         'email_verified_at' => now(),
                     ]);
-                    $user->customer()->create([
-                        'name' => $user->name,
-                        'email' => $user->email,
-                    ]);
+                    if ($unclaimedProfile) {
+                        $unclaimedProfile->update([
+                            'user_id' => $user->id,
+                            'archived_at' => null,
+                            'onboarding_completed_at' => null,
+                        ]);
+                    } else {
+                        $user->customer()->create([
+                            'name' => $user->name,
+                            'email' => $user->email,
+                        ]);
+                    }
                 }
                 if ($user->role === 'customer' && ! $user->customer()->exists()) {
                     $user->customer()->create([
