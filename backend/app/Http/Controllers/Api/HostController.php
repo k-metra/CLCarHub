@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Vehicle;
 use App\Services\AikaGpsService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class HostController extends Controller
 {
@@ -83,6 +84,7 @@ class HostController extends Controller
                     'notes' => $booking->contract->host_details['notes'] ?? null,
                     'special_terms' => $booking->contract->host_details['special_terms'] ?? $booking->contract->special_terms,
                     'options' => $booking->contract->options,
+                    'host_contract_images' => collect($booking->contract->host_contract_images ?? [])->map(fn (string $path): string => Storage::disk('public')->url($path))->values()->all(),
                 ] : null,
             ])
             ->values();
@@ -125,7 +127,10 @@ class HostController extends Controller
             'car_wash_fees' => $booking->car_wash_fees,
             'addons' => $booking->addons,
             'vehicle' => $booking->vehicle,
-            'contract' => $booking->contract,
+            'contract' => $booking->contract ? [
+                ...$booking->contract->toArray(),
+                'host_contract_images' => collect($booking->contract->host_contract_images ?? [])->map(fn (string $path): string => Storage::disk('public')->url($path))->values()->all(),
+            ] : null,
         ];
     }
 }
