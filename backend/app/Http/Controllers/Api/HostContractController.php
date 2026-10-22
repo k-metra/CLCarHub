@@ -38,9 +38,6 @@ class HostContractController extends Controller
         $data = $request->validate([
             'host_details' => ['required', 'array'],
             'host_details.rate' => ['nullable', 'numeric', 'min:0'],
-            'host_details.total_amount' => ['nullable', 'numeric', 'min:0'],
-            'host_details.notes' => ['nullable', 'string'],
-            'host_details.special_terms' => ['nullable', 'string'],
             'host_contract_images' => ['nullable', 'array', 'max:10'],
             'host_contract_images.*' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:10240'],
         ]);
@@ -64,7 +61,23 @@ class HostContractController extends Controller
             abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The physical contract image could not be saved.');
             $images[] = $path;
         }
-        $contract->update(['host_details' => $data['host_details'], 'host_contract_images' => $images]);
+        $contract->update(['host_details' => ['rate' => $data['host_details']['rate'] ?? null], 'host_contract_images' => $images]);
+
+        return $this->resource($booking->fresh(['vehicle.images', 'contract']));
+    }
+
+    public function publish(Request $request, Booking $booking)
+    {
+        $contract = $booking->contract()->firstOrFail();
+        $contract->update(['host_view_published' => true]);
+
+        return $this->resource($booking->fresh(['vehicle.images', 'contract']));
+    }
+
+    public function revoke(Request $request, Booking $booking)
+    {
+        $contract = $booking->contract()->firstOrFail();
+        $contract->update(['host_view_published' => false]);
 
         return $this->resource($booking->fresh(['vehicle.images', 'contract']));
     }
@@ -94,10 +107,11 @@ class HostContractController extends Controller
             'booking_id' => $booking->id,
             'contract_id' => $contract?->id,
             'status' => $contract?->status ?? 'not_created',
-            'host_details' => $contract?->host_details,
+            'host_details' => [
+                'rate' => $contract?->host_details['rate'] ?? null,
+            ],
+            'host_view_published' => (bool) $contract?->host_view_published,
             'host_contract_images' => collect($contract?->host_contract_images ?? [])->map(fn (string $path): string => Storage::disk('public')->url($path))->values()->all(),
-            'special_terms' => $contract?->special_terms,
-            'options' => $contract?->options,
             'booking' => [
                 'id' => $booking->id,
                 'reference' => $booking->reference,
