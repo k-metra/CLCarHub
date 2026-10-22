@@ -26,7 +26,6 @@ export default function AddOnsPage() {
   const load = async () => { const result = await api.get<AddonRecord[]>("/addons"); setAddons(result.data); };
   useEffect(() => {
     let active = true;
-    setLoading(true);
     api.get<AddonRecord[]>("/addons").then(result => { if (active) setAddons(result.data); }).catch(error => { if (active) showToast(error instanceof Error ? error.message : "Unable to load add-ons.", "error"); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [showToast]);
