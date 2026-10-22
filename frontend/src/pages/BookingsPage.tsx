@@ -183,6 +183,7 @@ type BookingForm = {
   extension_fees: string;
   additional_charges: string;
   discount_percent_override: string;
+  discount_code: string;
   security_deposit_type: "cash" | "asset";
   security_deposit_asset: string;
   addons: number[];
@@ -227,6 +228,7 @@ const emptyForm: BookingForm = {
   extension_fees: "",
   additional_charges: "",
   discount_percent_override: "",
+  discount_code: "",
   security_deposit_type: "cash",
   security_deposit_asset: "",
   addons: [],
@@ -1105,6 +1107,7 @@ export default function BookingsPage() {
       destination: booking.destination ?? "",
       rental_rate: booking.rental_rate ?? "",
       discount_percent_override: booking.discount_percent_override ?? "",
+      discount_code: "",
       delivery_address: booking.delivery_address ?? "",
       delivery_latitude: booking.delivery_latitude ?? "",
       delivery_longitude: booking.delivery_longitude ?? "",
@@ -1216,7 +1219,7 @@ export default function BookingsPage() {
     const bookingFields = Object.fromEntries(
       Object.entries(form).filter(
         ([key]) =>
-          !["payments", "status", "status_reason", "actual_return_at"].includes(
+          !["payments", "status", "status_reason", "actual_return_at", "discount_code"].includes(
             key,
           ),
       ),
@@ -1248,6 +1251,7 @@ export default function BookingsPage() {
       ...bookingFields,
       use_loyalty_reward: !editing && useLoyaltyReward,
       ...lifecycle,
+      ...(editing === null ? { discount_code: form.discount_code.trim() || null } : {}),
       rental_rate: form.rental_rate ? Number(form.rental_rate) : null,
       delivery_latitude: form.delivery_latitude
         ? Number(form.delivery_latitude)
@@ -3495,6 +3499,18 @@ export default function BookingsPage() {
                     <span className="mt-1 block text-[11px] text-[#888]">
                       Leave blank for fleet settings. Enter 0 to disable the
                       discount for this booking.
+                    </span>
+                  </label>
+                  <label className="text-xs text-[#777]">
+                    Discount code (optional)
+                    <input
+                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm uppercase"
+                      value={form.discount_code}
+                      onChange={(e) => setField("discount_code", e.target.value.toUpperCase())}
+                      placeholder="PROMO2026"
+                    />
+                    <span className="mt-1 block text-[11px] text-[#888]">
+                      Applies after the fleet discount structure to base rental only.
                     </span>
                   </label>
                   <fieldset className="md:col-span-2">

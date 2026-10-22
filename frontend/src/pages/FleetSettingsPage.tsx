@@ -5,8 +5,16 @@ import { Skeleton, useToast } from "../components/Ui";
 import api from "../lib/api";
 import { vehicleTypeLabels, vehicleTypes, type DiscountStructure, type FleetSettings } from "../types";
 import RichTextEditor from "../components/RichTextEditor";
+import { DateTimePicker } from "../components/DateTimePicker";
 
 const defaultMapCenter: [number, number] = [14.5995, 120.9842];
+const dateTimePickerValue = (value: string | null): string => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 const defaults: FleetSettings = {
   reservation_fee: "0",
   reservation_fee_deductible: true,
@@ -32,6 +40,28 @@ type SearchResult = {
   longitude: number;
 };
 
+type DiscountCode = {
+  id?: number;
+  name: string;
+  code: string;
+  type: "fixed" | "percentage";
+  value: string;
+  maximum_discount: string | null;
+  redemptions_allowed: number | null;
+  redemptions_count?: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  minimum_booking_amount: string | null;
+  vehicle_types: string[] | null;
+  minimum_duration_hours: number | null;
+  new_customers_only: boolean;
+  stackable: boolean;
+  status: "draft" | "scheduled" | "active" | "paused" | "expired" | "exhausted";
+  limit_per_customer: number;
+};
+
+const emptyDiscountCode = (): DiscountCode => ({ name: "", code: "", type: "fixed", value: "0", maximum_discount: null, redemptions_allowed: null, starts_at: null, ends_at: null, minimum_booking_amount: null, vehicle_types: allVehicleTypes(), minimum_duration_hours: null, new_customers_only: false, stackable: false, status: "draft", limit_per_customer: 1 });
+
 const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   reservation_fee: value.reservation_fee ?? defaults.reservation_fee,
   reservation_fee_deductible: value.reservation_fee_deductible ?? defaults.reservation_fee_deductible,
@@ -50,7 +80,8 @@ const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   discount_structures: value.discount_structures ?? defaults.discount_structures,
 });
 
-const emptyStructure = (): DiscountStructure => ({ name: "", vehicle_types: [], milestones: [{ days: 1, discount_percent: 0 }] });
+const allVehicleTypes = () => [...vehicleTypes];
+const emptyStructure = (): DiscountStructure => ({ name: "", vehicle_types: allVehicleTypes(), milestones: [{ days: 1, discount_percent: 0 }] });
 
 function GarageMap({
   center,
@@ -123,6 +154,9 @@ export default function FleetSettingsPage() {
   const [mapCenter, setMapCenter] = useState(defaultMapCenter);
   const [expandedStructures, setExpandedStructures] = useState<Set<number>>(() => new Set());
   const [bookingSmsNumber, setBookingSmsNumber] = useState("");
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [discountCodeForm, setDiscountCodeForm] = useState<DiscountCode>(emptyDiscountCode);
+  const [discountCodeSaving, setDiscountCodeSaving] = useState(false);
 
   useEffect(() => {
     api.get<FleetSettings>("/fleet-settings")
@@ -135,6 +169,7 @@ export default function FleetSettingsPage() {
       })
       .catch(error => showToast(error instanceof Error ? error.message : "Unable to load fleet settings", "error"))
       .finally(() => setLoading(false));
+    api.get<DiscountCode[]>("/discount-codes").then(response => setDiscountCodes(response.data)).catch(error => showToast(error instanceof Error ? error.message : "Unable to load discount codes", "error"));
   }, [showToast]);
 
   const pinLocation = (latitude: number, longitude: number, name: string | null, address: string | null) => {
@@ -319,6 +354,32 @@ export default function FleetSettingsPage() {
       setSaving(false);
     }
   };
+  const saveDiscountCode = async (event: FormEvent) => {
+    event.preventDefault();
+    if (discountCodeSaving) return;
+    setDiscountCodeSaving(true);
+    try {
+      const response = discountCodeForm.id
+        ? await api.patch<DiscountCode>(`/discount-codes/${discountCodeForm.id}`, discountCodeForm)
+        : await api.post<DiscountCode>("/discount-codes", discountCodeForm);
+      const savedCode = { ...response.data, vehicle_types: response.data.vehicle_types?.length ? response.data.vehicle_types : allVehicleTypes() };
+      setDiscountCodes(current => discountCodeForm.id ? current.map(code => code.id === response.data.id ? savedCode : code) : [savedCode, ...current]);
+      setDiscountCodeForm(emptyDiscountCode());
+      showToast(discountCodeForm.id ? "Discount code updated successfully." : "Discount code created successfully.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to save discount code.", "error");
+    } finally {
+      setDiscountCodeSaving(false);
+    }
+  };
+  const deleteDiscountCode = async (id: number) => {
+    try {
+      await api.delete(`/discount-codes/${id}`);
+      setDiscountCodes(current => current.filter(code => code.id !== id));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to delete discount code.", "error");
+    }
+  };
 
   return (
     <AdminShell title="Fleet Settings">
@@ -439,7 +500,7 @@ export default function FleetSettingsPage() {
               </div>
               {expanded && <div id={`discount-structure-${structureIndex}`} className="mt-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[#777]">Vehicle categories</p>
-                <div className="mt-2 flex flex-wrap gap-2">{vehicleTypes.map(type => <label className="flex items-center gap-2 border border-black/10 px-3 py-2 text-sm" key={type}><input type="checkbox" checked={structure.vehicle_types.includes(type)} onChange={event => updateStructure(structureIndex, { ...structure, vehicle_types: event.target.checked ? [...structure.vehicle_types, type] : structure.vehicle_types.filter(item => item !== type) })} />{vehicleTypeLabels[type]}</label>)}</div>
+                            <div className="mt-2 flex flex-wrap gap-2"><button type="button" className="border border-[#ff641f] px-3 py-2 text-sm font-semibold text-[#ff641f]" onClick={() => updateStructure(structureIndex, { ...structure, vehicle_types: structure.vehicle_types.length === vehicleTypes.length ? [] : allVehicleTypes() })}>{structure.vehicle_types.length === vehicleTypes.length ? "Deselect all" : "Select all"}</button>{vehicleTypes.map(type => <label className="flex items-center gap-2 border border-black/10 px-3 py-2 text-sm" key={type}><input type="checkbox" checked={structure.vehicle_types.includes(type)} onChange={event => updateStructure(structureIndex, { ...structure, vehicle_types: event.target.checked ? [...structure.vehicle_types, type] : structure.vehicle_types.filter(item => item !== type) })} />{vehicleTypeLabels[type]}</label>)}</div>
                 <div className="mt-5 overflow-x-auto">
                   <table className="w-full min-w-[480px] text-sm"><thead><tr className="border-b border-black/10 text-left text-xs uppercase tracking-wider text-[#777]"><th className="pb-2">Rental days</th><th className="pb-2">Discount (%)</th><th className="pb-2 text-right">Action</th></tr></thead><tbody>{structure.milestones.map((milestone, milestoneIndex) => <tr className="border-b border-black/5" key={milestoneIndex}><td className="py-2"><input min="1" type="number" className="w-28 border border-black/10 px-2 py-2" value={milestone.days} onChange={event => updateStructure(structureIndex, { ...structure, milestones: structure.milestones.map((item, index) => index === milestoneIndex ? { ...item, days: Number(event.target.value) } : item) })} /></td><td className="py-2"><input min="-100" max="100" step="0.01" type="number" className="w-28 border border-black/10 px-2 py-2" value={milestone.discount_percent} onChange={event => updateStructure(structureIndex, { ...structure, milestones: structure.milestones.map((item, index) => index === milestoneIndex ? { ...item, discount_percent: Number(event.target.value) } : item) })} /></td><td className="py-2 text-right"><button type="button" className="text-xs text-red-600 disabled:text-[#aaa]" disabled={structure.milestones.length === 1} onClick={() => updateStructure(structureIndex, { ...structure, milestones: structure.milestones.filter((_, index) => index !== milestoneIndex) })}>Remove</button></td></tr>)}</tbody></table>
                   <button type="button" className="mt-3 text-sm font-semibold text-[#ff641f]" onClick={() => updateStructure(structureIndex, { ...structure, milestones: [...structure.milestones, { days: 1, discount_percent: 0 }] })}>+ Add milestone</button>
@@ -452,6 +513,29 @@ export default function FleetSettingsPage() {
           {!loading && <div className="mt-5 flex items-center justify-between gap-4"><p className="text-xs text-[#777]" aria-live="polite">{saving ? "Saving your discount structures..." : "Changes are local until you save them."}</p><button type="button" disabled={saving} onClick={saveDiscountStructures} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving..." : "Save discount structures"}</button></div>}
         </section>
         <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
+            <p className="text-xs uppercase tracking-widest text-[#ff641f]">Promotions</p>
+            <h2 className="mt-2 text-2xl font-semibold">Discount codes</h2>
+            <p className="mt-2 text-sm text-[#777]">Create codes that apply to the base rental after discount structures. Add-ons, deposits, and delivery are excluded.</p>
+            <form className="mt-6 grid gap-4 sm:grid-cols-2" onSubmit={saveDiscountCode}>
+              <label className="text-sm">Name<input required className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.name} onChange={event => setDiscountCodeForm(current => ({ ...current, name: event.target.value }))} /></label>
+              <label className="text-sm">Code<input required className="mt-2 w-full border border-black/10 px-3 py-2 uppercase" value={discountCodeForm.code} onChange={event => setDiscountCodeForm(current => ({ ...current, code: event.target.value.toUpperCase() }))} /></label>
+              <label className="text-sm">Type<select className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.type} onChange={event => setDiscountCodeForm(current => ({ ...current, type: event.target.value as DiscountCode["type"] }))}><option value="fixed">Fixed amount</option><option value="percentage">Percentage</option></select></label>
+              <label className="text-sm">Value<input required min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.value} onChange={event => setDiscountCodeForm(current => ({ ...current, value: event.target.value }))} /></label>
+              <label className="text-sm">Maximum discount (optional)<input min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.maximum_discount ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, maximum_discount: event.target.value || null }))} /></label>
+              <label className="text-sm">Total redemptions (optional)<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.redemptions_allowed ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, redemptions_allowed: event.target.value ? Number(event.target.value) : null }))} /></label>
+              <label className="text-sm">Starts at<DateTimePicker mode="datetime" className="mt-2 w-full border border-black/10 px-3 py-2" value={dateTimePickerValue(discountCodeForm.starts_at)} onChange={value => setDiscountCodeForm(current => ({ ...current, starts_at: value || null }))} placeholder="Choose start date and time" /></label>
+              <label className="text-sm">Ends at<DateTimePicker mode="datetime" className="mt-2 w-full border border-black/10 px-3 py-2" value={dateTimePickerValue(discountCodeForm.ends_at)} onChange={value => setDiscountCodeForm(current => ({ ...current, ends_at: value || null }))} placeholder="Choose end date and time" /></label>
+              <label className="text-sm">Minimum rental amount<input min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.minimum_booking_amount ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, minimum_booking_amount: event.target.value || null }))} /></label>
+              <label className="text-sm">Minimum duration (hours)<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.minimum_duration_hours ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, minimum_duration_hours: event.target.value ? Number(event.target.value) : null }))} /></label>
+              <label className="text-sm">Status<select className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.status} onChange={event => setDiscountCodeForm(current => ({ ...current, status: event.target.value as DiscountCode["status"] }))}>{["draft", "scheduled", "active", "paused"].map(status => <option key={status} value={status}>{status}</option>)}</select></label>
+              <label className="text-sm">Limit per customer<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.limit_per_customer} onChange={event => setDiscountCodeForm(current => ({ ...current, limit_per_customer: Number(event.target.value) }))} /></label>
+              <fieldset className="sm:col-span-2"><legend className="text-sm">Applicable vehicle categories</legend><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="border border-[#ff641f] px-3 py-2 text-sm font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm(current => ({ ...current, vehicle_types: current.vehicle_types?.length === vehicleTypes.length ? [] : allVehicleTypes() }))}>{discountCodeForm.vehicle_types?.length === vehicleTypes.length ? "Deselect all" : "Select all"}</button>{vehicleTypes.map(type => <label key={type} className="flex items-center gap-2 border border-black/10 px-3 py-2 text-sm"><input type="checkbox" checked={discountCodeForm.vehicle_types?.includes(type) ?? false} onChange={event => setDiscountCodeForm(current => ({ ...current, vehicle_types: event.target.checked ? [...(current.vehicle_types ?? []), type] : (current.vehicle_types ?? []).filter(item => item !== type) }))} />{vehicleTypeLabels[type]}</label>)}</div></fieldset>
+              <div className="flex flex-wrap items-center gap-4 text-sm sm:col-span-2"><label><input type="checkbox" checked={discountCodeForm.new_customers_only} onChange={event => setDiscountCodeForm(current => ({ ...current, new_customers_only: event.target.checked }))} /> <span className="ml-1">New customers only</span></label><label><input type="checkbox" checked={discountCodeForm.stackable} onChange={event => setDiscountCodeForm(current => ({ ...current, stackable: event.target.checked }))} /> <span className="ml-1">Stackable</span></label></div>
+              <div className="flex items-center gap-3 sm:col-span-2"><button disabled={discountCodeSaving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{discountCodeSaving ? (discountCodeForm.id ? "Updating..." : "Creating...") : (discountCodeForm.id ? "Update code" : "Create code")}</button>{discountCodeForm.id && <button type="button" disabled={discountCodeSaving} className="border border-black/10 px-5 py-3 text-sm disabled:opacity-50" onClick={() => setDiscountCodeForm(emptyDiscountCode())}>Cancel</button>}<span className="text-xs text-[#777]" role="status" aria-live="polite">{discountCodeSaving ? "Saving discount code..." : "New codes appear below immediately after saving."}</span></div>
+            </form>
+            <div className="mt-8 space-y-2">{discountCodes.map(code => <div key={code.id} className="flex flex-wrap items-center justify-between gap-3 border border-black/10 p-3 text-sm"><div><strong>{code.code}</strong><span className="ml-2 text-[#777]">{code.name}</span><span className="ml-2 rounded bg-black/5 px-2 py-1 text-xs">{code.status}</span><span className="ml-2 text-[#777]">Applied {code.redemptions_count ?? 0}{code.redemptions_allowed !== null ? ` / ${code.redemptions_allowed}` : ""} times</span></div><div className="flex gap-3"><button type="button" className="font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm({ ...code, starts_at: dateTimePickerValue(code.starts_at), ends_at: dateTimePickerValue(code.ends_at) })}>Edit</button>{code.id && <button type="button" className="text-red-600" onClick={() => void deleteDiscountCode(code.id!)}>Delete</button>}</div></div>)}</div>
+          </section>
+          <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p>
           <h2 className="mt-2 text-2xl font-semibold">Legal pages</h2>
           <p className="mt-2 text-sm text-[#777]">

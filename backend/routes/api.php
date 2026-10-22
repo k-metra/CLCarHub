@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/push/subscriptions', [PushSubscriptionController::class, 'store']);
     Route::delete('/push/subscriptions', [PushSubscriptionController::class, 'destroy']);
     Route::get('/fleet-settings', [FleetSettingController::class, 'show']);
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->apiResource('discount-codes', \App\Http\Controllers\Api\DiscountCodeController::class)->except(['show']);
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->get('/vehicles/{vehicle}/location', [VehicleController::class, 'location']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->get('/audit-logs', [AuditLogController::class, 'index']);
@@ -116,6 +117,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/bookings/{booking}/invoice', [BookingController::class, 'invoice']);
     Route::middleware(EnsureRole::class.':customer')->prefix('customer/booking-requests')->group(function () {
         Route::get('/', [BookingController::class, 'customerIndex']);
+        Route::post('/discount-preview', [BookingController::class, 'customerDiscountPreview']);
         Route::post('/', [BookingController::class, 'customerStore'])
             ->middleware(['blocked.ip:bookings', 'throttle:customer-booking-submissions']);
         Route::get('/{booking}', [BookingController::class, 'customerShow']);
