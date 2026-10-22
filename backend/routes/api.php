@@ -59,7 +59,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/vehicles/{vehicle}/location', [\App\Http\Controllers\Api\HostController::class, 'vehicleLocation']);
     });
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->group(function () {
-        Route::get('/host-contracts', [\App\Http\Controllers\Api\HostContractController::class, 'index']);
         Route::patch('/host-contracts/{booking}', [\App\Http\Controllers\Api\HostContractController::class, 'update']);
     });
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
