@@ -136,6 +136,7 @@ class BookingController extends Controller
                 "/admin/bookings?booking={$booking->id}",
                 "booking-created-{$booking->id}",
             );
+            app(\App\Services\CustomerBookingSmsService::class)->send($booking);
 
             return $booking;
         });
