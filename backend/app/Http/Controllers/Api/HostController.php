@@ -61,7 +61,13 @@ class HostController extends Controller
             ->with(['vehicle.images', 'contract'])
             ->orderByDesc('pickup_at')
             ->get()
-            ->map(fn (Booking $booking): array => [
+            ->map(function (Booking $booking): array {
+                $contractRate = $booking->contract?->host_view_published
+                    ? ($booking->contract->host_details['rate'] ?? null)
+                    : null;
+                $rentalDays = max(1, intdiv($booking->pickup_at->diffInMinutes($booking->return_at), 24 * 60));
+
+                return [
                 'id' => $booking->id,
                 'reference' => $booking->reference,
                 'status' => $booking->status,
@@ -75,12 +81,15 @@ class HostController extends Controller
                     'plate_number' => $booking->vehicle?->plate_number,
                     'image_url' => ($booking->vehicle?->images?->firstWhere('is_primary', true) ?: $booking->vehicle?->images?->first())?->url,
                 ],
-                'contract' => $booking->contract?->host_view_published ? [
+                'contract' => $contractRate !== null ? [
                     'id' => $booking->contract->id,
-                    'rate' => $booking->contract->host_details['rate'] ?? null,
+                    'rate' => $contractRate,
+                    'rental_days' => $rentalDays,
+                    'rental_total' => round((float) $contractRate * $rentalDays, 2),
                     'host_contract_images' => collect($booking->contract->host_contract_images ?? [])->map(fn (string $path): string => Storage::disk('public')->url($path))->values()->all(),
                 ] : null,
-            ])
+                ];
+            })
             ->values();
     }
 
