@@ -96,19 +96,16 @@ export default function HostBookingsPage() {
             </div>
             {booking.contract && <div className="w-full border-t border-black/10 pt-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-semibold">Contract · {booking.contract.status}</p><button type="button" className="border border-[#ff641f] px-3 py-1.5 text-xs font-semibold text-[#d94e14]" onClick={() => navigate(`/host/bookings/${booking.id}/contract`)}>View contract PDF</button></div>
-              <div className="mt-2 grid gap-2 text-[#555] sm:grid-cols-2">
-                <p>Host rate: <strong>{booking.contract.rate == null ? "Not set" : `₱${Number(booking.contract.rate).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}</strong></p>
-                {booking.contract.total_amount != null && <p>Host total: <strong>₱{Number(booking.contract.total_amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong></p>}
-              </div>
+              {booking.contract.total_amount != null && <p className="mt-2 text-[#555]">Host total: <strong>₱{Number(booking.contract.total_amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong></p>}
               {booking.contract.notes && <p className="mt-2 whitespace-pre-wrap text-[#777]">{booking.contract.notes}</p>}
               {booking.contract.special_terms && <p className="mt-2 whitespace-pre-wrap border-l-2 border-[#ff641f] pl-3 text-[#555]"><strong>Contract terms:</strong> {booking.contract.special_terms}</p>}
               {(booking.contract.host_contract_images?.length ?? 0) > 0 && <div className="mt-4">
                 <p className="font-semibold">Physical contract images</p>
-                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="mt-2 flex max-w-full snap-x gap-3 overflow-x-auto pb-2">
                   {booking.contract.host_contract_images?.map((image, index) => {
                     const imageUrl = resolveImageUrl(image);
-                    return imageUrl ? <a href={imageUrl} target="_blank" rel="noreferrer" key={image}>
-                      <img src={imageUrl} alt={`Physical contract page ${index + 1}`} className="aspect-square w-full rounded border border-black/10 object-cover" />
+                    return imageUrl ? <a href={imageUrl} target="_blank" rel="noreferrer" key={image} className="w-32 shrink-0 snap-start">
+                      <img src={imageUrl} alt={`Physical contract page ${index + 1}`} className="aspect-square w-32 rounded border border-black/10 object-cover" />
                     </a> : null;
                   })}
                 </div>
