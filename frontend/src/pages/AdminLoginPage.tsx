@@ -48,7 +48,7 @@ export default function AdminLoginPage() {
       .then(({ data }) => {
         setSession(data.token, data.user);
         if (data.user.role === "customer" && data.first_login) {
-          window.localStorage.setItem("clcarhub-customer-tour-pending", "1");
+          window.localStorage.setItem(`clcarhub-customer-tour-pending-${data.user.id}`, "1");
         }
         const returnUrl = oauthReturnTo?.startsWith("/") && !oauthReturnTo.startsWith("//") ? oauthReturnTo : "";
         navigate(data.user.role === "host" && (hostTutorialRequested || data.first_login) ? "/host?host_tutorial=1" : returnUrl || (data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}` : accountPath(data.user)), { replace: true });
@@ -90,7 +90,7 @@ export default function AdminLoginPage() {
       }>("/auth/login", { email, password });
       setSession(data.token, data.user);
       if (data.user.role === "customer" && data.first_login) {
-        window.localStorage.setItem("clcarhub-customer-tour-pending", "1");
+        window.localStorage.setItem(`clcarhub-customer-tour-pending-${data.user.id}`, "1");
       }
       const pickupAt = new URLSearchParams(window.location.search).get("pickup_at");
       const returnAt = new URLSearchParams(window.location.search).get("return_at");

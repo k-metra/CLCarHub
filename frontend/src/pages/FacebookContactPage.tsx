@@ -34,7 +34,7 @@ export default function FacebookContactPage() {
     try {
       const { data } = await api.post<{ token: string; user: Parameters<typeof setSession>[1]; first_login?: boolean }>("/auth/oauth/complete-pending", { token, code });
       setSession(data.token, data.user);
-      if (data.first_login) window.localStorage.setItem("clcarhub-customer-tour-pending", "1");
+      if (data.first_login) window.localStorage.setItem(`clcarhub-customer-tour-pending-${data.user.id}`, "1");
       navigate("/onboarding", { replace: true });
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to complete Facebook sign-in.");

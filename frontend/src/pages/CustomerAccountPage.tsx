@@ -117,7 +117,8 @@ function DeliveryMap({ center, position, onPin }: { center: [number, number]; po
 export default function CustomerAccountPage() {
   const { user, loading } = useAuth(); const signOut = useSignOut(); const { showToast } = useToast(); const { theme } = useTheme(); const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [showTutorial, setShowTutorial] = useState(() => searchParams.get("tutorial") === "1" || window.localStorage.getItem("clcarhub-customer-tour-pending") === "1");
+  const tourStorageKey = user ? `clcarhub-customer-tour-pending-${user.id}` : "";
+  const [showTutorial, setShowTutorial] = useState(() => Boolean(user && window.localStorage.getItem(`clcarhub-customer-tour-pending-${user.id}`) === "1"));
   const [tab, setTab] = useState<Tab>(() => searchParams.get("tab") === "request" ? "request" : searchParams.get("tab") === "starred" ? "starred" : searchParams.get("tab") === "calendar" ? "calendar" : "overview"); const [step, setStep] = useState(1);
   const [bookings, setBookings] = useState<BookingRecord[]>([]); const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [addons, setAddons] = useState<AddonRecord[]>([]); const [selectedAddonIds, setSelectedAddonIds] = useState<number[]>([]);
@@ -144,12 +145,16 @@ export default function CustomerAccountPage() {
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
   const [returnPosition, setReturnPosition] = useState<[number, number] | null>(null);
   const closeTutorial = () => {
-    window.localStorage.removeItem("clcarhub-customer-tour-pending");
+    if (tourStorageKey) window.localStorage.removeItem(tourStorageKey);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("tutorial");
     navigate(`${window.location.pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ""}`, { replace: true });
     setShowTutorial(false);
   };
+  useEffect(() => {
+    if (!showTutorial || !tourStorageKey) return;
+    window.localStorage.removeItem(tourStorageKey);
+  }, [showTutorial, tourStorageKey]);
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
     if (requestedTab === "request" || requestedTab === "starred" || requestedTab === "calendar" || requestedTab === "overview") {
