@@ -74,6 +74,6 @@ export default function HostContractPage() {
     <div className="mt-6 print:mt-0">
       <ContractPreview contract={data.contract} booking={booking} specialTerms={hostDetails.special_terms ?? data.contract.special_terms ?? ""} options={options} />
     </div>
-    {physicalImages.length > 0 && <section className="mt-8 border border-black/10 bg-white p-6 print:hidden"><h2 className="text-lg font-semibold">Physical contract images</h2><p className="mt-1 text-sm text-[#777]">Photos and scans uploaded by CL CarHub staff.</p><div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">{physicalImages.map((url, index) => <a href={url} target="_blank" rel="noreferrer" key={url}><img src={url} alt={`Physical contract page ${index + 1}`} className="aspect-square w-full rounded border border-black/10 object-cover" /></a>)}</div></section>}
+    {physicalImages.length > 0 && <section className="mt-8 border border-black/10 bg-white p-6 print:hidden"><h2 className="text-lg font-semibold">Physical contract images</h2><p className="mt-1 text-sm text-[#777]">Photos and scans uploaded by CL CarHub staff.</p><div className="mt-5 flex max-w-full snap-x gap-4 overflow-x-auto pb-2">{physicalImages.map((url, index) => <a href={url} target="_blank" rel="noreferrer" key={url} className="w-40 shrink-0 snap-start"><img src={url} alt={`Physical contract page ${index + 1}`} className="aspect-square w-40 rounded border border-black/10 object-cover" /></a>)}</div></section>}
   </HostShell>;
 }
