@@ -40,4 +40,9 @@ class Customer extends Model
     {
         return $this->hasMany(CustomerAttachment::class);
     }
+
+    public function loyaltyRewards(): HasMany
+    {
+        return $this->hasMany(CustomerLoyaltyReward::class);
+    }
 }

@@ -28,6 +28,7 @@ type Customer = {
   user?: { last_login_ip?: string | null };
   ip_block_scopes?: string[];
   archived_at?: string | null;
+  loyalty?: { completed_bookings: number; bookings_toward_next_reward: number; bookings_remaining: number; available_rewards: number; reward_description: string };
 };
 type CustomerSummary = {
   total_customers: number;
@@ -41,7 +42,7 @@ type AttachmentCategory =
   | "proof_of_billing"
   | "secondary_id"
   | "selfie_license";
-type CustomerForm = Omit<Customer, "id" | "bookings_count" | "outstanding_balance" | "bookings" | "attachments" | "user" | "ip_block_scopes"> & {
+type CustomerForm = Omit<Customer, "id" | "bookings_count" | "outstanding_balance" | "bookings" | "attachments" | "user" | "ip_block_scopes" | "loyalty"> & {
   attachments: Record<AttachmentCategory, File[]>;
 };
 const emptyAttachments = (): Record<AttachmentCategory, File[]> => ({
@@ -602,6 +603,7 @@ export default function CustomersPage() {
                   <div><p className="text-xs uppercase text-[#888]">Address</p><p className="mt-1 text-sm">{profile.address || "—"}</p></div>
                   <div><p className="text-xs uppercase text-[#888]">License</p><p className="mt-1 text-sm">{profile.license_number || "—"}</p></div>
                   <div><p className="text-xs uppercase text-[#888]">Outstanding</p><p className="mt-1 font-semibold text-amber-600">{money.format(profile.outstanding_balance ?? profile.bookings?.reduce((sum, booking) => sum + (["cancelled", "rejected"].includes(booking.status) ? 0 : Number(booking.balance ?? 0)), 0) ?? 0)}</p></div>
+                  <div className="border border-[#ff641f]/30 bg-[#fff7f3] p-3 sm:col-span-2"><p className="text-xs font-bold uppercase tracking-widest text-[#ff641f]">Loyalty card</p><p className="mt-1 font-semibold">Free 12-hour rentals: {profile.loyalty?.available_rewards ?? 0} available</p><div className="mt-2 flex gap-1">{Array.from({ length: 5 }, (_, index) => <span key={index} className={`h-2 flex-1 rounded-full ${index < (profile.loyalty?.bookings_toward_next_reward ?? 0) ? "bg-[#ff641f]" : "bg-black/10"}`} />)}</div><p className="mt-2 text-xs text-[#777]">{profile.loyalty?.completed_bookings ?? 0} completed booking(s) · {profile.loyalty?.bookings_remaining ?? 5} until next reward</p></div>
                 </div>
                 <div className="mt-8">
                   <h3 className="font-semibold">Booking history</h3>

@@ -11,12 +11,15 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Booking;
 use App\Models\IpBlock;
 use App\Services\CustomerPhoneVerificationService;
+use App\Services\CustomerLoyaltyService;
 
 class CustomerController extends Controller
 {
-    public function profile(Request $request)
+    public function profile(Request $request, CustomerLoyaltyService $loyalty)
     {
-        return $request->user()?->customer?->load('attachments')
+        $customer = $request->user()?->customer;
+        if ($customer) $loyalty->sync($customer);
+        return $customer?->load('attachments')->setAttribute('loyalty', $loyalty->summary($customer))
             ?? response()->json(['message' => 'Your account is not linked to a customer profile.'], 404);
     }
 
@@ -179,7 +182,7 @@ class CustomerController extends Controller
         return response()->json($customer->load('attachments'), 201);
     }
 
-    public function show(Customer $customer)
+    public function show(Customer $customer, CustomerLoyaltyService $loyalty)
     {
         $customer->load([
             'user:id,last_login_ip',
@@ -189,7 +192,7 @@ class CustomerController extends Controller
             'attachments',
         ])->setAttribute('ip_block_scopes', IpBlock::where('ip_address', $customer->user?->last_login_ip)->pluck('scope')->values());
 
-        return $customer;
+        return $customer->setAttribute('loyalty', $loyalty->summary($customer));
     }
 
     public function update(Request $request, Customer $customer)
