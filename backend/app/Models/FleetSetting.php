@@ -13,6 +13,7 @@ class FleetSetting extends Model
         return [
             'reservation_fee' => 'decimal:2',
             'reservation_fee_deductible' => 'boolean',
+            'booking_sms_numbers' => 'array',
             'discount_structures' => 'array',
             'default_hour_extension_rate' => 'decimal:2',
             'full_day_extension_threshold_hours' => 'integer',
