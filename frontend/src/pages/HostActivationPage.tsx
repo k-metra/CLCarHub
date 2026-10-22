@@ -14,7 +14,7 @@ export default function HostActivationPage() {
     try {
       await api.post("/auth/host/activate", { token: params.get("token"), password, password_confirmation: confirmation });
       setMessage("Your host account is active. You can now sign in.");
-      setTimeout(() => navigate("/admin/login"), 1200);
+      setTimeout(() => navigate("/admin/login?host_tutorial=1"), 1200);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Unable to activate account");
     }
