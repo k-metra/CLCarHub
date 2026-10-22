@@ -110,10 +110,11 @@ class OAuthController extends Controller
                 return $user;
             });
 
+            $firstLogin = $user->last_login_at === null;
             $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
             AuditLogger::record('account', 'login', "User logged in with {$provider}: {$user->name}", $user, null, $request);
             $code = Str::random(64);
-            Cache::put('oauth-login:'.hash('sha256', $code), ['user_id' => $user->id], now()->addMinutes(2));
+            Cache::put('oauth-login:'.hash('sha256', $code), ['user_id' => $user->id, 'first_login' => $firstLogin], now()->addMinutes(2));
 
             $state = $this->decodeState($request->query('state'));
             $returnTo = $this->safeReturnPath($state['return_to'] ?? null);
@@ -137,7 +138,7 @@ class OAuthController extends Controller
         $user = User::findOrFail($payload['user_id']);
         abort_unless($user->status === 'active', 403, 'This account is not active.');
 
-        return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken];
+        return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken, 'first_login' => (bool) ($payload['first_login'] ?? false)];
     }
 
     private function validateProvider(string $provider): void
