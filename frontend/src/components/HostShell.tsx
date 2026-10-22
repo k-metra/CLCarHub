@@ -1,15 +1,60 @@
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import { ThemeToggle, useTheme } from "../lib/ThemeContext";
 
 const navigation = [
-  { label: "Overview", href: "/host", icon: "⌂" },
-  { label: "My vehicles", href: "/host/vehicles", icon: "▱" },
-  { label: "Bookings", href: "/host/bookings", icon: "◷" },
-  { label: "Earnings", href: "/host/earnings", icon: "◒" },
+  { label: "Overview", href: "/host", icon: "⌂", tour: "overview" },
+  { label: "My vehicles", href: "/host/vehicles", icon: "▱", tour: "vehicles" },
+  { label: "Bookings", href: "/host/bookings", icon: "◷", tour: "bookings" },
+  { label: "Earnings", href: "/host/earnings", icon: "◒", tour: "earnings" },
 ];
+
+const hostTourSteps = [
+  ["overview", "Overview", "See your fleet summary, partner details, and shared contract documents."],
+  ["vehicles", "My vehicles", "Review the units assigned to you and open vehicle details."],
+  ["bookings", "Bookings", "Track booking schedules and open host-visible contract PDFs."],
+  ["earnings", "Earnings", "Review your earnings and payout history."],
+] as const;
+
+function HostLiveTour({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const [spotlight, setSpotlight] = useState<DOMRect | null>(null);
+  const [target, stepTitle, description] = hostTourSteps[step];
+  const updateSpotlight = () => {
+    const selector = `[data-host-tour="${target}"]`;
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector));
+    const visible = candidates.find(element => element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0);
+    setSpotlight(visible?.getBoundingClientRect() ?? null);
+  };
+  useEffect(() => {
+    updateSpotlight();
+    window.addEventListener("resize", updateSpotlight);
+    window.addEventListener("scroll", updateSpotlight, true);
+    return () => {
+      window.removeEventListener("resize", updateSpotlight);
+      window.removeEventListener("scroll", updateSpotlight, true);
+    };
+  }, [target]);
+  const tooltipStyle = useMemo(() => {
+    if (!spotlight) return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
+    const width = Math.min(360, window.innerWidth - 32);
+    const left = Math.min(Math.max(16, spotlight.left), window.innerWidth - width - 16);
+    const below = spotlight.bottom + 16;
+    const top = below + 190 < window.innerHeight ? below : Math.max(16, spotlight.top - 206);
+    return { top, left, width };
+  }, [spotlight]);
+  return <div className="fixed inset-0 z-[300]" role="dialog" aria-modal="true" aria-labelledby="host-tour-title">
+    {spotlight ? <div className="pointer-events-none fixed rounded-lg ring-4 ring-[#ff641f] ring-offset-2 ring-offset-transparent shadow-[0_0_0_9999px_rgba(0,0,0,.62)]" style={{ top: spotlight.top - 6, left: spotlight.left - 6, width: spotlight.width + 12, height: spotlight.height + 12 }} /> : <div className="fixed inset-0 bg-black/60" />}
+    <section className="absolute rounded-xl bg-white p-5 text-[#151515] shadow-2xl" style={tooltipStyle}>
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff641f]">Host portal tour · {step + 1}/{hostTourSteps.length}</p>
+      <h2 id="host-tour-title" className="mt-2 text-xl font-semibold">{stepTitle}</h2>
+      <p className="mt-2 text-sm leading-6 text-[#555]">{description}</p>
+      <div className="mt-5 flex items-center justify-between gap-3"><button type="button" onClick={onClose} className="text-sm font-semibold text-[#777]">Skip tour</button><div className="flex gap-2">{step > 0 && <button type="button" onClick={() => setStep(value => value - 1)} className="border border-black/10 px-3 py-2 text-sm font-semibold">Back</button>}<button type="button" onClick={() => step === hostTourSteps.length - 1 ? onClose() : setStep(value => value + 1)} className="bg-[#ff641f] px-3 py-2 text-sm font-bold text-white">{step === hostTourSteps.length - 1 ? "Finish" : "Next"}</button></div></div>
+    </section>
+  </div>;
+}
 
 function HostSidebar() {
   const location = useLocation();
@@ -24,6 +69,7 @@ function HostSidebar() {
               key={item.href}
               to={item.href}
               aria-current={location.pathname === item.href ? "page" : undefined}
+              data-host-tour={item.tour}
               className={`flex items-center gap-3 rounded px-3 py-2.5 text-[13px] transition hover:bg-white/[.06] hover:text-white ${
                 location.pathname === item.href ? "bg-white/[.1] text-white" : "text-[#aaa]"
               }`}
@@ -49,12 +95,20 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
   const signOut = useSignOut();
   const { theme } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [showTour, setShowTour] = useState(() => new URLSearchParams(location.search).get("host_tutorial") === "1");
   const mobileNavigationRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const activeItem = mobileNavigationRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
     activeItem?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
   }, [location.pathname]);
+  const closeTour = () => {
+    const params = new URLSearchParams(location.search);
+    params.delete("host_tutorial");
+    navigate(`${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`, { replace: true });
+    setShowTour(false);
+  };
 
   if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
@@ -102,6 +156,7 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
                 key={item.href}
                 to={item.href}
                 aria-current={active ? "page" : undefined}
+                data-host-tour={item.tour}
                 className={`flex min-h-16 min-w-[84px] flex-1 flex-col items-center justify-center gap-1 px-3 py-2 text-[11px] font-semibold transition active:scale-95 ${
                   active ? "text-[#ff641f]" : "text-[#777] hover:text-[#151515]"
                 }`}
@@ -120,6 +175,7 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
           </Link>
         </div>
       </nav>
+      {showTour && <HostLiveTour onClose={closeTour} />}
     </div>
   );
 }
