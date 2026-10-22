@@ -38,13 +38,10 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
   const { showToast } = useToast();
   const details = booking.contract?.host_details ?? {};
   const [rate, setRate] = useState(details.rate == null ? "" : String(details.rate));
-  const [totalAmount, setTotalAmount] = useState(details.total_amount == null ? "" : String(details.total_amount));
-  const [notes, setNotes] = useState(details.notes ?? "");
-  const [specialTerms, setSpecialTerms] = useState(details.special_terms ?? "");
   const [imageUrls, setImageUrls] = useState(booking.contract?.host_contract_images ?? []);
+  const [published, setPublished] = useState(Boolean(booking.contract?.host_view_published));
   const [saving, setSaving] = useState(false);
   const [imageSaving, setImageSaving] = useState(false);
-  const calculatedTotal = rate === "" ? null : Number(booking.total_amount ?? 0) - Number(booking.rental_amount ?? 0) + Number(rate) * Math.max(1, Math.floor((new Date(booking.return_at).getTime() - new Date(booking.pickup_at).getTime()) / 86400000));
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -52,11 +49,8 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
       const formData = new FormData();
       formData.append("_method", "PATCH");
       formData.append("host_details[rate]", rate);
-      formData.append("host_details[total_amount]", totalAmount);
-      formData.append("host_details[notes]", notes);
-      formData.append("host_details[special_terms]", specialTerms);
       await api.post(`/host-contracts/${booking.id}`, formData);
-      showToast("Host contract view saved.", "success");
+      showToast("Host rate saved. Submit it when it is ready for the host.", "success");
       onSaved();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Unable to save host contract view", "error");
@@ -76,9 +70,6 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
       const formData = new FormData();
       formData.append("_method", "PATCH");
       formData.append("host_details[rate]", rate);
-      formData.append("host_details[total_amount]", totalAmount);
-      formData.append("host_details[notes]", notes);
-      formData.append("host_details[special_terms]", specialTerms);
       selected.forEach(image => formData.append("host_contract_images[]", image));
       const response = await api.post<{ host_contract_images?: string[] }>(
         `/host-contracts/${booking.id}`,
@@ -90,6 +81,32 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
       showToast(error instanceof Error ? error.message : "Unable to upload physical contract image", "error");
     } finally {
       setImageSaving(false);
+    }
+  };
+  const publish = async () => {
+    setSaving(true);
+    try {
+      await api.post(`/host-contracts/${booking.id}/publish`);
+      setPublished(true);
+      showToast("Host view submitted and is now visible to the host.", "success");
+      onSaved();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to submit host view", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const revoke = async () => {
+    setSaving(true);
+    try {
+      await api.post(`/host-contracts/${booking.id}/revoke`);
+      setPublished(false);
+      showToast("Host view revoked. It is no longer visible to the host.", "success");
+      onSaved();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to revoke host view", "error");
+    } finally {
+      setSaving(false);
     }
   };
   const removeImage = async (index: number) => {
@@ -107,15 +124,10 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
     }
   };
   return <form className="space-y-6 p-6" onSubmit={save}>
-    <div><p className="text-xs font-bold uppercase tracking-widest text-[#ff641f]">Host-only content</p><h2 className="mt-2 text-xl font-semibold">Host Contract View</h2><p className="mt-1 text-sm text-[#777]">These values and images are visible to the vehicle host and do not change the renter-facing contract.</p></div>
-    <div className="grid gap-4 sm:grid-cols-2">
-      <label className="text-sm">Rate shown to host<input className="mt-2 w-full border border-black/10 px-3 py-2.5" type="number" min="0" step="0.01" value={rate} onChange={event => setRate(event.target.value)} /></label>
-      <label className="text-sm">Total shown to host<input className="mt-2 w-full border border-black/10 px-3 py-2.5" type="number" min="0" step="0.01" value={totalAmount} onChange={event => setTotalAmount(event.target.value)} placeholder={calculatedTotal == null ? "Calculated from rate" : calculatedTotal.toFixed(2)} /><span className="mt-1 block text-xs text-[#777]">Leave blank to calculate from the host rate.</span></label>
-    </div>
-    <label className="block text-sm">Host notes<textarea className="mt-2 min-h-28 w-full border border-black/10 px-3 py-2.5" value={notes} onChange={event => setNotes(event.target.value)} /></label>
-    <label className="block text-sm">Host contract terms<textarea className="mt-2 min-h-28 w-full border border-black/10 px-3 py-2.5" value={specialTerms} onChange={event => setSpecialTerms(event.target.value)} /></label>
+    <div><p className="text-xs font-bold uppercase tracking-widest text-[#ff641f]">Host-only content</p><h2 className="mt-2 text-xl font-semibold">Host Contract View</h2><p className="mt-1 text-sm text-[#777]">Only the submitted host rate and physical contract images are shared with the host. Draft changes remain private until submitted.</p></div>
+    <label className="block max-w-md text-sm">Rate shown to host<input className="mt-2 w-full border border-black/10 px-3 py-2.5" type="number" min="0" step="0.01" value={rate} onChange={event => setRate(event.target.value)} /></label>
     <div><label className="block text-sm font-semibold">Physical contract images <span className="font-normal text-[#777]">(up to 10)</span><input className="mt-2 block w-full border border-dashed border-black/20 p-3 text-sm disabled:opacity-50" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={imageSaving || imageUrls.length >= 10} onChange={event => { void uploadImages(Array.from(event.target.files ?? [])); event.currentTarget.value = ""; }} /></label><p className="mt-1 text-xs text-[#777]">{imageSaving ? "Updating physical contract images..." : "Images upload immediately when selected. You can add them one at a time or select several together."}</p>{imageUrls.length > 0 && <div className="mt-4 flex max-w-full snap-x gap-3 overflow-x-auto pb-2">{imageUrls.map((url, index) => <div className="relative w-32 shrink-0 snap-start" key={url}><a href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Physical contract page ${index + 1}`} className="aspect-square w-32 rounded border border-black/10 object-cover" /></a><button type="button" className="absolute right-1 top-1 rounded bg-red-600 px-2 py-1 text-xs font-bold text-white shadow disabled:opacity-50" disabled={imageSaving} onClick={() => { if (window.confirm("Remove this physical contract image?")) void removeImage(index); }}>Remove</button></div>)}</div>}</div>
-    <button disabled={saving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save host contract view"}</button>
+    <div className="flex flex-wrap items-center gap-3"><button disabled={saving} className="bg-[#151515] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save draft"}</button>{published ? <button type="button" disabled={saving} onClick={() => void revoke()} className="border border-red-300 px-5 py-3 text-sm font-bold text-red-700 disabled:opacity-50">Revoke from host</button> : <button type="button" disabled={saving} onClick={() => void publish()} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Submit to host</button>}<span className={`text-sm font-semibold ${published ? "text-emerald-700" : "text-[#777]"}`}>{published ? "Submitted and visible to host" : "Draft; hidden from host"}</span></div>
   </form>;
 }
 type QuickAddCategory = "license" | "secondary_id" | "ltms";
