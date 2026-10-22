@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { HostShell } from "../components/HostShell";
 import api from "../lib/api";
 
@@ -30,7 +29,7 @@ type HostBooking = {
     plate_number: string;
     image_url?: string | null;
   };
-  contract?: { id: number; status: string; rate?: number | string | null; total_amount?: number | string | null; notes?: string | null; special_terms?: string | null; host_contract_images?: string[] } | null;
+  contract?: { id: number; rate?: number | string | null; host_contract_images?: string[] } | null;
 };
 
 function formatDate(value: string): string {
@@ -54,7 +53,6 @@ function statusClass(status: string): string {
 }
 
 export default function HostBookingsPage() {
-  const navigate = useNavigate();
   const [bookings, setBookings] = useState<HostBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -95,10 +93,8 @@ export default function HostBookingsPage() {
               <p className="mt-2 text-[#777]">{formatDate(booking.pickup_at)} – {formatDate(booking.return_at)}</p>
             </div>
             {booking.contract && <div className="w-full border-t border-black/10 pt-3 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3"><p className="font-semibold">Contract · {booking.contract.status}</p><button type="button" className="border border-[#ff641f] px-3 py-1.5 text-xs font-semibold text-[#d94e14]" onClick={() => navigate(`/host/bookings/${booking.id}/contract`)}>View contract PDF</button></div>
-              {booking.contract.total_amount != null && <p className="mt-2 text-[#555]">Host total: <strong>₱{Number(booking.contract.total_amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong></p>}
-              {booking.contract.notes && <p className="mt-2 whitespace-pre-wrap text-[#777]">{booking.contract.notes}</p>}
-              {booking.contract.special_terms && <p className="mt-2 whitespace-pre-wrap border-l-2 border-[#ff641f] pl-3 text-[#555]"><strong>Contract terms:</strong> {booking.contract.special_terms}</p>}
+              <p className="font-semibold">Host contract details</p>
+              {booking.contract.rate != null && <p className="mt-2 text-[#555]">Rate shown to host: <strong>₱{Number(booking.contract.rate).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong></p>}
               {(booking.contract.host_contract_images?.length ?? 0) > 0 && <div className="mt-4">
                 <p className="font-semibold">Physical contract images</p>
                 <div className="mt-2 flex max-w-full snap-x gap-3 overflow-x-auto pb-2">
