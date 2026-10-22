@@ -41,8 +41,9 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
   const [totalAmount, setTotalAmount] = useState(details.total_amount == null ? "" : String(details.total_amount));
   const [notes, setNotes] = useState(details.notes ?? "");
   const [specialTerms, setSpecialTerms] = useState(details.special_terms ?? "");
-  const [images, setImages] = useState<File[]>([]);
+  const [imageUrls, setImageUrls] = useState(booking.contract?.host_contract_images ?? []);
   const [saving, setSaving] = useState(false);
+  const [imageSaving, setImageSaving] = useState(false);
   const calculatedTotal = rate === "" ? null : Number(booking.total_amount ?? 0) - Number(booking.rental_amount ?? 0) + Number(rate) * Math.max(1, Math.floor((new Date(booking.return_at).getTime() - new Date(booking.pickup_at).getTime()) / 86400000));
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -54,15 +55,55 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
       formData.append("host_details[total_amount]", totalAmount);
       formData.append("host_details[notes]", notes);
       formData.append("host_details[special_terms]", specialTerms);
-      images.forEach(image => formData.append("host_contract_images[]", image));
       await api.post(`/host-contracts/${booking.id}`, formData);
-      setImages([]);
       showToast("Host contract view saved.", "success");
       onSaved();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Unable to save host contract view", "error");
     } finally {
       setSaving(false);
+    }
+  };
+  const uploadImages = async (files: File[]) => {
+    const available = 10 - imageUrls.length;
+    if (files.length > available) {
+      showToast(`Only ${available} more physical contract image${available === 1 ? "" : "s"} can be uploaded.`, "error");
+    }
+    const selected = files.slice(0, Math.max(0, available));
+    if (!selected.length) return;
+    setImageSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("_method", "PATCH");
+      formData.append("host_details[rate]", rate);
+      formData.append("host_details[total_amount]", totalAmount);
+      formData.append("host_details[notes]", notes);
+      formData.append("host_details[special_terms]", specialTerms);
+      selected.forEach(image => formData.append("host_contract_images[]", image));
+      const response = await api.post<{ host_contract_images?: string[] }>(
+        `/host-contracts/${booking.id}`,
+        formData,
+      );
+      setImageUrls(response.data.host_contract_images ?? []);
+      showToast(`${selected.length} physical contract image${selected.length === 1 ? "" : "s"} uploaded.`, "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to upload physical contract image", "error");
+    } finally {
+      setImageSaving(false);
+    }
+  };
+  const removeImage = async (index: number) => {
+    setImageSaving(true);
+    try {
+      const response = await api.delete<{ host_contract_images?: string[] }>(
+        `/host-contracts/${booking.id}/images/${index}`,
+      );
+      setImageUrls(response.data.host_contract_images ?? []);
+      showToast("Physical contract image removed.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to remove physical contract image", "error");
+    } finally {
+      setImageSaving(false);
     }
   };
   return <form className="space-y-6 p-6" onSubmit={save}>
@@ -73,7 +114,7 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
     </div>
     <label className="block text-sm">Host notes<textarea className="mt-2 min-h-28 w-full border border-black/10 px-3 py-2.5" value={notes} onChange={event => setNotes(event.target.value)} /></label>
     <label className="block text-sm">Host contract terms<textarea className="mt-2 min-h-28 w-full border border-black/10 px-3 py-2.5" value={specialTerms} onChange={event => setSpecialTerms(event.target.value)} /></label>
-    <div><label className="block text-sm font-semibold">Physical contract images <span className="font-normal text-[#777]">(up to 10)</span><input className="mt-2 block w-full border border-dashed border-black/20 p-3 text-sm" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={event => setImages(Array.from(event.target.files ?? []).slice(0, 10 - (booking.contract?.host_contract_images?.length ?? 0)))} /></label><p className="mt-1 text-xs text-[#777]">Upload clear photos or scans of the signed physical contract. Existing images are retained.</p>{(booking.contract?.host_contract_images?.length ?? 0) > 0 && <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{booking.contract?.host_contract_images?.map((url, index) => <a href={url} target="_blank" rel="noreferrer" key={url}><img src={url} alt={`Physical contract page ${index + 1}`} className="aspect-square w-full rounded border border-black/10 object-cover" /></a>)}</div>}</div>
+    <div><label className="block text-sm font-semibold">Physical contract images <span className="font-normal text-[#777]">(up to 10)</span><input className="mt-2 block w-full border border-dashed border-black/20 p-3 text-sm disabled:opacity-50" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={imageSaving || imageUrls.length >= 10} onChange={event => { void uploadImages(Array.from(event.target.files ?? [])); event.currentTarget.value = ""; }} /></label><p className="mt-1 text-xs text-[#777]">{imageSaving ? "Updating physical contract images..." : "Images upload immediately when selected. You can add them one at a time or select several together."}</p>{imageUrls.length > 0 && <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{imageUrls.map((url, index) => <div className="relative" key={url}><a href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Physical contract page ${index + 1}`} className="aspect-square w-full rounded border border-black/10 object-cover" /></a><button type="button" className="absolute right-1 top-1 rounded bg-red-600 px-2 py-1 text-xs font-bold text-white shadow disabled:opacity-50" disabled={imageSaving} onClick={() => { if (window.confirm("Remove this physical contract image?")) void removeImage(index); }}>Remove</button></div>)}</div>}</div>
     <button disabled={saving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save host contract view"}</button>
   </form>;
 }
