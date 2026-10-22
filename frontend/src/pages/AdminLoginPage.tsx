@@ -29,6 +29,9 @@ export default function AdminLoginPage() {
       : ""
   );
   const oauthReturnTo = new URLSearchParams(window.location.search).get("return_to");
+  const hostTutorial = new URLSearchParams(window.location.search).get("host_tutorial") === "1";
+  const returnToHostTutorial = oauthReturnTo ? new URL(oauthReturnTo, window.location.origin).searchParams.get("host_tutorial") === "1" : false;
+  const hostTutorialRequested = hostTutorial || returnToHostTutorial;
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("verified") === "1") {
@@ -40,14 +43,18 @@ export default function AdminLoginPage() {
     api.post<{
       token: string;
       user: Parameters<typeof setSession>[1];
+      first_login?: boolean;
     }>("/auth/oauth/exchange", { code: oauthCode })
       .then(({ data }) => {
         setSession(data.token, data.user);
+        if (data.user.role === "customer" && data.first_login) {
+          window.localStorage.setItem("clcarhub-customer-tour-pending", "1");
+        }
         const returnUrl = oauthReturnTo?.startsWith("/") && !oauthReturnTo.startsWith("//") ? oauthReturnTo : "";
-        navigate(returnUrl || (data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}` : accountPath(data.user)), { replace: true });
+        navigate(data.user.role === "host" && (hostTutorialRequested || data.first_login) ? "/host?host_tutorial=1" : returnUrl || (data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}` : accountPath(data.user)), { replace: true });
       })
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Unable to complete social sign in"))
-  }, [navigate, oauthCode, oauthReturnTo, setSession, vehicleId]);
+  }, [hostTutorialRequested, navigate, oauthCode, oauthReturnTo, setSession, vehicleId]);
   const startOAuth = (provider: "google" | "facebook") => {
     setOauthLoading(provider);
     window.location.assign(`${apiBaseUrl}/auth/${provider}/redirect?return_to=${encodeURIComponent(window.location.pathname + window.location.search)}`);
@@ -79,11 +86,15 @@ export default function AdminLoginPage() {
       const { data } = await api.post<{
         token: string;
         user: Parameters<typeof setSession>[1];
+        first_login?: boolean;
       }>("/auth/login", { email, password });
       setSession(data.token, data.user);
+      if (data.user.role === "customer" && data.first_login) {
+        window.localStorage.setItem("clcarhub-customer-tour-pending", "1");
+      }
       const pickupAt = new URLSearchParams(window.location.search).get("pickup_at");
       const returnAt = new URLSearchParams(window.location.search).get("return_at");
-      navigate(data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}&pickup_at=${encodeURIComponent(pickupAt ?? "")}&return_at=${encodeURIComponent(returnAt ?? "")}` : accountPath(data.user));
+      navigate(data.user.role === "host" && (hostTutorialRequested || data.first_login) ? "/host?host_tutorial=1" : data.user.role === "customer" && vehicleId ? `/account?tab=request&vehicle_id=${vehicleId}&pickup_at=${encodeURIComponent(pickupAt ?? "")}&return_at=${encodeURIComponent(returnAt ?? "")}` : accountPath(data.user));
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -111,7 +122,7 @@ export default function AdminLoginPage() {
     }
   }
   if (authLoading) return null;
-  if (user) return <Navigate to={accountPath(user)} replace />;
+  if (user) return <Navigate to={user.role === "host" && hostTutorialRequested ? "/host?host_tutorial=1" : accountPath(user)} replace />;
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0b0b0b] px-5 text-white">
       <div className="w-full max-w-[430px] border border-white/[.1] bg-[#151515] p-8 shadow-2xl md:p-10">
