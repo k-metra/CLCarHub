@@ -13,6 +13,7 @@ type HostContractResponse = BookingRecord & {
       total_amount?: number | string | null;
       special_terms?: string | null;
     } | null;
+    host_contract_images?: string[];
   } | null;
 };
 
@@ -63,6 +64,7 @@ export default function HostContractPage() {
     total_amount: hostTotal(data, hostRate, hostDetails.total_amount),
   };
   const options: ContractOptions = { ...defaultOptions, ...(data.contract.options ?? {}) };
+  const physicalImages = data.contract.host_contract_images ?? [];
 
   return <HostShell title="Booking contract">
     <div className="mt-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -72,5 +74,6 @@ export default function HostContractPage() {
     <div className="mt-6 print:mt-0">
       <ContractPreview contract={data.contract} booking={booking} specialTerms={hostDetails.special_terms ?? data.contract.special_terms ?? ""} options={options} />
     </div>
+    {physicalImages.length > 0 && <section className="mt-8 border border-black/10 bg-white p-6 print:hidden"><h2 className="text-lg font-semibold">Physical contract images</h2><p className="mt-1 text-sm text-[#777]">Photos and scans uploaded by CL CarHub staff.</p><div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">{physicalImages.map((url, index) => <a href={url} target="_blank" rel="noreferrer" key={url}><img src={url} alt={`Physical contract page ${index + 1}`} className="aspect-square w-full rounded border border-black/10 object-cover" /></a>)}</div></section>}
   </HostShell>;
 }
