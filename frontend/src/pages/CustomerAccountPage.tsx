@@ -38,23 +38,54 @@ const vehicleThumbnailUrl = (vehicle: VehicleRecord) => {
 };
 
 const tutorialSteps = [
-  ["Explore vehicles", "Use the desktop overview or mobile Home tab to browse available vehicles and open a vehicle for details."],
-  ["Save vehicles", "Select the star on a vehicle card, then use Starred in the desktop navigation or mobile bottom navigation to find saved vehicles."],
-  ["Request a booking", "Choose Request booking on desktop, or tap Find your next ride on mobile, then follow the vehicle, schedule, trip details, and checkout steps."],
-  ["Track your bookings", "Open My calendar on desktop or Bookings on mobile to review reservations. Select a booking to view details and payment options."],
+  ["home", "Explore vehicles", "Browse available vehicles from your dashboard and open a vehicle card to see its details."],
+  ["starred", "Save vehicles", "Use the star on a vehicle card to save it, then return here to find your saved vehicles."],
+  ["request", "Request a booking", "Start a booking request, choose your vehicle and schedule, then continue through the checkout steps."],
+  ["bookings", "Track your bookings", "Review reservations, booking details, and payment options from your bookings area."],
 ] as const;
 
 function CustomerDashboardTutorial({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0);
-  const [title, instructions] = tutorialSteps[step];
+  const [target, title, instructions] = tutorialSteps[step];
+  const [spotlight, setSpotlight] = useState<DOMRect | null>(null);
   const lastStep = step === tutorialSteps.length - 1;
-
-  return <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="customer-tutorial-title">
-    <section className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 text-[#151515] shadow-2xl sm:p-8">
-      <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff641f]">Customer dashboard tour</p><h2 id="customer-tutorial-title" className="mt-2 text-2xl font-semibold sm:text-3xl">Find your way around</h2></div><button type="button" onClick={onClose} className="rounded-full border border-black/10 px-3 py-1 text-sm text-[#666] hover:bg-[#f5f4f1]" aria-label="Skip dashboard tour">Skip</button></div>
-      <div className="mt-6 flex gap-2" aria-label={`Tutorial step ${step + 1} of ${tutorialSteps.length}`}>{tutorialSteps.map((item, index) => <span key={item[0]} className={`h-1.5 flex-1 rounded-full ${index <= step ? "bg-[#ff641f]" : "bg-black/10"}`} />)}</div>
-      <div className="mt-8 rounded-xl border border-black/10 bg-[#f8f7f5] p-5 sm:p-7"><p className="text-sm font-semibold text-[#ff641f]">Step {step + 1}</p><h3 className="mt-2 text-xl font-semibold">{title}</h3><p className="mt-3 text-sm leading-6 text-[#555]">{instructions}</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><p className="rounded border border-black/10 bg-white p-3 text-xs leading-5 text-[#555]"><strong className="block text-[#151515]">Desktop</strong>Use the top dashboard navigation and the wide dashboard content area.</p><p className="rounded border border-black/10 bg-white p-3 text-xs leading-5 text-[#555]"><strong className="block text-[#151515]">Mobile</strong>Use the custom bottom navigation and mobile cards designed for smaller screens.</p></div></div>
-      <div className="mt-6 flex items-center justify-between gap-3"><button type="button" onClick={onClose} className="text-sm font-semibold text-[#777] hover:text-[#151515]">Skip tour</button><div className="flex gap-2">{step > 0 && <button type="button" onClick={() => setStep(value => value - 1)} className="border border-black/10 px-4 py-2.5 text-sm font-semibold">Back</button>}<button type="button" onClick={() => lastStep ? onClose() : setStep(value => value + 1)} className="bg-[#ff641f] px-4 py-2.5 text-sm font-bold text-white">{lastStep ? "Start exploring" : "Next"}</button></div></div>
+  useEffect(() => {
+    const update = () => {
+      const selector = target === "starred" ? `[data-customer-tour="${target}"], button[aria-label*="star" i]` : `[data-customer-tour="${target}"]`;
+      const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
+      if (elements.length === 0) {
+        const text = target === "request" ? "Request a booking" : target === "bookings" ? "My calendar" : "";
+        if (text) elements.push(...Array.from(document.querySelectorAll<HTMLElement>("button")).filter(element => element.textContent?.includes(text)));
+        if (target === "home") {
+          const home = document.querySelector<HTMLElement>('[aria-label="CLCarHub home"]');
+          if (home) elements.push(home);
+        }
+      }
+      const visible = elements.find(element => element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0);
+      setSpotlight(visible?.getBoundingClientRect() ?? null);
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [target]);
+  const tooltipStyle = useMemo(() => {
+    if (!spotlight) return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
+    const width = Math.min(360, window.innerWidth - 32);
+    const left = Math.min(Math.max(16, spotlight.left), window.innerWidth - width - 16);
+    const top = spotlight.bottom + 16 + 190 < window.innerHeight ? spotlight.bottom + 16 : Math.max(16, spotlight.top - 206);
+    return { top, left, width };
+  }, [spotlight]);
+  return <div className="fixed inset-0 z-[300]" role="dialog" aria-modal="true" aria-labelledby="customer-tutorial-title">
+    {spotlight ? <div className="pointer-events-none fixed rounded-lg ring-4 ring-[#ff641f] ring-offset-2 ring-offset-transparent shadow-[0_0_0_9999px_rgba(0,0,0,.62)]" style={{ top: spotlight.top - 6, left: spotlight.left - 6, width: spotlight.width + 12, height: spotlight.height + 12 }} /> : <div className="fixed inset-0 bg-black/60" />}
+    <section className="absolute rounded-xl bg-white p-5 text-[#151515] shadow-2xl" style={tooltipStyle}>
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff641f]">Customer dashboard tour · {step + 1}/{tutorialSteps.length}</p>
+      <h2 id="customer-tutorial-title" className="mt-2 text-xl font-semibold">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-[#555]">{instructions}</p>
+      <div className="mt-5 flex items-center justify-between gap-3"><button type="button" onClick={onClose} className="text-sm font-semibold text-[#777]">Skip tour</button><div className="flex gap-2">{step > 0 && <button type="button" onClick={() => setStep(value => value - 1)} className="border border-black/10 px-3 py-2 text-sm font-semibold">Back</button>}<button type="button" onClick={() => lastStep ? onClose() : setStep(value => value + 1)} className="bg-[#ff641f] px-3 py-2 text-sm font-bold text-white">{lastStep ? "Finish" : "Next"}</button></div></div>
     </section>
   </div>;
 }
@@ -86,7 +117,7 @@ function DeliveryMap({ center, position, onPin }: { center: [number, number]; po
 export default function CustomerAccountPage() {
   const { user, loading } = useAuth(); const signOut = useSignOut(); const { showToast } = useToast(); const { theme } = useTheme(); const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [showTutorial, setShowTutorial] = useState(() => searchParams.get("tutorial") === "1");
+  const [showTutorial, setShowTutorial] = useState(() => searchParams.get("tutorial") === "1" || window.localStorage.getItem("clcarhub-customer-tour-pending") === "1");
   const [tab, setTab] = useState<Tab>(() => searchParams.get("tab") === "request" ? "request" : searchParams.get("tab") === "starred" ? "starred" : searchParams.get("tab") === "calendar" ? "calendar" : "overview"); const [step, setStep] = useState(1);
   const [bookings, setBookings] = useState<BookingRecord[]>([]); const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [addons, setAddons] = useState<AddonRecord[]>([]); const [selectedAddonIds, setSelectedAddonIds] = useState<number[]>([]);
@@ -113,6 +144,7 @@ export default function CustomerAccountPage() {
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
   const [returnPosition, setReturnPosition] = useState<[number, number] | null>(null);
   const closeTutorial = () => {
+    window.localStorage.removeItem("clcarhub-customer-tour-pending");
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("tutorial");
     navigate(`${window.location.pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ""}`, { replace: true });
