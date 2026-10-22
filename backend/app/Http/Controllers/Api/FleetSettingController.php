@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\FleetSetting;
+use App\Services\CustomerBookingSmsService;
 use Illuminate\Http\Request;
 
 class FleetSettingController extends Controller
@@ -20,6 +21,7 @@ class FleetSettingController extends Controller
         return FleetSetting::firstOrCreate(['id' => 1], [
             'reservation_fee' => 0,
             'reservation_fee_deductible' => true,
+            'booking_sms_numbers' => [],
             'discount_structures' => [],
             'default_hour_extension_rate' => 200,
             'full_day_extension_threshold_hours' => 12,
@@ -38,6 +40,8 @@ class FleetSettingController extends Controller
         $data = $request->validate([
             'reservation_fee' => ['required', 'numeric', 'min:0'],
             'reservation_fee_deductible' => ['required', 'boolean'],
+            'booking_sms_numbers' => ['nullable', 'array'],
+            'booking_sms_numbers.*' => ['string', 'regex:/^(?:\+63|0)?9\d{9}$/'],
             'discount_structures' => ['nullable', 'array'],
             'discount_structures.*.name' => ['required', 'string', 'max:255'],
             'discount_structures.*.vehicle_types' => ['required', 'array', 'min:1'],
@@ -57,6 +61,14 @@ class FleetSettingController extends Controller
             'terms_and_conditions' => ['nullable', 'string', 'max:1000000'],
             'privacy_policy' => ['nullable', 'string', 'max:1000000'],
         ]);
+
+        $normalizer = app(CustomerBookingSmsService::class);
+        $data['booking_sms_numbers'] = collect($data['booking_sms_numbers'] ?? [])
+            ->map(fn (string $number): ?string => $normalizer->normalizePhone($number))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         $settings = FleetSetting::updateOrCreate(['id' => 1], $data);
 
