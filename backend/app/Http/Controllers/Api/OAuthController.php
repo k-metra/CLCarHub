@@ -11,6 +11,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
@@ -39,7 +41,27 @@ class OAuthController extends Controller
         $this->validateProvider($provider);
         try {
             $profile = Socialite::driver($provider)->stateless()->user();
-            abort_unless($profile->getEmail(), 422, 'The '.$provider.' account did not provide an email address.');
+        $social = SocialAccount::where('provider', $provider)
+            ->where('provider_user_id', $profile->getId())
+            ->first();
+        if ($social) {
+            $user = $social->user;
+            $firstLogin = $user->last_login_at === null;
+            $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
+            $code = Str::random(64);
+            Cache::put('oauth-login:'.hash('sha256', $code), ['user_id' => $user->id, 'first_login' => $firstLogin], now()->addMinutes(2));
+            return redirect()->to($this->frontendUrl().'/admin/login?oauth_code='.urlencode($code));
+        }
+        if (! $profile->getEmail()) {
+                $pendingToken = Str::random(64);
+                Cache::put('oauth-pending:'.hash('sha256', $pendingToken), [
+                    'provider' => $provider,
+                    'provider_user_id' => $profile->getId(),
+                    'provider_name' => $profile->getName() ?: $profile->getNickname() ?: 'Facebook customer',
+                    'provider_avatar_url' => $profile->getAvatar(),
+                ], now()->addMinutes(15));
+                return redirect()->to($this->frontendUrl().'/facebook/complete?token='.urlencode($pendingToken));
+            }
 
             $raw = $profile->getRaw();
             $emailVerified = $provider === 'google'
@@ -48,13 +70,6 @@ class OAuthController extends Controller
             abort_unless($emailVerified, 422, 'Verify your email address with '.$provider.' before using social login.');
 
             $user = DB::transaction(function () use ($profile, $provider, $request): User {
-                $social = SocialAccount::where('provider', $provider)
-                    ->where('provider_user_id', $profile->getId())
-                    ->first();
-                if ($social) {
-                    return $social->user;
-                }
-
                 $email = strtolower(trim((string) $profile->getEmail()));
                 $user = User::whereRaw('lower(email) = ?', [$email])->first();
                 if ($user && $user->role !== 'customer') {
@@ -139,6 +154,46 @@ class OAuthController extends Controller
         abort_unless($user->status === 'active', 403, 'This account is not active.');
 
         return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken, 'first_login' => (bool) ($payload['first_login'] ?? false)];
+    }
+
+    public function sendPendingPhone(Request $request)
+    {
+        $data = $request->validate(['token' => ['required', 'string', 'size:64'], 'phone' => ['required', 'string', 'max:40']]);
+        $key = 'oauth-pending:'.hash('sha256', $data['token']);
+        $pending = Cache::get($key);
+        abort_unless(is_array($pending), 422, 'This Facebook sign-in has expired. Please start again.');
+        $phone = app(\App\Services\CustomerPhoneVerificationService::class)->normalizePhone($data['phone']);
+        abort_unless($phone, 422, 'Enter a valid Philippine mobile number.');
+        $url = config('services.sms_gateway.url');
+        $smsToken = config('services.sms_gateway.token');
+        abort_unless($url && $smsToken, 502, 'SMS verification is not configured.');
+        $code = (string) random_int(100000, 999999);
+        Http::timeout((int) config('services.sms_gateway.timeout', 10))
+            ->withHeaders(['x-api-key' => $smsToken])
+            ->post($url, ['recipients' => [$phone], 'message' => "CL CarHub: Your Facebook sign-in code is {$code}. It expires in 10 minutes. Do not share this code."])
+            ->throw();
+        Cache::put($key, [...$pending, 'phone' => $phone, 'phone_code_hash' => Hash::make($code), 'phone_code_expires_at' => now()->addMinutes(10)], now()->addMinutes(15));
+        return ['phone' => $phone, 'message' => 'Verification code sent.'];
+    }
+
+    public function completePending(Request $request)
+    {
+        $data = $request->validate(['token' => ['required', 'string', 'size:64'], 'code' => ['required', 'digits:6']]);
+        $key = 'oauth-pending:'.hash('sha256', $data['token']);
+        $pending = Cache::pull($key);
+        abort_unless(is_array($pending) && isset($pending['phone'], $pending['phone_code_hash']), 422, 'Request a new verification code first.');
+        abort_if(now()->greaterThan(\Illuminate\Support\Carbon::parse($pending['phone_code_expires_at'])) || ! Hash::check($data['code'], $pending['phone_code_hash']), 422, 'The verification code is invalid or expired.');
+        $user = DB::transaction(function () use ($pending): User {
+            $social = SocialAccount::where('provider', $pending['provider'])->where('provider_user_id', $pending['provider_user_id'])->first();
+            if ($social) return $social->user;
+            $user = User::create(['name' => $pending['provider_name'], 'username' => $this->uniqueUsername($pending['provider_name']), 'email' => null, 'password' => Str::random(40), 'role' => 'customer', 'status' => 'active', 'email_verified_at' => now(), 'phone' => $pending['phone']]);
+            $user->customer()->create(['name' => $pending['provider_name'], 'phone' => $pending['phone'], 'phone_verified_at' => now()]);
+            SocialAccount::create(['user_id' => $user->id, 'provider' => $pending['provider'], 'provider_user_id' => $pending['provider_user_id'], 'provider_email' => null, 'provider_avatar_url' => $pending['provider_avatar_url']]);
+            return $user;
+        });
+        $firstLogin = $user->last_login_at === null;
+        $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
+        return ['user' => $user->load('customer'), 'token' => $user->createToken('customer-session')->plainTextToken, 'first_login' => $firstLogin];
     }
 
     private function validateProvider(string $provider): void
