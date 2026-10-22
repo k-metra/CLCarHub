@@ -116,6 +116,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/bookings/{booking}/invoice', [BookingController::class, 'invoice']);
     Route::middleware(EnsureRole::class.':customer')->prefix('customer/booking-requests')->group(function () {
         Route::get('/', [BookingController::class, 'customerIndex']);
+        Route::post('/discount-preview', [BookingController::class, 'customerDiscountPreview']);
         Route::post('/', [BookingController::class, 'customerStore'])
             ->middleware(['blocked.ip:bookings', 'throttle:customer-booking-submissions']);
         Route::get('/{booking}', [BookingController::class, 'customerShow']);
