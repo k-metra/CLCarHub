@@ -55,11 +55,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(EnsureRole::class.':host')->prefix('host')->group(function () {
         Route::get('/dashboard', [\App\Http\Controllers\Api\HostController::class, 'dashboard']);
         Route::get('/bookings', [\App\Http\Controllers\Api\HostController::class, 'bookings']);
-        Route::get('/bookings/{booking}/contract', [\App\Http\Controllers\Api\HostController::class, 'contract']);
         Route::get('/vehicles/{vehicle}/location', [\App\Http\Controllers\Api\HostController::class, 'vehicleLocation']);
     });
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->group(function () {
         Route::patch('/host-contracts/{booking}', [\App\Http\Controllers\Api\HostContractController::class, 'update']);
+        Route::post('/host-contracts/{booking}/publish', [\App\Http\Controllers\Api\HostContractController::class, 'publish']);
+        Route::post('/host-contracts/{booking}/revoke', [\App\Http\Controllers\Api\HostContractController::class, 'revoke']);
         Route::delete('/host-contracts/{booking}/images/{image}', [\App\Http\Controllers\Api\HostContractController::class, 'deleteImage']);
     });
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
