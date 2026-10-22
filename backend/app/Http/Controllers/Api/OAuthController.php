@@ -172,7 +172,12 @@ class OAuthController extends Controller
             ->withHeaders(['x-api-key' => $smsToken])
             ->post($url, ['recipients' => [$phone], 'message' => "CL CarHub: Your Facebook sign-in code is {$code}. It expires in 10 minutes. Do not share this code."])
             ->throw();
-        Cache::put($key, [...$pending, 'phone' => $phone, 'phone_code_hash' => Hash::make($code), 'phone_code_expires_at' => now()->addMinutes(10)], now()->addMinutes(15));
+        Cache::put($key, [
+            ...$pending,
+            'phone' => $phone,
+            'phone_code_hash' => Hash::make($code),
+            'phone_code_expires_at' => now()->addMinutes(10)->toIso8601String(),
+        ], now()->addMinutes(15));
         return ['phone' => $phone, 'message' => 'Verification code sent.'];
     }
 
@@ -181,8 +186,21 @@ class OAuthController extends Controller
         $data = $request->validate(['token' => ['required', 'string', 'size:64'], 'code' => ['required', 'digits:6']]);
         $key = 'oauth-pending:'.hash('sha256', $data['token']);
         $pending = Cache::pull($key);
-        abort_unless(is_array($pending) && isset($pending['phone'], $pending['phone_code_hash']), 422, 'Request a new verification code first.');
-        abort_if(now()->greaterThan(\Illuminate\Support\Carbon::parse($pending['phone_code_expires_at'])) || ! Hash::check($data['code'], $pending['phone_code_hash']), 422, 'The verification code is invalid or expired.');
+        abort_unless(
+            is_array($pending)
+            && isset($pending['phone'], $pending['phone_code_hash'], $pending['phone_code_expires_at'])
+            && is_string($pending['phone'])
+            && is_string($pending['phone_code_hash'])
+            && is_string($pending['phone_code_expires_at']),
+            422,
+            'Request a new verification code first.',
+        );
+        try {
+            $codeExpired = now()->greaterThan(\Illuminate\Support\Carbon::parse($pending['phone_code_expires_at']));
+        } catch (\Throwable) {
+            $codeExpired = true;
+        }
+        abort_if($codeExpired || ! Hash::check($data['code'], $pending['phone_code_hash']), 422, 'The verification code is invalid or expired.');
         $user = DB::transaction(function () use ($pending): User {
             $social = SocialAccount::where('provider', $pending['provider'])->where('provider_user_id', $pending['provider_user_id'])->first();
             if ($social) return $social->user;
