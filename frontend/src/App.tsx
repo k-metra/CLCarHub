@@ -24,7 +24,6 @@ const VehicleRevenueReportPage = lazy(() => import("./pages/VehicleRevenueReport
 const FleetUtilizationReportPage = lazy(() => import("./pages/FleetUtilizationReportPage"));
 const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const ContractBuilderPage = lazy(() => import("./pages/ContractBuilderPage"));
-const HostContractBuilderPage = lazy(() => import("./pages/HostContractBuilderPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const FleetSettingsPage = lazy(() => import("./pages/FleetSettingsPage"));
 const FleetGalleryPage = lazy(() => import("./pages/FleetGalleryPage"));
@@ -110,7 +109,6 @@ export default function App() {
             path="/admin/contracts"
             element={<ContractBuilderPage />}
           />
-          <Route path="/admin/host-contracts" element={<HostContractBuilderPage />} />
           <Route
             path="/admin/expenses"
             element={<ExpensesPage />}
