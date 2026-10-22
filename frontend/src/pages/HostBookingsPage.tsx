@@ -30,7 +30,7 @@ type HostBooking = {
     plate_number: string;
     image_url?: string | null;
   };
-  contract?: { id: number; status: string; rate?: number | string | null; total_amount?: number | string | null; notes?: string | null; special_terms?: string | null } | null;
+  contract?: { id: number; status: string; rate?: number | string | null; total_amount?: number | string | null; notes?: string | null; special_terms?: string | null; host_contract_images?: string[] } | null;
 };
 
 function formatDate(value: string): string {
@@ -102,6 +102,17 @@ export default function HostBookingsPage() {
               </div>
               {booking.contract.notes && <p className="mt-2 whitespace-pre-wrap text-[#777]">{booking.contract.notes}</p>}
               {booking.contract.special_terms && <p className="mt-2 whitespace-pre-wrap border-l-2 border-[#ff641f] pl-3 text-[#555]"><strong>Contract terms:</strong> {booking.contract.special_terms}</p>}
+              {(booking.contract.host_contract_images?.length ?? 0) > 0 && <div className="mt-4">
+                <p className="font-semibold">Physical contract images</p>
+                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {booking.contract.host_contract_images?.map((image, index) => {
+                    const imageUrl = resolveImageUrl(image);
+                    return imageUrl ? <a href={imageUrl} target="_blank" rel="noreferrer" key={image}>
+                      <img src={imageUrl} alt={`Physical contract page ${index + 1}`} className="aspect-square w-full rounded border border-black/10 object-cover" />
+                    </a> : null;
+                  })}
+                </div>
+              </div>}
             </div>}
           </article>)}
         </div>}
