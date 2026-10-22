@@ -5,8 +5,16 @@ import { Skeleton, useToast } from "../components/Ui";
 import api from "../lib/api";
 import { vehicleTypeLabels, vehicleTypes, type DiscountStructure, type FleetSettings } from "../types";
 import RichTextEditor from "../components/RichTextEditor";
+import { DateTimePicker } from "../components/DateTimePicker";
 
 const defaultMapCenter: [number, number] = [14.5995, 120.9842];
+const dateTimePickerValue = (value: string | null): string => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 const defaults: FleetSettings = {
   reservation_fee: "0",
   reservation_fee_deductible: true,
@@ -146,6 +154,7 @@ export default function FleetSettingsPage() {
   const [bookingSmsNumber, setBookingSmsNumber] = useState("");
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [discountCodeForm, setDiscountCodeForm] = useState<DiscountCode>(emptyDiscountCode);
+  const [discountCodeSaving, setDiscountCodeSaving] = useState(false);
 
   useEffect(() => {
     api.get<FleetSettings>("/fleet-settings")
@@ -345,15 +354,19 @@ export default function FleetSettingsPage() {
   };
   const saveDiscountCode = async (event: FormEvent) => {
     event.preventDefault();
+    if (discountCodeSaving) return;
+    setDiscountCodeSaving(true);
     try {
       const response = discountCodeForm.id
         ? await api.patch<DiscountCode>(`/discount-codes/${discountCodeForm.id}`, discountCodeForm)
         : await api.post<DiscountCode>("/discount-codes", discountCodeForm);
       setDiscountCodes(current => discountCodeForm.id ? current.map(code => code.id === response.data.id ? response.data : code) : [response.data, ...current]);
       setDiscountCodeForm(emptyDiscountCode());
-      showToast("Discount code saved.", "success");
+      showToast(discountCodeForm.id ? "Discount code updated successfully." : "Discount code created successfully.", "success");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Unable to save discount code.", "error");
+    } finally {
+      setDiscountCodeSaving(false);
     }
   };
   const deleteDiscountCode = async (id: number) => {
@@ -507,17 +520,17 @@ export default function FleetSettingsPage() {
               <label className="text-sm">Value<input required min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.value} onChange={event => setDiscountCodeForm(current => ({ ...current, value: event.target.value }))} /></label>
               <label className="text-sm">Maximum discount (optional)<input min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.maximum_discount ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, maximum_discount: event.target.value || null }))} /></label>
               <label className="text-sm">Total redemptions (optional)<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.redemptions_allowed ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, redemptions_allowed: event.target.value ? Number(event.target.value) : null }))} /></label>
-              <label className="text-sm">Starts at<input type="datetime-local" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.starts_at ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, starts_at: event.target.value || null }))} /></label>
-              <label className="text-sm">Ends at<input type="datetime-local" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.ends_at ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, ends_at: event.target.value || null }))} /></label>
+              <label className="text-sm">Starts at<DateTimePicker mode="datetime" className="mt-2 w-full border border-black/10 px-3 py-2" value={dateTimePickerValue(discountCodeForm.starts_at)} onChange={value => setDiscountCodeForm(current => ({ ...current, starts_at: value || null }))} placeholder="Choose start date and time" /></label>
+              <label className="text-sm">Ends at<DateTimePicker mode="datetime" className="mt-2 w-full border border-black/10 px-3 py-2" value={dateTimePickerValue(discountCodeForm.ends_at)} onChange={value => setDiscountCodeForm(current => ({ ...current, ends_at: value || null }))} placeholder="Choose end date and time" /></label>
               <label className="text-sm">Minimum rental amount<input min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.minimum_booking_amount ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, minimum_booking_amount: event.target.value || null }))} /></label>
               <label className="text-sm">Minimum duration (hours)<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.minimum_duration_hours ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, minimum_duration_hours: event.target.value ? Number(event.target.value) : null }))} /></label>
               <label className="text-sm">Status<select className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.status} onChange={event => setDiscountCodeForm(current => ({ ...current, status: event.target.value as DiscountCode["status"] }))}>{["draft", "scheduled", "active", "paused"].map(status => <option key={status} value={status}>{status}</option>)}</select></label>
               <label className="text-sm">Limit per customer<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.limit_per_customer} onChange={event => setDiscountCodeForm(current => ({ ...current, limit_per_customer: Number(event.target.value) }))} /></label>
               <fieldset className="sm:col-span-2"><legend className="text-sm">Applicable vehicle categories</legend><div className="mt-2 flex flex-wrap gap-2">{vehicleTypes.map(type => <label key={type} className="flex items-center gap-2 border border-black/10 px-3 py-2 text-sm"><input type="checkbox" checked={discountCodeForm.vehicle_types?.includes(type) ?? false} onChange={event => setDiscountCodeForm(current => ({ ...current, vehicle_types: event.target.checked ? [...(current.vehicle_types ?? []), type] : (current.vehicle_types ?? []).filter(item => item !== type) }))} />{vehicleTypeLabels[type]}</label>)}</div></fieldset>
               <div className="flex flex-wrap items-center gap-4 text-sm sm:col-span-2"><label><input type="checkbox" checked={discountCodeForm.new_customers_only} onChange={event => setDiscountCodeForm(current => ({ ...current, new_customers_only: event.target.checked }))} /> <span className="ml-1">New customers only</span></label><label><input type="checkbox" checked={discountCodeForm.stackable} onChange={event => setDiscountCodeForm(current => ({ ...current, stackable: event.target.checked }))} /> <span className="ml-1">Stackable</span></label></div>
-              <div className="flex gap-3 sm:col-span-2"><button className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white">{discountCodeForm.id ? "Update code" : "Create code"}</button>{discountCodeForm.id && <button type="button" className="border border-black/10 px-5 py-3 text-sm" onClick={() => setDiscountCodeForm(emptyDiscountCode())}>Cancel</button>}</div>
+              <div className="flex items-center gap-3 sm:col-span-2"><button disabled={discountCodeSaving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{discountCodeSaving ? (discountCodeForm.id ? "Updating..." : "Creating...") : (discountCodeForm.id ? "Update code" : "Create code")}</button>{discountCodeForm.id && <button type="button" disabled={discountCodeSaving} className="border border-black/10 px-5 py-3 text-sm disabled:opacity-50" onClick={() => setDiscountCodeForm(emptyDiscountCode())}>Cancel</button>}<span className="text-xs text-[#777]" role="status" aria-live="polite">{discountCodeSaving ? "Saving discount code..." : "New codes appear below immediately after saving."}</span></div>
             </form>
-            <div className="mt-8 space-y-2">{discountCodes.map(code => <div key={code.id} className="flex flex-wrap items-center justify-between gap-3 border border-black/10 p-3 text-sm"><div><strong>{code.code}</strong><span className="ml-2 text-[#777]">{code.name}</span><span className="ml-2 rounded bg-black/5 px-2 py-1 text-xs">{code.status}</span></div><div className="flex gap-3"><button type="button" className="font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm(code)}>Edit</button>{code.id && <button type="button" className="text-red-600" onClick={() => void deleteDiscountCode(code.id!)}>Delete</button>}</div></div>)}</div>
+            <div className="mt-8 space-y-2">{discountCodes.map(code => <div key={code.id} className="flex flex-wrap items-center justify-between gap-3 border border-black/10 p-3 text-sm"><div><strong>{code.code}</strong><span className="ml-2 text-[#777]">{code.name}</span><span className="ml-2 rounded bg-black/5 px-2 py-1 text-xs">{code.status}</span></div><div className="flex gap-3"><button type="button" className="font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm({ ...code, starts_at: dateTimePickerValue(code.starts_at), ends_at: dateTimePickerValue(code.ends_at) })}>Edit</button>{code.id && <button type="button" className="text-red-600" onClick={() => void deleteDiscountCode(code.id!)}>Delete</button>}</div></div>)}</div>
           </section>
           <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p>
