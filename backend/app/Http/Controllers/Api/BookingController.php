@@ -257,15 +257,23 @@ class BookingController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $booking = $booking->fresh();
         abort_unless(request()->boolean('include_archived') || ! $booking->customer?->archived_at, 404);
-        return $booking->load([
+        $booking->load([
             'customer.attachments',
             'customer.user:id,name,first_name,middle_name,last_name,date_of_birth,username,email',
+            'contract',
             'vehicle.images',
             'creator',
             'payments.fund',
             'statusHistory.user',
             'returnPhotos',
         ]);
+        if ($booking->contract) {
+            $booking->contract->host_contract_images = collect($booking->contract->host_contract_images ?? [])
+                ->map(fn (string $path): string => Storage::disk('public')->url($path))
+                ->values()
+                ->all();
+        }
+        return $booking;
     }
 
     public function storeReturnPhotos(Request $request, Booking $booking)
