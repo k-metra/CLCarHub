@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
+use App\Services\CustomerBookingSmsService;
 
 class CustomerBookingRequestTest extends TestCase
 {
@@ -27,6 +28,42 @@ class CustomerBookingRequestTest extends TestCase
             'reservation_fee' => 0,
             'reservation_fee_deductible' => true,
         ]);
+    }
+
+    public function test_customer_booking_sms_includes_customer_name_and_pickup_schedule(): void
+    {
+        Http::fake();
+        config()->set('services.sms_gateway.url', 'https://sms.example.test/send');
+        config()->set('services.sms_gateway.token', 'test-token');
+        FleetSetting::query()->firstOrFail()->update(['booking_sms_numbers' => ['+639939928496']]);
+
+        $customer = Customer::create(['name' => 'Maria Santos', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota',
+            'model' => 'Vios',
+            'type' => 'sedan',
+            'plate_number' => 'SMS-123',
+            'daily_rate' => 2000,
+            'status' => 'available',
+        ]);
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000001',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => Booking::PENDING,
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        app(CustomerBookingSmsService::class)->send($booking);
+
+        Http::assertSent(fn ($request): bool =>
+            str_contains($request['message'], 'Maria Santos')
+            && str_contains($request['message'], 'Jan 10, 2030 10:00 AM')
+        );
     }
 
     public function test_customer_with_booking_history_is_archived_and_can_be_restored(): void

@@ -10,6 +10,7 @@ const defaultMapCenter: [number, number] = [14.5995, 120.9842];
 const defaults: FleetSettings = {
   reservation_fee: "0",
   reservation_fee_deductible: true,
+  booking_sms_numbers: [],
   default_hour_extension_rate: "200",
   full_day_extension_threshold_hours: 12,
   late_return_grace_period_minutes: 60,
@@ -34,6 +35,7 @@ type SearchResult = {
 const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   reservation_fee: value.reservation_fee ?? defaults.reservation_fee,
   reservation_fee_deductible: value.reservation_fee_deductible ?? defaults.reservation_fee_deductible,
+  booking_sms_numbers: value.booking_sms_numbers ?? defaults.booking_sms_numbers,
   default_hour_extension_rate: value.default_hour_extension_rate === undefined ? defaults.default_hour_extension_rate : value.default_hour_extension_rate,
   full_day_extension_threshold_hours: value.full_day_extension_threshold_hours ?? defaults.full_day_extension_threshold_hours,
   late_return_grace_period_minutes: value.late_return_grace_period_minutes ?? defaults.late_return_grace_period_minutes,
@@ -120,6 +122,7 @@ export default function FleetSettingsPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [mapCenter, setMapCenter] = useState(defaultMapCenter);
   const [expandedStructures, setExpandedStructures] = useState<Set<number>>(() => new Set());
+  const [bookingSmsNumber, setBookingSmsNumber] = useState("");
 
   useEffect(() => {
     api.get<FleetSettings>("/fleet-settings")
@@ -289,6 +292,21 @@ export default function FleetSettingsPage() {
     setExpandedStructures(current => new Set([...current].filter(itemIndex => itemIndex !== index).map(itemIndex => itemIndex > index ? itemIndex - 1 : itemIndex)));
     setSettings(current => ({ ...current, discount_structures: current.discount_structures.filter((_, itemIndex) => itemIndex !== index) }));
   };
+  const addBookingSmsNumber = () => {
+    const value = bookingSmsNumber.trim();
+    if (!/^(?:\+63|0)?9\d{9}$/.test(value)) {
+      showToast("Enter a valid Philippine mobile number, such as +639939928496, 09939928496, or 9939928496.", "error");
+      return;
+    }
+    const digits = value.replace(/^\+/, "");
+    const normalized = `+63${digits.startsWith("0") ? digits.slice(1) : digits}`;
+    if (settings.booking_sms_numbers.includes(normalized)) {
+      showToast("That notification number is already listed.", "error");
+      return;
+    }
+    setSettings(current => ({ ...current, booking_sms_numbers: [...current.booking_sms_numbers, normalized] }));
+    setBookingSmsNumber("");
+  };
   const saveDiscountStructures = async () => {
     setSaving(true);
     try {
@@ -372,6 +390,22 @@ export default function FleetSettingsPage() {
                 <input type="checkbox" className="mt-1 h-4 w-4 accent-[#ff641f]" checked={settings.reservation_fee_deductible} onChange={event => setSettings(current => ({ ...current, reservation_fee_deductible: event.target.checked }))} />
                 <span><strong className="block">Deduct reservation fee from rental total</strong><span className="mt-1 block text-[#777]">When enabled, the reservation fee counts as an advance payment toward the rental total. When disabled, it is added as a separate charge.</span></span>
               </label>
+              <div className="border border-black/10 p-4">
+                <p className="font-semibold">Customer booking SMS notifications</p>
+                <p className="mt-1 text-xs font-normal text-[#777]">These numbers receive an SMS when a customer submits a booking. Staff-created bookings do not trigger this notification.</p>
+                <div className="mt-4 flex gap-2">
+                  <input className="min-w-0 flex-1 border border-black/10 px-3 py-3 text-sm" placeholder="09XXXXXXXXX or +639XXXXXXXXX" value={bookingSmsNumber} onChange={event => setBookingSmsNumber(event.target.value)} />
+                  <button type="button" className="shrink-0 border border-black/15 px-4 py-3 text-sm font-semibold" onClick={addBookingSmsNumber}>Add number</button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {settings.booking_sms_numbers.map(number => (
+                    <div className="flex items-center justify-between gap-3 bg-[#f8f7f5] px-3 py-2 text-sm" key={number}>
+                      <span>{number}</span>
+                      <button type="button" className="text-xs font-semibold text-red-600" onClick={() => setSettings(current => ({ ...current, booking_sms_numbers: current.booking_sms_numbers.filter(item => item !== number) }))}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <div className="flex justify-end">
                 <button disabled={saving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save settings"}</button>
               </div>
