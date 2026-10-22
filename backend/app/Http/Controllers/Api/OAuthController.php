@@ -58,7 +58,10 @@ class OAuthController extends Controller
                 $email = strtolower(trim((string) $profile->getEmail()));
                 $user = User::whereRaw('lower(email) = ?', [$email])->first();
                 if ($user && $user->role !== 'customer') {
-                    abort(422, 'This email belongs to a staff account. Use the staff sign-in form.');
+                    $message = $user->role === 'host'
+                        ? 'This email belongs to a host account. Use the host sign-in form.'
+                        : 'This email belongs to a staff account. Use the staff sign-in form.';
+                    abort(422, $message);
                 }
                 $unclaimedProfile = Customer::query()
                     ->whereNull('user_id')
