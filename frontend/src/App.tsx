@@ -40,6 +40,7 @@ const HostVehiclesPage = lazy(() => import("./pages/HostVehiclesPage"));
 const HostEarningsPage = lazy(() => import("./pages/HostEarningsPage"));
 const HostActivationPage = lazy(() => import("./pages/HostActivationPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const FacebookContactPage = lazy(() => import("./pages/FacebookContactPage"));
 
 function CustomerOnboardingGuard() {
   const { user, loading } = useAuth();
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="/privacy" element={<LegalPage />} />
           <Route path="/review-us" element={<ReviewUsPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/facebook/complete" element={<FacebookContactPage />} />
           <Route path="/host/activate" element={<HostActivationPage />} />
           <Route path="/host" element={<HostDashboardPage />} />
           <Route path="/host/vehicles" element={<HostVehiclesPage />} />
