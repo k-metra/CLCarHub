@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use App\Support\AuditLogger;
 use App\Models\HostActivationToken;
+use App\Models\Customer;
 
 class AuthController extends Controller
 {
@@ -45,21 +46,37 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'username' => ['required', 'string', 'min:3', 'max:50', 'alpha_dash', 'unique:users,username'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255'],
             'password' => ['required', 'confirmed', 'min:8'],
             'phone' => ['nullable', 'string', 'max:40'],
         ]);
 
         $user = DB::transaction(function () use ($data) {
+            $email = strtolower(trim($data['email']));
+            abort_if(User::whereRaw('lower(email) = ?', [$email])->exists(), 422, 'An account already exists for this email. Please sign in instead.');
+
             $user = User::create([
                 'name' => $data['username'],
                 'username' => $data['username'],
-                'email' => $data['email'],
+                'email' => $email,
                 'password' => $data['password'],
                 'role' => 'customer',
                 'status' => 'active',
             ]);
-            $user->customer()->create(['name' => $data['username'], 'email' => $data['email'], 'phone' => $data['phone'] ?? null]);
+            $profile = Customer::query()
+                ->whereNull('user_id')
+                ->whereRaw('lower(email) = ?', [$email])
+                ->lockForUpdate()
+                ->first();
+            if ($profile) {
+                $profile->update([
+                    'user_id' => $user->id,
+                    'archived_at' => null,
+                    'onboarding_completed_at' => null,
+                ]);
+            } else {
+                $user->customer()->create(['name' => $data['username'], 'email' => $email, 'phone' => $data['phone'] ?? null]);
+            }
 
             return $user;
         });
