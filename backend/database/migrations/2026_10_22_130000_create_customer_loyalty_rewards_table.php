@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->foreignId('redeemed_booking_id')->nullable()->constrained('bookings')->nullOnDelete();
             $table->string('status')->default('available');
             $table->timestamps();
-            $table->unique(['customer_id', 'milestone_booking_count']);
+            $table->unique(['customer_id', 'milestone_booking_count'], 'loyalty_rewards_customer_milestone_unique');
             $table->index(['customer_id', 'status']);
         });
     }
