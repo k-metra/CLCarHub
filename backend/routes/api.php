@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/oauth/exchange', [\App\Http\Controllers\Api\OAuthController::class, 'exchange']);
+Route::post('/auth/oauth/pending-phone', [\App\Http\Controllers\Api\OAuthController::class, 'sendPendingPhone'])->middleware('throttle:3,1');
+Route::post('/auth/oauth/complete-pending', [\App\Http\Controllers\Api\OAuthController::class, 'completePending'])->middleware('throttle:10,1');
 Route::post('/payments/paymongo/webhook', [PayMongoController::class, 'webhook']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/host/activate', [AuthController::class, 'activateHost']);
