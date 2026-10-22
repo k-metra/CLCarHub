@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->group(function () {
         Route::patch('/host-contracts/{booking}', [\App\Http\Controllers\Api\HostContractController::class, 'update']);
+        Route::delete('/host-contracts/{booking}/images/{image}', [\App\Http\Controllers\Api\HostContractController::class, 'deleteImage']);
     });
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
         Route::apiResource('vehicles', VehicleController::class)->except(['index', 'show']);
