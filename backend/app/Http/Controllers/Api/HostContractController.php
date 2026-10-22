@@ -9,13 +9,26 @@ use Illuminate\Http\Request;
 
 class HostContractController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return Booking::query()
-            ->with(['customer', 'vehicle.images', 'contract'])
+        $query = Booking::query()
+            ->with(['customer', 'vehicle.images', 'vehicle.partner', 'contract'])
+            ->when($request->search, function ($query, $search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->where('reference', 'like', "%{$search}%")
+                        ->orWhereHas('customer', fn ($customer) => $customer->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('vehicle', fn ($vehicle) => $vehicle
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('brand', 'like', "%{$search}%")
+                            ->orWhere('model', 'like', "%{$search}%")
+                            ->orWhere('plate_number', 'like', "%{$search}%")
+                            ->orWhereHas('partner', fn ($partner) => $partner->where('name', 'like', "%{$search}%")));
+                });
+            })
             ->latest('pickup_at')
-            ->get()
-            ->map(fn (Booking $booking): array => $this->resource($booking));
+            ->paginate(min(50, max(1, (int) $request->input('per_page', 15))));
+
+        return $query->through(fn (Booking $booking): array => $this->resource($booking));
     }
 
     public function update(Request $request, Booking $booking)
@@ -69,6 +82,9 @@ class HostContractController extends Controller
                     'brand' => $booking->vehicle?->brand,
                     'model' => $booking->vehicle?->model,
                     'plate_number' => $booking->vehicle?->plate_number,
+                    'partner' => [
+                        'name' => $booking->vehicle?->partner?->name,
+                    ],
                     'image_url' => ($booking->vehicle?->images?->firstWhere('is_primary', true) ?: $booking->vehicle?->images?->first())?->url,
                 ],
             ],
