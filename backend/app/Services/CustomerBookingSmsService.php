@@ -28,14 +28,16 @@ class CustomerBookingSmsService
             return;
         }
 
-        $booking->loadMissing('vehicle');
+        $booking->loadMissing(['vehicle', 'customer']);
         $vehicle = $booking->vehicle;
+        $customerName = $booking->customer?->name ?: 'Customer';
         $vehicleDetails = $vehicle
             ? trim(sprintf('%s, %s %s, plate %s', $vehicle->name ?: 'Vehicle', $vehicle->brand, $vehicle->model, $vehicle->plate_number))
             : 'Vehicle details unavailable';
         $message = sprintf(
-            'CL CarHub: New customer booking %s. Pickup: %s. Vehicle: %s. Please review it in the admin dashboard.',
+            'CL CarHub: New customer booking %s from %s. Pickup: %s. Vehicle: %s. Please review it in the admin dashboard.',
             $booking->reference,
+            $customerName,
             $booking->pickup_at?->format('M j, Y g:i A'),
             $vehicleDetails,
         );
