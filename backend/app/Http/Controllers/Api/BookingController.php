@@ -136,6 +136,7 @@ class BookingController extends Controller
             if ($discountCode) {
                 app(DiscountCodeService::class)->redeem($discountCode, $customer, $booking, $discountCodeAmount);
             }
+
             if ($paymentAmount !== null) {
                 $minimum = (float) $fleetSettings->reservation_fee;
                 $paymentAmount = round((float) $paymentAmount, 2);
@@ -170,6 +171,29 @@ class BookingController extends Controller
         }
 
         return response()->json($booking->load(['vehicle.images']), 201);
+    }
+
+    public function customerDiscountPreview(Request $request)
+    {
+        $customer = $this->authenticatedCustomer($request);
+        $data = $request->validate([
+            'vehicle_id' => ['required', 'exists:vehicles,id'],
+            'pickup_at' => ['required', 'date'],
+            'return_at' => ['required', 'date', 'after:pickup_at'],
+            'discount_code' => ['required', 'string', 'max:80'],
+        ]);
+        $vehicle = Vehicle::findOrFail($data['vehicle_id']);
+        $breakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, null, null);
+        $durationHours = (int) ceil(Carbon::parse($data['pickup_at'])->diffInMinutes(Carbon::parse($data['return_at'])) / 60);
+        $discountCode = app(DiscountCodeService::class)->findEligible($data['discount_code'], $customer, $vehicle, (float) $breakdown['rental'], $durationHours);
+        $amount = app(DiscountCodeService::class)->amount($discountCode, (float) $breakdown['rental']);
+
+        return response()->json([
+            'code' => $discountCode->code,
+            'amount' => $amount,
+            'rental_before_discount' => (float) $breakdown['rental'],
+            'rental_after_discount' => round(max(0, (float) $breakdown['rental'] - $amount), 2),
+        ]);
     }
 
     public function index(Request $request)
