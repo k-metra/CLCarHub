@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DiscountCode;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class DiscountCodeController extends Controller
 {
@@ -16,12 +17,19 @@ class DiscountCodeController extends Controller
 
     public function store(Request $request)
     {
-        return response()->json(DiscountCode::create($this->validated($request)), 201);
+        [$data, $customerIds] = $this->validated($request);
+        $discountCode = DiscountCode::create($data);
+        $discountCode->customers()->sync($customerIds);
+
+        return response()->json($discountCode->fresh('customers'), 201);
     }
 
     public function update(Request $request, DiscountCode $discountCode)
     {
-        $discountCode->update($this->validated($request, $discountCode));
+        [$data, $customerIds] = $this->validated($request, $discountCode);
+        $discountCode->update($data);
+        $discountCode->customers()->sync($customerIds);
+
         return $discountCode->fresh('customers');
     }
 
@@ -33,9 +41,12 @@ class DiscountCodeController extends Controller
 
     private function validated(Request $request, ?DiscountCode $discountCode = null): array
     {
+        $normalizedCode = strtoupper(trim((string) $request->input('code')));
+        $request->merge(['code' => $normalizedCode]);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:80', 'alpha_dash', 'unique:discount_codes,code,'.($discountCode?->id ?? 'NULL')],
+            'code' => ['required', 'string', 'max:80', 'alpha_dash'],
             'type' => ['required', 'in:fixed,percentage'],
             'value' => ['required', 'numeric', 'min:0'],
             'maximum_discount' => ['nullable', 'numeric', 'min:0'],
@@ -53,13 +64,20 @@ class DiscountCodeController extends Controller
             'customer_ids' => ['nullable', 'array'],
             'customer_ids.*' => ['integer', 'exists:customers,id'],
         ]);
+        $duplicate = DiscountCode::query()
+            ->whereRaw('LOWER(code) = ?', [strtolower($normalizedCode)])
+            ->when($discountCode, fn ($query) => $query->where('id', '<>', $discountCode->id))
+            ->exists();
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'code' => 'That discount code is already in use.',
+            ]);
+        }
+
         $customerIds = $data['customer_ids'] ?? [];
         unset($data['customer_ids']);
         $data['code'] = strtoupper(trim($data['code']));
-        $code = $discountCode ?? new DiscountCode;
-        $code->fill($data);
-        $code->save();
-        $code->customers()->sync($customerIds);
-        return $code->toArray();
+
+        return [$data, $customerIds];
     }
 }
