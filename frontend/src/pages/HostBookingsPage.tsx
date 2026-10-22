@@ -29,7 +29,7 @@ type HostBooking = {
     plate_number: string;
     image_url?: string | null;
   };
-  contract?: { id: number; rate?: number | string | null; host_contract_images?: string[] } | null;
+  contract?: { id: number; rate?: number | string | null; rental_days?: number; rental_total?: number | string | null; host_contract_images?: string[] } | null;
 };
 
 function formatDate(value: string): string {
@@ -94,7 +94,10 @@ export default function HostBookingsPage() {
             </div>
             {booking.contract && <div className="w-full border-t border-black/10 pt-3 text-sm">
               <p className="font-semibold">Host contract details</p>
-              {booking.contract.rate != null && <p className="mt-2 text-[#555]">Rate shown to host: <strong>₱{Number(booking.contract.rate).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong></p>}
+              {booking.contract.rate != null && <div className="mt-2 space-y-1 text-[#555]">
+                <p>Daily rate: <strong>₱{Number(booking.contract.rate).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong></p>
+                {booking.contract.rental_days != null && booking.contract.rental_total != null && <p>Rental total: <strong>₱{Number(booking.contract.rental_total).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong> <span className="text-[#777]">({Number(booking.contract.rate).toLocaleString("en-PH", { minimumFractionDigits: 2 })} daily rate × {booking.contract.rental_days} {booking.contract.rental_days === 1 ? "day" : "days"})</span></p>}
+              </div>}
               {(booking.contract.host_contract_images?.length ?? 0) > 0 && <div className="mt-4">
                 <p className="font-semibold">Physical contract images</p>
                 <div className="mt-2 flex max-w-full snap-x gap-3 overflow-x-auto pb-2">
