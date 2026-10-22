@@ -61,8 +61,10 @@ export default function HostContractBuilderPage() {
   };
 
   useEffect(() => {
-    setLoading(true);
-    load().catch(error => showToast(error instanceof Error ? error.message : "Unable to load host contracts", "error")).finally(() => setLoading(false));
+    const timer = window.setTimeout(() => {
+      load().catch(error => showToast(error instanceof Error ? error.message : "Unable to load host contracts", "error")).finally(() => setLoading(false));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [page, search]);
 
   const selected = contracts.find(contract => contract.id === selectedId);

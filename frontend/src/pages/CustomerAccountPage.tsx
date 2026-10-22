@@ -153,8 +153,11 @@ export default function CustomerAccountPage() {
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
     if (requestedTab === "request" || requestedTab === "starred" || requestedTab === "calendar" || requestedTab === "overview") {
-      setTab(requestedTab);
-      setSelectedBooking(null);
+      const timer = window.setTimeout(() => {
+        setTab(requestedTab);
+        setSelectedBooking(null);
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [searchParams]);
   const [files, setFiles] = useState<Record<AttachmentCategory, File[]>>({ license: [], secondary_id: [], ltms: [], selfie_license: [] });
@@ -198,21 +201,27 @@ export default function CustomerAccountPage() {
   }, [user]);
   useEffect(() => {
     if (!user) return;
+    let active = true;
     try {
       const stored = window.localStorage.getItem(`clcarhub-starred-vehicles-${user.id}`);
-      setStarredVehicleIds(stored ? JSON.parse(stored) as number[] : []);
+      const values = stored ? JSON.parse(stored) as number[] : [];
+      window.setTimeout(() => { if (active) setStarredVehicleIds(values); }, 0);
     } catch {
-      setStarredVehicleIds([]);
+      window.setTimeout(() => { if (active) setStarredVehicleIds([]); }, 0);
     }
+    return () => { active = false; };
   }, [user]);
   useEffect(() => {
     if (!user) return;
+    let active = true;
     try {
       const stored = window.localStorage.getItem(`clcarhub-recent-vehicles-${user.id}`);
-      setRecentVehicleIds(stored ? JSON.parse(stored) as number[] : []);
+      const values = stored ? JSON.parse(stored) as number[] : [];
+      window.setTimeout(() => { if (active) setRecentVehicleIds(values); }, 0);
     } catch {
-      setRecentVehicleIds([]);
+      window.setTimeout(() => { if (active) setRecentVehicleIds([]); }, 0);
     }
+    return () => { active = false; };
   }, [user]);
   useEffect(() => {
     const vehicleId = searchParams.get("vehicle_id");
@@ -233,7 +242,8 @@ export default function CustomerAccountPage() {
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
     if (requestedTab === "request" || requestedTab === "starred" || requestedTab === "calendar") {
-      setTab(requestedTab);
+      const timer = window.setTimeout(() => setTab(requestedTab), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [searchParams]);
 
