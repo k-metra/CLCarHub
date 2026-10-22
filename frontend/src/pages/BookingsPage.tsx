@@ -33,6 +33,50 @@ type Customer = {
   phone?: string | null;
   address?: string | null;
 };
+
+function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved: () => void }) {
+  const { showToast } = useToast();
+  const details = booking.contract?.host_details ?? {};
+  const [rate, setRate] = useState(details.rate == null ? "" : String(details.rate));
+  const [totalAmount, setTotalAmount] = useState(details.total_amount == null ? "" : String(details.total_amount));
+  const [notes, setNotes] = useState(details.notes ?? "");
+  const [specialTerms, setSpecialTerms] = useState(details.special_terms ?? "");
+  const [images, setImages] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
+  const calculatedTotal = rate === "" ? null : Number(booking.total_amount ?? 0) - Number(booking.rental_amount ?? 0) + Number(rate) * Math.max(1, Math.floor((new Date(booking.return_at).getTime() - new Date(booking.pickup_at).getTime()) / 86400000));
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("_method", "PATCH");
+      formData.append("host_details[rate]", rate);
+      formData.append("host_details[total_amount]", totalAmount);
+      formData.append("host_details[notes]", notes);
+      formData.append("host_details[special_terms]", specialTerms);
+      images.forEach(image => formData.append("host_contract_images[]", image));
+      await api.post(`/host-contracts/${booking.id}`, formData);
+      setImages([]);
+      showToast("Host contract view saved.", "success");
+      onSaved();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to save host contract view", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <form className="space-y-6 p-6" onSubmit={save}>
+    <div><p className="text-xs font-bold uppercase tracking-widest text-[#ff641f]">Host-only content</p><h2 className="mt-2 text-xl font-semibold">Host Contract View</h2><p className="mt-1 text-sm text-[#777]">These values and images are visible to the vehicle host and do not change the renter-facing contract.</p></div>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <label className="text-sm">Rate shown to host<input className="mt-2 w-full border border-black/10 px-3 py-2.5" type="number" min="0" step="0.01" value={rate} onChange={event => setRate(event.target.value)} /></label>
+      <label className="text-sm">Total shown to host<input className="mt-2 w-full border border-black/10 px-3 py-2.5" type="number" min="0" step="0.01" value={totalAmount} onChange={event => setTotalAmount(event.target.value)} placeholder={calculatedTotal == null ? "Calculated from rate" : calculatedTotal.toFixed(2)} /><span className="mt-1 block text-xs text-[#777]">Leave blank to calculate from the host rate.</span></label>
+    </div>
+    <label className="block text-sm">Host notes<textarea className="mt-2 min-h-28 w-full border border-black/10 px-3 py-2.5" value={notes} onChange={event => setNotes(event.target.value)} /></label>
+    <label className="block text-sm">Host contract terms<textarea className="mt-2 min-h-28 w-full border border-black/10 px-3 py-2.5" value={specialTerms} onChange={event => setSpecialTerms(event.target.value)} /></label>
+    <div><label className="block text-sm font-semibold">Physical contract images <span className="font-normal text-[#777]">(up to 10)</span><input className="mt-2 block w-full border border-dashed border-black/20 p-3 text-sm" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={event => setImages(Array.from(event.target.files ?? []).slice(0, 10 - (booking.contract?.host_contract_images?.length ?? 0)))} /></label><p className="mt-1 text-xs text-[#777]">Upload clear photos or scans of the signed physical contract. Existing images are retained.</p>{(booking.contract?.host_contract_images?.length ?? 0) > 0 && <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{booking.contract?.host_contract_images?.map((url, index) => <a href={url} target="_blank" rel="noreferrer" key={url}><img src={url} alt={`Physical contract page ${index + 1}`} className="aspect-square w-full rounded border border-black/10 object-cover" /></a>)}</div>}</div>
+    <button disabled={saving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save host contract view"}</button>
+  </form>;
+}
 type QuickAddCategory = "license" | "secondary_id" | "ltms";
 const peso = String.fromCodePoint(0x20b1);
 const maxReturnMediaBytes = 1024 * 1024 * 1024;
@@ -632,7 +676,7 @@ export default function BookingsPage() {
   );
   const [showActions, setShowActions] = useState(false);
   const [detailTab, setDetailTab] = useState<
-    "details" | "payments" | "customer"
+    "details" | "payments" | "customer" | "host-contract"
   >("details");
   const [detailLoading, setDetailLoading] = useState(false);
   const [quickPaymentBooking, setQuickPaymentBooking] =
@@ -2526,6 +2570,12 @@ export default function BookingsPage() {
                 >
                   Customer Profile
                 </button>
+                <button
+                  className={`px-5 py-4 text-sm font-semibold ${detailTab === "host-contract" ? "bg-[#151515] text-white" : "text-[#777]"}`}
+                  onClick={() => setDetailTab("host-contract")}
+                >
+                  Host Contract View
+                </button>
               </div>
               {detailLoading ? (
                 <div className="flex min-h-64 items-center justify-center p-6 text-sm text-[#777]">
@@ -2961,6 +3011,8 @@ export default function BookingsPage() {
                     </div>
                   </div>
                 </div>
+              ) : detailTab === "host-contract" ? (
+                <HostContractTab key={selectedBooking.id} booking={selectedBooking} onSaved={() => void openDetailsById(selectedBooking.id)} />
               ) : (
                 <CustomerProfileTab customer={selectedBooking.customer} />
               )}
