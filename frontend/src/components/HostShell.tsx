@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import { ThemeToggle, useTheme } from "../lib/ThemeContext";
@@ -22,21 +22,22 @@ function HostLiveTour({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0);
   const [spotlight, setSpotlight] = useState<DOMRect | null>(null);
   const [target, stepTitle, description] = hostTourSteps[step];
-  const updateSpotlight = () => {
+  const updateSpotlight = useCallback(() => {
     const selector = `[data-host-tour="${target}"]`;
     const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector));
     const visible = candidates.find(element => element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0);
     setSpotlight(visible?.getBoundingClientRect() ?? null);
-  };
+  }, [target]);
   useEffect(() => {
-    updateSpotlight();
+    const frame = window.requestAnimationFrame(updateSpotlight);
     window.addEventListener("resize", updateSpotlight);
     window.addEventListener("scroll", updateSpotlight, true);
     return () => {
+      window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", updateSpotlight);
       window.removeEventListener("scroll", updateSpotlight, true);
     };
-  }, [target]);
+  }, [updateSpotlight]);
   const tooltipStyle = useMemo(() => {
     if (!spotlight) return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
     const width = Math.min(360, window.innerWidth - 32);
