@@ -740,6 +740,7 @@ export default function BookingsPage() {
   const [returningAllSecurityDeposits, setReturningAllSecurityDeposits] =
     useState(false);
   const [bookingSaving, setBookingSaving] = useState(false);
+  const [useLoyaltyReward, setUseLoyaltyReward] = useState(false);
   const [invoiceGenerating, setInvoiceGenerating] = useState(false);
 
   const loadBookings = useCallback(async () => {
@@ -804,6 +805,7 @@ export default function BookingsPage() {
     setForm((current) => ({ ...current, [key]: value }));
   const openCreate = () => {
     setEditing(null);
+    setUseLoyaltyReward(false);
     setForm(emptyForm);
     setRouteError("");
     setPaymentsTouched(false);
@@ -1071,6 +1073,7 @@ export default function BookingsPage() {
   );
   const openEdit = useCallback((booking: BookingRecord) => {
     setEditing(booking.id);
+    setUseLoyaltyReward(Boolean(booking.loyalty_reward));
     setRouteError("");
     setPaymentsTouched(false);
     const completionNote = latestReturnNote(booking);
@@ -1231,6 +1234,7 @@ export default function BookingsPage() {
       : {};
     const payload = {
       ...bookingFields,
+      use_loyalty_reward: !editing && useLoyaltyReward,
       ...lifecycle,
       rental_rate: form.rental_rate ? Number(form.rental_rate) : null,
       delivery_latitude: form.delivery_latitude
@@ -1872,6 +1876,12 @@ export default function BookingsPage() {
                   This time is used to calculate extension fees.
                 </span>
               </label>
+              {!editing && (
+                <label className="flex items-start gap-2 text-xs text-[#555]">
+                  <input type="checkbox" className="mt-0.5 accent-[#ff641f]" checked={useLoyaltyReward} onChange={(event) => setUseLoyaltyReward(event.target.checked)} />
+                  <span><strong>Apply customer’s free 12-hour loyalty reward</strong><span className="mt-1 block text-[11px] text-[#888]">The booking must be exactly 12 hours and cannot include add-ons or delivery.</span></span>
+                </label>
+              )}
               <div className="rounded border border-orange-200 bg-orange-50 p-4 text-sm text-[#6b3418]">
                 <p className="font-semibold">Current status</p>
                 <p className="mt-1">
