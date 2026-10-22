@@ -69,6 +69,22 @@ class HostContractController extends Controller
         return $this->resource($booking->fresh(['vehicle.images', 'contract']));
     }
 
+    public function deleteImage(Request $request, Booking $booking, int $image)
+    {
+        $contract = $booking->contract()->firstOrFail();
+        $images = $contract->host_contract_images ?? [];
+        abort_unless(array_key_exists($image, $images), 404);
+
+        $path = $images[$image];
+        if (is_string($path)) {
+            Storage::disk('public')->delete($path);
+        }
+        array_splice($images, $image, 1);
+        $contract->update(['host_contract_images' => array_values($images)]);
+
+        return $this->resource($booking->fresh(['vehicle.images', 'contract']));
+    }
+
     private function resource(Booking $booking): array
     {
         $contract = $booking->contract;
