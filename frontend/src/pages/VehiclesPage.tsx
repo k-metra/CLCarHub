@@ -70,6 +70,9 @@ type VehicleForm = {
   aika_enabled: boolean;
   aika_device_id: string;
   aika_device_password: string;
+  rfid_enabled: boolean;
+  rfid_provider: "easytrip" | "autosweep";
+  rfid_account_number: string;
   image: File | null;
   remove_background: boolean;
 };
@@ -115,6 +118,9 @@ const emptyForm: VehicleForm = {
   aika_enabled: false,
   aika_device_id: "",
   aika_device_password: "",
+  rfid_enabled: false,
+  rfid_provider: "easytrip",
+  rfid_account_number: "",
   image: null,
   remove_background: true,
 };
@@ -151,6 +157,10 @@ export default function VehiclesPage() {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationRefreshing, setLocationRefreshing] = useState(false);
+  const [rfidVehicle, setRfidVehicle] = useState<VehicleRecord | null>(null);
+  const [rfidLoading, setRfidLoading] = useState(false);
+  const [rfidResult, setRfidResult] = useState<{ provider: string; balance: number; retrieved_at: string | null } | null>(null);
+  const [rfidError, setRfidError] = useState("");
   const locationMapRef = useRef<HTMLDivElement>(null);
   const locationLeafletRef = useRef<L.Map | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -304,6 +314,9 @@ export default function VehiclesPage() {
       aika_enabled: Boolean(vehicle.aika_device_id),
       aika_device_id: vehicle.aika_device_id ?? "",
       aika_device_password: "",
+      rfid_enabled: Boolean(vehicle.rfid_enabled),
+      rfid_provider: vehicle.rfid_provider ?? "easytrip",
+      rfid_account_number: "",
     });
     setShowForm(true);
   };
@@ -323,7 +336,7 @@ export default function VehiclesPage() {
     setSaving(true);
     const payload = new FormData();
     Object.entries(form).forEach(([key, value]) => {
-      if (key === "image" || key === "aika_enabled" || key === "aika_device_id" || key === "aika_device_password") return;
+      if (key === "image" || key === "aika_enabled" || key === "aika_device_id" || key === "aika_device_password" || key === "rfid_enabled") return;
       if (typeof value === "boolean") return;
       if (key === "partner_id" || key === "delivery_rate_per_km") {
         payload.append(key, value || "");
@@ -339,6 +352,14 @@ export default function VehiclesPage() {
     } else if (editing) {
       payload.append("aika_device_id", "");
       payload.append("aika_device_password", "");
+    }
+    payload.append("rfid_enabled", form.rfid_enabled ? "1" : "0");
+    if (form.rfid_enabled) {
+      payload.append("rfid_provider", form.rfid_provider);
+      if (form.rfid_account_number) payload.append("rfid_account_number", form.rfid_account_number);
+    } else if (editing) {
+      payload.append("rfid_provider", "");
+      payload.append("rfid_account_number", "");
     }
     try {
       let vehicleId = editing;
@@ -441,6 +462,37 @@ export default function VehiclesPage() {
     setLocationVehicle(vehicle);
     setLocation(null);
     await refreshLocation(vehicle, true);
+  };
+  const showRfidBalance = async (vehicle: VehicleRecord) => {
+    setRfidVehicle(vehicle);
+    setRfidResult(null);
+    setRfidError("");
+    setRfidLoading(true);
+    try {
+      type RfidInquiryResult = { id: number; status: "pending" | "completed" | "timed_out" | "failed"; provider: string; balance: number | null; retrieved_at: string | null; message: string | null };
+      const response = await api.post<RfidInquiryResult>(`/vehicles/${vehicle.id}/rfid-balance`);
+      let result = response.data;
+      const deadline = Date.now() + 90_000;
+      while (result.status === "pending" && Date.now() < deadline) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+        const statusResponse = await api.get<RfidInquiryResult>(`/vehicles/${vehicle.id}/rfid-balance/${result.id}`);
+        result = statusResponse.data;
+      }
+      if (result.status === "pending") {
+        throw new Error("Easytrip did not return a balance within 1 minute and 30 seconds.");
+      }
+      if (result.status !== "completed" || result.balance === null) {
+        throw new Error(result.message || "Unable to retrieve RFID balance.");
+      }
+      setRfidResult({ provider: result.provider, balance: result.balance, retrieved_at: result.retrieved_at });
+      setVehicles((current) => current.map((item) => item.id === vehicle.id
+        ? { ...item, rfid_balance: result.balance, rfid_balance_retrieved_at: result.retrieved_at }
+        : item));
+    } catch (e) {
+      setRfidError(e instanceof Error ? e.message : "Unable to retrieve RFID balance.");
+    } finally {
+      setRfidLoading(false);
+    }
   };
   useEffect(() => {
     if (!locationVehicle) return;
@@ -740,6 +792,44 @@ export default function VehiclesPage() {
                     </span>
                   </label>
                 </>}
+                <label className="flex items-center gap-3 text-sm text-[#333] sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={form.rfid_enabled}
+                    onChange={(e) => updateField("rfid_enabled", e.target.checked)}
+                  />
+                  <span>Toggle RFID</span>
+                </label>
+                {form.rfid_enabled && <>
+                  <label className="text-xs text-[#777]">
+                    RFID provider
+                    <select
+                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm text-[#151515]"
+                      value={form.rfid_provider}
+                      onChange={(e) => updateField("rfid_provider", e.target.value)}
+                    >
+                      <option value="easytrip">Easytrip</option>
+                      <option value="autosweep">Autosweep</option>
+                    </select>
+                  </label>
+                  <label className="text-xs text-[#777]">
+                    RFID account number
+                    <input
+                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm text-[#151515]"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{12}"
+                      maxLength={12}
+                      value={form.rfid_account_number}
+                      onChange={(e) => updateField("rfid_account_number", e.target.value.replace(/\D/g, ""))}
+                      placeholder={editing ? "Leave blank to keep current account" : "12-digit account number"}
+                      required={!editing}
+                    />
+                    <span className="mt-1 block text-[11px] text-[#888]">
+                      Balance inquiry is currently available for Easytrip only.
+                    </span>
+                  </label>
+                </>}
                 <label
                   className="text-xs text-[#777] md:col-span-2"
                   onDragOver={(e) => e.preventDefault()}
@@ -889,7 +979,7 @@ export default function VehiclesPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-4 text-right"><RowActions actions={[{ label: "Show GPS location", disabled: !vehicle.aika_device_id, onClick: () => void showLocation(vehicle) }, { label: "Edit", onClick: () => openEdit(vehicle) }, { label: actionVehicleId === vehicle.id ? "Saving..." : vehicle.status === "archived" ? "Restore" : "Archive", danger: vehicle.status !== "archived", disabled: actionVehicleId === vehicle.id, onClick: () => void archiveVehicle(vehicle) }]} /></td>
+                      <td className="py-4 text-right"><RowActions actions={[{ label: "Check RFID balance", disabled: !vehicle.rfid_enabled || vehicle.rfid_provider !== "easytrip", onClick: () => void showRfidBalance(vehicle) }, { label: "Show GPS location", disabled: !vehicle.aika_device_id, onClick: () => void showLocation(vehicle) }, { label: "Edit", onClick: () => openEdit(vehicle) }, { label: actionVehicleId === vehicle.id ? "Saving..." : vehicle.status === "archived" ? "Restore" : "Archive", danger: vehicle.status !== "archived", disabled: actionVehicleId === vehicle.id, onClick: () => void archiveVehicle(vehicle) }]} /></td>
                     </tr>
                   );
                 })
@@ -901,6 +991,25 @@ export default function VehiclesPage() {
           <section className="w-full max-w-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-widest text-[#ff641f]">Aika GPS</p><h2 className="mt-1 text-xl font-semibold">{locationVehicle.name || `${locationVehicle.brand} ${locationVehicle.model}`}</h2></div><button type="button" className="text-2xl text-[#777]" onClick={() => setLocationVehicle(null)}>×</button></div>
             {locationLoading ? <p className="flex h-72 items-center justify-center text-sm text-[#777]">Loading latest location...</p> : location ? <><div ref={locationMapRef} className="mt-5 h-72 w-full" /><div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#777]"><span className={location.position_time && currentTime - new Date(location.position_time).getTime() <= GPS_STALE_AFTER_MS ? "text-emerald-700" : "text-amber-700"}>{location.position_time && currentTime - new Date(location.position_time).getTime() <= GPS_STALE_AFTER_MS ? "Fresh location" : "Stale location"}</span><span>Last position: {location.position_time || "Unknown"}</span><span>Retrieved {new Date(location.fetched_at).toLocaleString()}</span><span>Speed {location.speed ?? 0} km/h</span>{locationRefreshing && <span>Refreshing...</span>}</div></> : <p className="mt-5 text-sm text-red-600">Unable to load a location for this tracker.</p>}
+          </section>
+        </div>}
+        {rfidVehicle && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="rfid-balance-title">
+          <section className="w-full max-w-md bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-[#ff641f]">RFID balance</p>
+                <h2 id="rfid-balance-title" className="mt-1 text-xl font-semibold">{rfidVehicle.name || `${rfidVehicle.brand} ${rfidVehicle.model}`}</h2>
+              </div>
+              <button type="button" className="text-2xl text-[#777]" onClick={() => setRfidVehicle(null)} aria-label="Close RFID balance">×</button>
+            </div>
+            <div className="mt-6 rounded border border-black/10 bg-[#f8f7f5] p-4">
+              <p className="text-xs uppercase tracking-widest text-[#888]">Provider</p>
+              <p className="mt-1 font-semibold capitalize">{rfidVehicle.rfid_provider}</p>
+              {rfidLoading ? <div className="mt-6 flex items-center gap-3 text-sm text-[#777]" role="status" aria-live="polite"><span className="h-5 w-5 animate-spin rounded-full border-2 border-black/10 border-t-[#ff641f]" />Inquiring balance by SMS. This can take up to 1 minute and 30 seconds...</div>
+                : rfidResult ? <><p className="mt-6 text-xs uppercase tracking-widest text-[#888]">Current balance</p><p className="mt-1 text-3xl font-semibold">₱{rfidResult.balance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p><p className="mt-2 text-xs text-[#777]">Retrieved {rfidResult.retrieved_at ? new Date(rfidResult.retrieved_at).toLocaleString() : "just now"}</p></>
+                : <p className="mt-5 text-sm text-red-600">{rfidError || "Unable to retrieve the RFID balance."}</p>}
+            </div>
+            {!rfidLoading && rfidError && <button type="button" className="mt-5 border border-black/10 px-4 py-2 text-sm" onClick={() => void showRfidBalance(rfidVehicle)}>Try again</button>}
           </section>
         </div>}
       </div>}
