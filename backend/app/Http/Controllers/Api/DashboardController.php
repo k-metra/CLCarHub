@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\Expense;
 use App\Models\PartnerPayout;
 use Illuminate\Support\Carbon;
@@ -62,6 +63,12 @@ class DashboardController extends Controller
         $totalRevenue = (float) Booking::visibleToAdmin($includeArchived)->whereIn('status', $revenueStatuses)->sum('total_amount');
         $totalExpenses = (float) Expense::sum('amount');
         $partnerPayouts = (float) PartnerPayout::where('status', 'paid')->sum('amount');
+        $referralSourceCounts = Customer::query()
+            ->whereNull('archived_at')
+            ->whereNotNull('referral_source')
+            ->selectRaw('referral_source, COUNT(*) as count')
+            ->groupBy('referral_source')
+            ->pluck('count', 'referral_source');
 
         return [
             'year' => $year,
@@ -78,6 +85,15 @@ class DashboardController extends Controller
                 'bookings' => (int) ($monthlyBookings[$month] ?? 0),
             ])->values(),
             'top_vehicles' => $topVehicles,
+            'referral_sources' => collect([
+                ['source' => 'facebook', 'label' => 'Facebook'],
+                ['source' => 'tiktok', 'label' => 'TikTok'],
+                ['source' => 'google_search', 'label' => 'Google Search'],
+                ['source' => 'word_of_mouth', 'label' => 'Word of Mouth'],
+            ])->map(fn (array $source) => [
+                ...$source,
+                'count' => (int) ($referralSourceCounts[$source['source']] ?? 0),
+            ])->values(),
             'upcoming_bookings' => $upcomingBookings,
         ];
     }
