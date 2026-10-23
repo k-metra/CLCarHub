@@ -17,7 +17,7 @@ type Customer = {
   phone?: string | null;
   address?: string | null;
   date_of_birth?: string | null;
-  referral_source?: "facebook" | "tiktok" | "google_search" | "word_of_mouth" | null;
+  referral_source?: "facebook" | "tiktok" | "google_search" | "word_of_mouth" | "" | null;
   license_number?: string | null;
   license_expiry?: string | null;
   identification_information?: string | null;
@@ -66,9 +66,10 @@ const emptyForm: CustomerForm = {
   license_expiry: "",
   identification_information: "",
   notes: "",
+  referral_source: "",
   attachments: emptyAttachments(),
 };
-const referralSourceLabels: Record<NonNullable<Customer["referral_source"]>, string> = {
+const referralSourceLabels: Record<Exclude<NonNullable<Customer["referral_source"]>, "">, string> = {
   facebook: "Facebook",
   tiktok: "TikTok",
   google_search: "Google Search",
@@ -155,6 +156,7 @@ export default function CustomersPage() {
       license_expiry: customer.license_expiry?.slice(0, 10) ?? "",
       identification_information: customer.identification_information ?? "",
       notes: customer.notes ?? "",
+      referral_source: customer.referral_source ?? "",
       attachments: emptyAttachments(),
     });
     setShowForm(true);
@@ -417,6 +419,19 @@ export default function CustomersPage() {
                       setField("address", event.target.value)
                     }
                   />
+                </label>
+                <label className="text-xs text-[#777]">
+                How they found us (optional)
+                <select
+                  className="mt-2 w-full border border-black/10 bg-white px-3 py-2.5 text-sm"
+                  value={form.referral_source ?? ""}
+                  onChange={(event) => setField("referral_source", event.target.value)}
+                >
+                  <option value="">Not provided</option>
+                  {Object.entries(referralSourceLabels).map(([value, label]) => (
+                    <option value={value} key={value}>{label}</option>
+                  ))}
+                </select>
                 </label>
                 <label className="text-xs text-[#777] md:col-span-2">
                   Identification information
