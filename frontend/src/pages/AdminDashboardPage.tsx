@@ -13,6 +13,7 @@ type DashboardData = {
   financial: { total_bookings: number; total_revenue: number; total_expenses: number; total_profit: number };
   monthly: { month: number; revenue: number; bookings: number }[];
   top_vehicles: (Pick<VehicleRecord, "id" | "name" | "brand" | "model" | "year"> & { revenue: number })[];
+  referral_sources: { source: string; label: string; count: number }[];
   upcoming_bookings: BookingRecord[];
 };
 
@@ -81,6 +82,7 @@ export default function AdminDashboardPage() {
 
   const maxRevenue = useMemo(() => Math.max(1, ...(data?.monthly.map(item => item.revenue) ?? [1])), [data]);
   const maxBookings = useMemo(() => Math.max(1, ...(data?.monthly.map(item => item.bookings) ?? [1])), [data]);
+  const maxReferralCount = useMemo(() => Math.max(1, ...(data?.referral_sources.map(item => item.count) ?? [1])), [data]);
 
   const checkAvailability = async () => {
     setAvailabilityError("");
@@ -148,6 +150,13 @@ export default function AdminDashboardPage() {
           <p className="mt-4 text-xs text-[#777]"><span className="mr-3 text-[#22a95a]">■ Revenue</span><span className="text-[#ff641f]">■ Bookings</span></p>
         </Card>
       </div>
+
+      <Card>
+        <div className="flex items-center justify-between gap-4"><div><h3 className="font-semibold">How customers found CL CarHub</h3><p className="mt-1 text-xs text-[#777]">Based on completed customer onboarding responses.</p></div></div>
+        <div className="mt-6 flex h-52 items-end gap-3 border-b border-l border-black/10 px-2 pb-0 sm:gap-6 sm:px-5">
+          {(data?.referral_sources ?? []).map(item => <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2" key={item.source}><span className="text-sm font-semibold">{item.count}</span><div className="w-full max-w-16 rounded-t bg-[#ff641f]" style={{ height: `${Math.max(3, item.count / maxReferralCount * 100)}%` }} title={`${item.label}: ${item.count}`} /><span className="w-full text-center text-[10px] leading-3 text-[#777] sm:text-xs">{item.label}</span></div>)}
+        </div>
+      </Card>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card><h3 className="font-semibold">Upcoming bookings</h3><div className="mt-4 space-y-3">{loading ? <BookingSkeletons /> : data?.upcoming_bookings.length ? data.upcoming_bookings.map(booking => <div className="flex items-center gap-4 rounded bg-[#f4f3f0] p-3 hover:border-[#ff641f]" key={booking.id}>{imageUrl(booking) ? <img className="h-14 w-20 rounded object-contain" src={imageUrl(booking)!} alt="" /> : <div className="h-14 w-20 rounded bg-black/10" />}<Link className="min-w-0 flex-1" to={`/admin/bookings?edit=${booking.id}`}><p className="font-semibold">{booking.customer?.name ?? "Customer"}</p><p className="text-xs text-[#777]">{formatDate(booking.pickup_at)} → {formatDate(booking.return_at)}</p><p className="mt-1 text-xs font-medium text-[#555]">{booking.vehicle?.name || `${booking.vehicle?.brand ?? ""} ${booking.vehicle?.model ?? ""}`}</p><p className="mt-1 text-xs text-[#777]">{booking.assigned_to?.name ? `Assigned to ${booking.assigned_to.name}` : "Unassigned"}</p></Link>{canManageAccounts(user) && <button type="button" className="self-start rounded px-2 py-1 text-xl leading-none text-[#777] hover:bg-black/10 hover:text-[#ff641f]" aria-label={`Actions for booking ${booking.reference}`} onClick={() => setAssignmentBooking(booking)}>⋯</button>}</div>) : <p className="py-8 text-sm text-[#777]">No upcoming bookings.</p>}</div></Card>
