@@ -11,13 +11,13 @@ class Vehicle extends Model
 {
     protected $guarded = ['id'];
 
-    protected $hidden = ['aika_device_password'];
+    protected $hidden = ['aika_device_password', 'rfid_account_number'];
 
     protected $appends = ['coding_day', 'is_coding_today'];
 
     protected function casts(): array
     {
-        return ['daily_rate' => 'decimal:2', 'twelve_hour_rate' => 'decimal:2', 'hour_extension_rate' => 'decimal:2', 'weekly_rate' => 'decimal:2', 'monthly_rate' => 'decimal:2', 'deposit' => 'decimal:2', 'security_deposit_fee' => 'decimal:2', 'delivery_rate_per_km' => 'decimal:2', 'aika_device_password' => 'encrypted'];
+        return ['daily_rate' => 'decimal:2', 'twelve_hour_rate' => 'decimal:2', 'hour_extension_rate' => 'decimal:2', 'weekly_rate' => 'decimal:2', 'monthly_rate' => 'decimal:2', 'deposit' => 'decimal:2', 'security_deposit_fee' => 'decimal:2', 'delivery_rate_per_km' => 'decimal:2', 'aika_device_password' => 'encrypted', 'rfid_enabled' => 'boolean', 'rfid_account_number' => 'encrypted', 'rfid_balance' => 'decimal:2', 'rfid_balance_retrieved_at' => 'datetime'];
     }
 
     public function images(): HasMany
