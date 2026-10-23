@@ -12,6 +12,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 use App\Services\AikaGpsService;
+use App\Services\EasytripBalanceService;
 use Illuminate\Support\Str;
 
 class VehicleController extends Controller
@@ -75,13 +76,35 @@ class VehicleController extends Controller
         $rules = $this->rules();
         $rules['plate_number'] = ['required', 'string', Rule::unique('vehicles')->ignore($vehicle)];
         $rules['aika_device_id'] = ['nullable', 'string', 'max:100', Rule::unique('vehicles')->ignore($vehicle)];
+        $rules['rfid_account_number'] = ['nullable', 'string', 'max:32', 'regex:/^\d{12}$/'];
         $data = $request->validate($rules);
+        if (($data['rfid_enabled'] ?? false) && blank($data['rfid_account_number'] ?? null)) {
+            unset($data['rfid_account_number']);
+        }
+        if (! ($data['rfid_enabled'] ?? false)) {
+            $data['rfid_provider'] = null;
+            $data['rfid_account_number'] = null;
+        }
         $image = $data['image'] ?? null;
         unset($data['image']);
         $vehicle->update($data);
         $this->storeImage($vehicle, $image);
 
         return $vehicle->fresh(['images', 'partner']);
+    }
+
+    public function rfidBalance(Vehicle $vehicle, EasytripBalanceService $service)
+    {
+        $inquiry = $service->request($vehicle);
+
+        return response()->json($service->result($inquiry), 202);
+    }
+
+    public function rfidBalanceStatus(Vehicle $vehicle, \App\Models\RfidBalanceInquiry $inquiry, EasytripBalanceService $service)
+    {
+        abort_unless($inquiry->vehicle_id === $vehicle->id, 404);
+
+        return response()->json($service->result($inquiry));
     }
 
     public function uploadImage(Request $request, Vehicle $vehicle)
@@ -199,7 +222,7 @@ class VehicleController extends Controller
 
     private function rules(): array
     {
-        return ['name' => ['nullable', 'string', 'max:100'], 'brand' => ['required', 'string', 'max:100'], 'model' => ['required', 'string', 'max:100'], 'variant' => ['nullable', 'string'], 'year' => ['required', 'integer', 'min:1900', 'max:'.(now()->year + 1)], 'type' => ['required', Rule::in(self::VEHICLE_TYPES)], 'plate_number' => ['required', 'string', 'unique:vehicles,plate_number'], 'aika_device_id' => ['nullable', 'string', 'max:100', 'unique:vehicles,aika_device_id'], 'aika_device_password' => ['nullable', 'string', 'max:255'], 'transmission' => ['required', 'in:manual,automatic'], 'fuel_type' => ['required', 'in:regular_unleaded,premium_95,premium_98,diesel,ev_phev'], 'seats' => ['required', 'integer', 'min:1'], 'color' => ['required', 'string', 'max:50'], 'daily_rate' => ['required', 'numeric', 'min:0'], 'twelve_hour_rate' => ['nullable', 'numeric', 'min:0'], 'mileage_limit' => ['nullable', 'integer', 'min:0'], 'hour_extension_rate' => ['nullable', 'numeric', 'min:0'], 'security_deposit_fee' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'ownership' => ['nullable', 'string', 'max:150'], 'partner_id' => ['nullable', 'exists:partners,id'], 'description' => ['nullable', 'string'], 'status' => ['required', 'in:available,maintenance,reserved,rented,unavailable,archived'], 'image' => ['nullable', 'image', 'max:20480']];
+        return ['name' => ['nullable', 'string', 'max:100'], 'brand' => ['required', 'string', 'max:100'], 'model' => ['required', 'string', 'max:100'], 'variant' => ['nullable', 'string'], 'year' => ['required', 'integer', 'min:1900', 'max:'.(now()->year + 1)], 'type' => ['required', Rule::in(self::VEHICLE_TYPES)], 'plate_number' => ['required', 'string', 'unique:vehicles,plate_number'], 'aika_device_id' => ['nullable', 'string', 'max:100', 'unique:vehicles,aika_device_id'], 'aika_device_password' => ['nullable', 'string', 'max:255'], 'rfid_enabled' => ['required', 'boolean'], 'rfid_provider' => ['required_if:rfid_enabled,1', Rule::in(['easytrip', 'autosweep'])], 'rfid_account_number' => ['required_if:rfid_enabled,1', 'nullable', 'string', 'max:32', 'regex:/^\d{12}$/'], 'transmission' => ['required', 'in:manual,automatic'], 'fuel_type' => ['required', 'in:regular_unleaded,premium_95,premium_98,diesel,ev_phev'], 'seats' => ['required', 'integer', 'min:1'], 'color' => ['required', 'string', 'max:50'], 'daily_rate' => ['required', 'numeric', 'min:0'], 'twelve_hour_rate' => ['nullable', 'numeric', 'min:0'], 'mileage_limit' => ['nullable', 'integer', 'min:0'], 'hour_extension_rate' => ['nullable', 'numeric', 'min:0'], 'security_deposit_fee' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'ownership' => ['nullable', 'string', 'max:150'], 'partner_id' => ['nullable', 'exists:partners,id'], 'description' => ['nullable', 'string'], 'status' => ['required', 'in:available,maintenance,reserved,rented,unavailable,archived'], 'image' => ['nullable', 'image', 'max:20480']];
     }
 
     private function storeImage(Vehicle $vehicle, ?UploadedFile $image, bool $removeBackground = false): void
