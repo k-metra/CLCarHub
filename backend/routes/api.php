@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\FleetSettingController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\PayMongoController;
 use App\Http\Controllers\Api\AddonController;
+use App\Http\Controllers\Api\TextbeeWebhookController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,7 @@ Route::post('/auth/oauth/exchange', [\App\Http\Controllers\Api\OAuthController::
 Route::post('/auth/oauth/pending-phone', [\App\Http\Controllers\Api\OAuthController::class, 'sendPendingPhone'])->middleware('throttle:3,1');
 Route::post('/auth/oauth/complete-pending', [\App\Http\Controllers\Api\OAuthController::class, 'completePending'])->middleware('throttle:10,1');
 Route::post('/payments/paymongo/webhook', [PayMongoController::class, 'webhook']);
+Route::post('/webhooks/textbee/inbound', [TextbeeWebhookController::class, 'inbound']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/host/activate', [AuthController::class, 'activateHost']);
 Route::post('/auth/resend-verification', [AuthController::class, 'resendVerificationForEmail'])->middleware('throttle:6,1');
@@ -66,6 +68,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::middleware(EnsureRole::class.':owner,it_management')->group(function () {
         Route::apiResource('vehicles', VehicleController::class)->except(['index', 'show']);
+        Route::post('/vehicles/{vehicle}/rfid-balance', [VehicleController::class, 'rfidBalance'])->middleware('throttle:3,1');
+        Route::get('/vehicles/{vehicle}/rfid-balance/{inquiry}', [VehicleController::class, 'rfidBalanceStatus']);
         Route::post('/vehicles/{vehicle}/image', [VehicleController::class, 'uploadImage']);
         Route::post('/vehicles/{vehicle}/gallery-image', [VehicleController::class, 'uploadGalleryImage']);
         Route::delete('/vehicles/{vehicle}/gallery-image/{imageType}', [VehicleController::class, 'deleteGalleryImage']);
