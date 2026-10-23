@@ -76,6 +76,7 @@ return [
         'url' => env('SMS_GATEWAY_URL'),
         'token' => env('SMS_GATEWAY_TOKEN'),
         'timeout' => env('SMS_GATEWAY_TIMEOUT', 10),
+        'webhook_secret' => env('SMS_GATEWAY_WEBHOOK_SECRET'),
     ],
 
 ];
