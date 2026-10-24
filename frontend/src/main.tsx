@@ -2,17 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-
-type InstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
-
-declare global {
-  interface Window {
-    __clcarhubInstallPrompt?: InstallPromptEvent;
-  }
-}
+import type { InstallPromptEvent } from "./components/PwaInstallButton";
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
