@@ -25,6 +25,7 @@ class PayMongoService
                         'success_url' => $frontendUrl.'/account?payment=success&booking='.$booking->id,
                         'cancel_url' => $frontendUrl.'/account?payment=cancelled&booking='.$booking->id,
                         'reference_number' => $booking->reference,
+                        'pass_on_fees' => (bool) config('services.paymongo.pass_on_fees', true),
                     ],
                 ],
             ]);
