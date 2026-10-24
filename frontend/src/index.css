@@ -528,6 +528,17 @@ html.theme-dark .vehicle-image-preview {
 .dashboard-theme.theme-dark .text-amber-900 { color: #f4d58c; }
 
 @media (max-width: 639px) {
+  .datetime-picker-popover {
+    top: auto !important;
+    right: 0.5rem !important;
+    bottom: calc(4.5rem + env(safe-area-inset-bottom) + 0.5rem) !important;
+    left: 0.5rem !important;
+    width: auto !important;
+    max-width: none;
+    max-height: calc(100dvh - 5.5rem - env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+
   .dashboard-theme > .customer-desktop-content {
     display: none;
   }
