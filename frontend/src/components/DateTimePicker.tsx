@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type PickerMode = "date" | "datetime";
 
@@ -52,20 +53,39 @@ export function DateTimePicker({
   placeholder = "Choose a date",
 }: DateTimePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const timeInputId = useId();
   const selected = useMemo(() => parseDate(value), [value]);
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState({ top: 0, left: 0 });
   const [month, setMonth] = useState(() => selected ?? new Date());
   const currentTime = mode === "datetime" && value.includes("T") ? value.slice(11, 16) : "09:00";
   const [time, setTime] = useState(currentTime);
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+      if (rootRef.current && !rootRef.current.contains(event.target as Node) && !popoverRef.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const input = rootRef.current?.querySelector("input");
+      if (!input) return;
+      const rect = input.getBoundingClientRect();
+      setAnchor({ top: rect.bottom + 8, left: rect.left });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     // Prop changes must move the visible calendar to the selected date.
@@ -122,8 +142,8 @@ export function DateTimePicker({
         onKeyDown={event => { if (event.key === "Enter" || event.key === " ") setOpen(current => !current); }}
         className={`${className} cursor-pointer bg-white`}
       />
-      {open && !disabled && (
-        <div className="theme-surface absolute left-1/2 z-[130] mt-2 w-[calc(100vw-1rem)] max-w-[22rem] -translate-x-1/2 rounded border border-black/10 bg-white p-3 shadow-2xl sm:left-0 sm:w-[22rem] sm:translate-x-0 sm:p-4">
+      {open && !disabled && createPortal(
+        <div ref={popoverRef} style={{ top: anchor.top, left: anchor.left }} className="datetime-picker-popover theme-surface fixed z-[220] w-[22rem] rounded border border-black/10 bg-white p-3 shadow-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
             <button type="button" className="calendar-nav flex h-10 w-10 shrink-0 items-center justify-center rounded text-lg hover:bg-black/5" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button>
             <div className="flex min-w-0 flex-1 gap-1 sm:gap-2">
@@ -159,7 +179,8 @@ export function DateTimePicker({
             <button type="button" className="text-xs font-semibold text-[#ff641f]" onClick={() => { const today = new Date(); selectDate(today); }}>Today</button>
             {mode === "datetime" && <button type="button" className="text-xs text-[#777] hover:text-[#151515]" onClick={() => setOpen(false)}>Done</button>}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
