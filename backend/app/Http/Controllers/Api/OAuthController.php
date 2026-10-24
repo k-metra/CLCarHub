@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
+use Illuminate\Database\QueryException;
 
 class OAuthController extends Controller
 {
@@ -68,12 +69,23 @@ class OAuthController extends Controller
         if ($callbackCacheKey && ($replayUrl = Cache::get($callbackCacheKey))) {
             return redirect()->to($replayUrl);
         }
+        $callbackAttempt = $this->claimCallbackAttempt($request, $provider);
+        if ($callbackAttempt && $callbackAttempt['status'] === 'completed' && $callbackAttempt['redirect_url']) {
+            return redirect()->to($callbackAttempt['redirect_url']);
+        }
         $callbackLock = $callbackCacheKey ? Cache::lock($callbackCacheKey.':lock', 30) : null;
         try {
             if ($callbackLock) {
                 $callbackLock->block(10);
                 if ($replayUrl = Cache::get($callbackCacheKey)) {
                     return redirect()->to($replayUrl);
+                }
+                if ($callbackAttempt && ! $callbackAttempt['owner']) {
+                    $completedAttempt = $this->findCallbackAttempt($request, $provider);
+                    if ($completedAttempt && $completedAttempt['status'] === 'completed' && $completedAttempt['redirect_url']) {
+                        return redirect()->to($completedAttempt['redirect_url']);
+                    }
+                    return redirect()->to($this->frontendUrl().'/profile?oauth_error='.urlencode('This Facebook request was already being processed. Please start linking again.'));
                 }
             }
             $profile = Socialite::driver($provider)->stateless()->user();
@@ -94,6 +106,7 @@ class OAuthController extends Controller
             );
             AuditLogger::record('account', 'social_account_linked', "Linked {$provider} login: {$user->name}", $user, null, $request);
             $redirectUrl = $this->frontendUrl().'/profile?oauth_linked='.urlencode($provider);
+            $this->completeCallbackAttempt($callbackAttempt, $redirectUrl);
             $this->cacheCallbackRedirect($callbackCacheKey, $redirectUrl);
             return redirect()->to($redirectUrl);
         }
@@ -107,6 +120,7 @@ class OAuthController extends Controller
             $code = Str::random(64);
             Cache::put('oauth-login:'.hash('sha256', $code), ['user_id' => $user->id, 'first_login' => $firstLogin], now()->addMinutes(2));
             $redirectUrl = $this->frontendUrl().'/admin/login?oauth_code='.urlencode($code);
+            $this->completeCallbackAttempt($callbackAttempt, $redirectUrl);
             $this->cacheCallbackRedirect($callbackCacheKey, $redirectUrl);
             return redirect()->to($redirectUrl);
         }
@@ -119,6 +133,7 @@ class OAuthController extends Controller
                     'provider_avatar_url' => $profile->getAvatar(),
                 ], now()->addMinutes(15));
                 $redirectUrl = $this->frontendUrl().'/facebook/complete?token='.urlencode($pendingToken);
+                $this->completeCallbackAttempt($callbackAttempt, $redirectUrl);
                 $this->cacheCallbackRedirect($callbackCacheKey, $redirectUrl);
                 return redirect()->to($redirectUrl);
             }
@@ -194,6 +209,7 @@ class OAuthController extends Controller
             $returnTo = $this->safeReturnPath($state['return_to'] ?? null);
 
             $redirectUrl = $this->frontendUrl().'/admin/login?oauth_code='.urlencode($code).'&return_to='.urlencode($returnTo);
+            $this->completeCallbackAttempt($callbackAttempt, $redirectUrl);
             $this->cacheCallbackRedirect($callbackCacheKey, $redirectUrl);
             return redirect()->to($redirectUrl);
         } catch (Throwable $exception) {
@@ -310,6 +326,76 @@ class OAuthController extends Controller
         }
 
         return 'oauth-callback:'.hash('sha256', $provider.':'.$code);
+    }
+
+    /**
+     * @return array{id: int, status: string, redirect_url: string|null, owner: bool}|null
+     */
+    private function claimCallbackAttempt(Request $request, string $provider): ?array
+    {
+        $code = $request->query('code');
+        if (! is_string($code) || $code === '') {
+            return null;
+        }
+
+        $attributes = [
+            'provider' => $provider,
+            'code_hash' => hash('sha256', $code),
+        ];
+        try {
+            $inserted = DB::table('oauth_callback_attempts')->insertOrIgnore([
+                ...$attributes,
+                'status' => 'processing',
+                'expires_at' => now()->addMinutes(10),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (QueryException $exception) {
+            report($exception);
+            return null;
+        }
+
+        $attempt = DB::table('oauth_callback_attempts')->where($attributes)->first();
+        return $attempt ? [
+            'id' => (int) $attempt->id,
+            'status' => (string) $attempt->status,
+            'redirect_url' => $attempt->redirect_url ? (string) $attempt->redirect_url : null,
+            'owner' => $inserted === 1,
+        ] : null;
+    }
+
+    /**
+     * @return array{id: int, status: string, redirect_url: string|null}|null
+     */
+    private function findCallbackAttempt(Request $request, string $provider): ?array
+    {
+        $code = $request->query('code');
+        if (! is_string($code) || $code === '') {
+            return null;
+        }
+
+        $attempt = DB::table('oauth_callback_attempts')
+            ->where('provider', $provider)
+            ->where('code_hash', hash('sha256', $code))
+            ->first();
+
+        return $attempt ? [
+            'id' => (int) $attempt->id,
+            'status' => (string) $attempt->status,
+            'redirect_url' => $attempt->redirect_url ? (string) $attempt->redirect_url : null,
+        ] : null;
+    }
+
+    /**
+     * @param array{id: int, status: string, redirect_url: string|null, owner: bool}|null $attempt
+     */
+    private function completeCallbackAttempt(?array $attempt, string $redirectUrl): void
+    {
+        if ($attempt) {
+            DB::table('oauth_callback_attempts')
+                ->where('id', $attempt['id'])
+                ->update(['status' => 'completed', 'redirect_url' => $redirectUrl, 'updated_at' => now()]);
+        }
     }
 
     private function cacheCallbackRedirect(?string $key, string $redirectUrl): void
