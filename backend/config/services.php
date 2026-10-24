@@ -5,6 +5,7 @@ return [
         'secret_key' => env('PAYMONGO_SECRET_KEY'),
         'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
         'frontend_url' => env('FRONTEND_URL', env('APP_URL')),
+        'pass_on_fees' => filter_var(env('PAYMONGO_PASS_ON_FEES', true), FILTER_VALIDATE_BOOLEAN),
     ],
     'aika' => [
         // The vendor's HTTPS certificate is currently expired. Keep this
