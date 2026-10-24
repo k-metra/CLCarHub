@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
 import PublicFooter from "../components/PublicFooter";
 import Seo from "../components/Seo";
-import { DateTimePicker } from "../components/DateTimePicker";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import api from "../lib/api";
 import { vehicleTypeLabels, type VehicleImage, type VehicleRecord } from "../types";
@@ -36,11 +35,6 @@ const imageLabels: Record<string, string> = {
 
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [pickupDate, setPickupDate] = useState(() => searchParams.get("pickup_at") ?? "2026-10-02T09:00");
-  const [returnDate, setReturnDate] = useState(() => searchParams.get("return_at") ?? "2026-10-05T09:00");
-  const [availabilityError, setAvailabilityError] = useState("");
-  const [searched, setSearched] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(true);
   const { user, loading } = useAuth();
@@ -51,22 +45,6 @@ export default function HomePage() {
       .catch(() => setVehicles([]))
       .finally(() => setVehiclesLoading(false));
   }, []);
-  const checkAvailability = () => {
-    if (!pickupDate || !returnDate) {
-      setSearched(false);
-      setAvailabilityError("Select both a pickup and return date and time.");
-      return;
-    }
-    if (new Date(returnDate) <= new Date(pickupDate)) {
-      setSearched(false);
-      setAvailabilityError("Return must be later than pickup.");
-      return;
-    }
-    setAvailabilityError("");
-    setSearchParams({ pickup_at: pickupDate, return_at: returnDate });
-    setSearched(true);
-    window.setTimeout(scrollToFleet, 0);
-  };
   const scrollToFleet = () => {
     document.getElementById("fleet")?.scrollIntoView({ behavior: "smooth" });
     setMenuOpen(false);
@@ -162,7 +140,7 @@ export default function HomePage() {
               </p>
               <div className="mt-[35px] flex gap-[25px]">
                 <Button onClick={scrollToFleet}>Browse vehicles →</Button>
-                <a className="text-[13px]" href="#how-it-works">
+                <a className="inline-flex w-fit items-center rounded-[30px] border border-white/30 px-[17px] py-[11px] text-[13px] transition hover:border-[#ff641f] hover:bg-[#ff641f]/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#ff641f] focus:ring-offset-2 focus:ring-offset-[#0b0b0b]" href="#how-it-works">
                   See how it works ↓
                 </a>
               </div>
@@ -196,47 +174,6 @@ export default function HomePage() {
               <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b0b0b66_0%,transparent_24%,transparent_76%,#0b0b0b66_100%),linear-gradient(0deg,#0b0b0b99_0%,transparent_20%,transparent_80%,#0b0b0b99_100%)]" />
             </div>
           </div>
-        </section>
-        <section className="relative mx-auto mt-[-50px] flex w-[calc(100%-36px)] max-w-[1160px] flex-col gap-[25px] bg-[#171717] p-[23px_30px] shadow-[0_20px_50px_#0008] md:flex-row md:items-center">
-          <div className="min-w-[195px]">
-            <small className="text-[9px] uppercase tracking-[1.7px] text-[#777]">
-              START YOUR JOURNEY
-            </small>
-            <strong className="block font-['Space_Grotesk']">
-              Find your perfect ride
-            </strong>
-          </div>
-          <div className="grid flex-1 grid-cols-2 gap-[17px] md:grid-cols-4">
-            <label className="text-[#ff641f]">
-              ▣
-              <small className="ml-2 block text-[9px] text-[#777]">
-                PICK-UP
-              </small>
-              <DateTimePicker mode="datetime" value={pickupDate} onChange={setPickupDate} className="mt-1 w-full border-0 !bg-transparent text-sm text-white" />
-            </label>
-            <label className="text-[#ff641f]">
-              ▣
-              <small className="ml-2 block text-[9px] text-[#777]">
-                RETURN
-              </small>
-              <DateTimePicker mode="datetime" value={returnDate} onChange={setReturnDate} className="mt-1 w-full border-0 !bg-transparent text-sm text-white" />
-            </label>
-            <Button
-              onClick={checkAvailability}
-            >
-              Check availability →
-            </Button>
-          </div>
-          {searched && (
-            <span className="absolute bottom-[-30px] text-xs text-[#ff9b73]">
-              Showing vehicles for your selected schedule.
-            </span>
-          )}
-          {availabilityError && (
-            <span className="absolute bottom-[-30px] text-xs text-red-300">
-              {availabilityError}
-            </span>
-          )}
         </section>
         <section className="mx-auto mt-16 w-[calc(100%-36px)] max-w-[1160px]" aria-labelledby="host-partnership-heading">
           <Link
@@ -291,7 +228,7 @@ export default function HomePage() {
             )) : vehicles.slice(0, 3).map((vehicle) => {
               const image = imageUrl(vehicle);
               return (
-                <Link to={`/vehicles/${vehicle.id}?pickup_at=${encodeURIComponent(pickupDate)}&return_at=${encodeURIComponent(returnDate)}`} className="group cursor-pointer border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] focus:ring-offset-2 focus:ring-offset-[#0b0b0b]">
+                <Link to={`/vehicles/${vehicle.id}`} className="group cursor-pointer border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] focus:ring-offset-2 focus:ring-offset-[#0b0b0b]">
                   {image && <img className="h-[240px] w-full object-cover saturate-[.7]" src={image} alt={vehicle.name || `${vehicle.brand} ${vehicle.model}`} />}
                   <div className="p-[22px]">
                     <small className="text-[9px] uppercase tracking-[1.5px] text-[#ff641f]">{vehicleTypeLabels[vehicle.type]} · {vehicle.transmission}</small>
