@@ -43,6 +43,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/profile', [AuthController::class, 'profile']);
     Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/password', [AuthController::class, 'changePassword']);
+    Route::get('/auth/oauth/accounts', [\App\Http\Controllers\Api\OAuthController::class, 'linkedAccounts']);
+    Route::post('/auth/oauth/link/{provider}', [\App\Http\Controllers\Api\OAuthController::class, 'prepareLink']);
+    Route::delete('/auth/oauth/accounts/{socialAccount}', [\App\Http\Controllers\Api\OAuthController::class, 'unlink']);
     Route::post('/auth/email-verification', [AuthController::class, 'resendVerification']);
     Route::get('/push/config', [PushSubscriptionController::class, 'config']);
     Route::post('/push/subscriptions', [PushSubscriptionController::class, 'store']);
