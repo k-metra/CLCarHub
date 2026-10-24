@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import { ThemeToggle, useTheme } from "../lib/ThemeContext";
+import { PwaInstallButton } from "./PwaInstallButton";
 
 const navigation = [
   { label: "Overview", href: "/host", icon: "⌂", tour: "overview" },
@@ -126,6 +127,9 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
           <span className="min-w-0 truncate border-l border-white/20 pl-3 text-sm font-semibold sm:hidden">{title}</span>
         </div>
         <div className="flex shrink-0 items-center gap-3 sm:gap-5">
+          <div className="hidden w-40 sm:block">
+            <PwaInstallButton />
+          </div>
           <ThemeToggle />
           <div className="hidden text-right sm:block">
             <p className="text-sm font-semibold">{displayName(user)}</p>
@@ -174,6 +178,9 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
             <span className="flex h-7 w-10 items-center justify-center rounded-full text-lg" aria-hidden="true">↗</span>
             <span className="whitespace-nowrap">Website</span>
           </Link>
+          <div className="flex min-h-16 min-w-[84px] flex-1 items-center justify-center px-2">
+            <PwaInstallButton />
+          </div>
         </div>
       </nav>
       {showTour && <HostLiveTour onClose={closeTour} />}
