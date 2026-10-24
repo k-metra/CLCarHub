@@ -74,7 +74,7 @@ export default function ProfilePage() {
     setSocialLoading(true);
     try {
       const result = await api.post<{ url: string }>(`/auth/oauth/link/${provider}`);
-      window.location.assign(result.data.url);
+      window.location.replace(result.data.url);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Unable to start social account linking", "error");
       setSocialLoading(false);
