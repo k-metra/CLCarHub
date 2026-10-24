@@ -61,6 +61,10 @@ class OAuthController extends Controller
     public function callback(Request $request, string $provider): RedirectResponse
     {
         $this->validateProvider($provider);
+        $callbackCacheKey = $this->callbackCacheKey($request, $provider);
+        if ($callbackCacheKey && ($replayUrl = Cache::get($callbackCacheKey))) {
+            return redirect()->to($replayUrl);
+        }
         try {
             $profile = Socialite::driver($provider)->stateless()->user();
         $state = $this->decodeState($request->query('state'));
@@ -79,7 +83,9 @@ class OAuthController extends Controller
                 ['user_id' => $user->id, 'provider_email' => $profile->getEmail(), 'provider_avatar_url' => $profile->getAvatar()],
             );
             AuditLogger::record('account', 'social_account_linked', "Linked {$provider} login: {$user->name}", $user, null, $request);
-            return redirect()->to($this->frontendUrl().'/profile?oauth_linked='.urlencode($provider));
+            $redirectUrl = $this->frontendUrl().'/profile?oauth_linked='.urlencode($provider);
+            $this->cacheCallbackRedirect($callbackCacheKey, $redirectUrl);
+            return redirect()->to($redirectUrl);
         }
         $social = SocialAccount::where('provider', $provider)
             ->where('provider_user_id', $profile->getId())
@@ -90,7 +96,9 @@ class OAuthController extends Controller
             $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
             $code = Str::random(64);
             Cache::put('oauth-login:'.hash('sha256', $code), ['user_id' => $user->id, 'first_login' => $firstLogin], now()->addMinutes(2));
-            return redirect()->to($this->frontendUrl().'/admin/login?oauth_code='.urlencode($code));
+            $redirectUrl = $this->frontendUrl().'/admin/login?oauth_code='.urlencode($code);
+            $this->cacheCallbackRedirect($callbackCacheKey, $redirectUrl);
+            return redirect()->to($redirectUrl);
         }
         if (! $profile->getEmail()) {
                 $pendingToken = Str::random(64);
@@ -100,7 +108,9 @@ class OAuthController extends Controller
                     'provider_name' => $profile->getName() ?: $profile->getNickname() ?: 'Facebook customer',
                     'provider_avatar_url' => $profile->getAvatar(),
                 ], now()->addMinutes(15));
-                return redirect()->to($this->frontendUrl().'/facebook/complete?token='.urlencode($pendingToken));
+                $redirectUrl = $this->frontendUrl().'/facebook/complete?token='.urlencode($pendingToken);
+                $this->cacheCallbackRedirect($callbackCacheKey, $redirectUrl);
+                return redirect()->to($redirectUrl);
             }
 
             $raw = $profile->getRaw();
@@ -173,7 +183,9 @@ class OAuthController extends Controller
 
             $returnTo = $this->safeReturnPath($state['return_to'] ?? null);
 
-            return redirect()->to($this->frontendUrl().'/admin/login?oauth_code='.urlencode($code).'&return_to='.urlencode($returnTo));
+            $redirectUrl = $this->frontendUrl().'/admin/login?oauth_code='.urlencode($code).'&return_to='.urlencode($returnTo);
+            $this->cacheCallbackRedirect($callbackCacheKey, $redirectUrl);
+            return redirect()->to($redirectUrl);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -274,6 +286,23 @@ class OAuthController extends Controller
     private function validateProvider(string $provider): void
     {
         abort_unless(in_array($provider, self::PROVIDERS, true), 404);
+    }
+
+    private function callbackCacheKey(Request $request, string $provider): ?string
+    {
+        $code = $request->query('code');
+        if (! is_string($code) || $code === '') {
+            return null;
+        }
+
+        return 'oauth-callback:'.hash('sha256', $provider.':'.$code);
+    }
+
+    private function cacheCallbackRedirect(?string $key, string $redirectUrl): void
+    {
+        if ($key) {
+            Cache::put($key, $redirectUrl, now()->addMinutes(10));
+        }
     }
 
     private function frontendUrl(): string
