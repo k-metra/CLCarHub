@@ -36,11 +36,51 @@ class OAuthController extends Controller
         return $driver->with(['state' => $state])->redirect();
     }
 
+    public function prepareLink(Request $request, string $provider): array
+    {
+        $this->validateProvider($provider);
+        abort_unless(in_array($request->user()->role, ['owner', 'co_owner', 'it_management', 'staff'], true), 403, 'Only staff accounts can link social login.');
+        abort_unless(config("services.{$provider}.client_id") && config("services.{$provider}.client_secret"), 503, ucfirst($provider).' login is not configured.');
+
+        $token = Str::random(64);
+        Cache::put('oauth-link:'.hash('sha256', $token), [
+            'user_id' => $request->user()->id,
+            'provider' => $provider,
+        ], now()->addMinutes(10));
+
+        $state = $this->encodeState([
+            'link_token' => $token,
+            'return_to' => '/profile',
+        ]);
+        $driver = Socialite::driver($provider)
+            ->scopes($provider === 'facebook' ? ['email', 'public_profile'] : ['openid', 'email', 'profile']);
+
+        return ['url' => $driver->with(['state' => $state])->redirect()->getTargetUrl()];
+    }
+
     public function callback(Request $request, string $provider): RedirectResponse
     {
         $this->validateProvider($provider);
         try {
             $profile = Socialite::driver($provider)->stateless()->user();
+        $state = $this->decodeState($request->query('state'));
+        if (isset($state['link_token'])) {
+            $pending = Cache::pull('oauth-link:'.hash('sha256', (string) $state['link_token']));
+            abort_unless(is_array($pending) && $pending['provider'] === $provider, 422, 'This social linking request has expired. Please try again.');
+            $user = User::findOrFail((int) $pending['user_id']);
+            abort_unless(in_array($user->role, ['owner', 'co_owner', 'it_management', 'staff'], true), 403, 'Only staff accounts can link social login.');
+            $existing = SocialAccount::where('provider', $provider)->where('provider_user_id', $profile->getId())->first();
+            abort_if($existing && $existing->user_id !== $user->id, 422, 'This social account is already linked to another account.');
+            if ($profile->getEmail()) {
+                abort_unless(strcasecmp((string) $profile->getEmail(), (string) $user->email) === 0, 422, 'The social account email must match your staff account email.');
+            }
+            SocialAccount::updateOrCreate(
+                ['provider' => $provider, 'provider_user_id' => $profile->getId()],
+                ['user_id' => $user->id, 'provider_email' => $profile->getEmail(), 'provider_avatar_url' => $profile->getAvatar()],
+            );
+            AuditLogger::record('account', 'social_account_linked', "Linked {$provider} login: {$user->name}", $user, null, $request);
+            return redirect()->to($this->frontendUrl().'/profile?oauth_linked='.urlencode($provider));
+        }
         $social = SocialAccount::where('provider', $provider)
             ->where('provider_user_id', $profile->getId())
             ->first();
@@ -131,7 +171,6 @@ class OAuthController extends Controller
             $code = Str::random(64);
             Cache::put('oauth-login:'.hash('sha256', $code), ['user_id' => $user->id, 'first_login' => $firstLogin], now()->addMinutes(2));
 
-            $state = $this->decodeState($request->query('state'));
             $returnTo = $this->safeReturnPath($state['return_to'] ?? null);
 
             return redirect()->to($this->frontendUrl().'/admin/login?oauth_code='.urlencode($code).'&return_to='.urlencode($returnTo));
@@ -142,6 +181,24 @@ class OAuthController extends Controller
 
             return redirect()->to($this->frontendUrl().'/admin/login?oauth_error='.urlencode($message));
         }
+
+    }
+
+    public function linkedAccounts(Request $request)
+    {
+        abort_unless(in_array($request->user()->role, ['owner', 'co_owner', 'it_management', 'staff'], true), 403);
+
+        return $request->user()->socialAccounts()->get(['id', 'provider', 'provider_email', 'created_at']);
+    }
+
+    public function unlink(Request $request, int $socialAccount)
+    {
+        abort_unless(in_array($request->user()->role, ['owner', 'co_owner', 'it_management', 'staff'], true), 403);
+        $account = $request->user()->socialAccounts()->findOrFail($socialAccount);
+        $account->delete();
+        AuditLogger::record('account', 'social_account_unlinked', "Unlinked {$account->provider} login: {$request->user()->name}", $request->user(), null, $request);
+
+        return ['message' => 'Social account unlinked.'];
     }
 
     public function exchange(Request $request)
