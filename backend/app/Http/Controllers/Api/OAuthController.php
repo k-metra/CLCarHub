@@ -65,7 +65,14 @@ class OAuthController extends Controller
         if ($callbackCacheKey && ($replayUrl = Cache::get($callbackCacheKey))) {
             return redirect()->to($replayUrl);
         }
+        $callbackLock = $callbackCacheKey ? Cache::lock($callbackCacheKey.':lock', 30) : null;
         try {
+            if ($callbackLock) {
+                $callbackLock->block(10);
+                if ($replayUrl = Cache::get($callbackCacheKey)) {
+                    return redirect()->to($replayUrl);
+                }
+            }
             $profile = Socialite::driver($provider)->stateless()->user();
         $state = $this->decodeState($request->query('state'));
         if (isset($state['link_token'])) {
@@ -192,6 +199,10 @@ class OAuthController extends Controller
             $message = $exception->getMessage() ?: 'The social login provider could not complete the sign-in request.';
 
             return redirect()->to($this->frontendUrl().'/admin/login?oauth_error='.urlencode($message));
+        } finally {
+            if ($callbackLock) {
+                $callbackLock->release();
+            }
         }
 
     }
