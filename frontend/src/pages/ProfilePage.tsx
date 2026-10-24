@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Skeleton, useToast } from "../components/Ui";
 import { AdminShell } from "../components/AdminShell";
 import { DateTimePicker } from "../components/DateTimePicker";
@@ -11,6 +11,7 @@ import { CustomerMobileNav } from "../components/CustomerMobileNav";
 
 type Profile = { id: number; name: string; first_name?: string | null; middle_name?: string | null; last_name?: string | null; date_of_birth?: string | null; username?: string | null; email: string; role: string; email_verified_at?: string | null };
 type CustomerProfile = Profile & { phone?: string | null; attachments?: CustomerAttachment[] };
+type SocialAccount = { id: number; provider: "google" | "facebook"; provider_email?: string | null; created_at: string };
 type Category = "license" | "secondary_id" | "ltms" | "selfie_license";
 
 const categories: Array<[Category, string, number]> = [["license", "Physical driver's license (front & back)", 2], ["secondary_id", "Secondary ID", 2], ["ltms", "LTMS portal photos", 4], ["selfie_license", "Selfie with driver's license", 1]];
@@ -20,6 +21,7 @@ export default function ProfilePage() {
   const { user, loading, updateUser } = useAuth();
   const { theme } = useTheme();
   const signOut = useSignOut();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
@@ -27,18 +29,27 @@ export default function ProfilePage() {
   const [password, setPassword] = useState({ current_password: "", password: "", password_confirmation: "" });
   const [saving, setSaving] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
+  const [socialLoading, setSocialLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    void Promise.all([api.get<Profile>("/auth/profile"), user.role === "customer" ? api.get<CustomerProfile>("/customer/profile") : Promise.resolve(null)])
-      .then(([profileResponse, customerResponse]) => {
+    void Promise.all([api.get<Profile>("/auth/profile"), user.role === "customer" ? api.get<CustomerProfile>("/customer/profile") : Promise.resolve(null), user.role === "customer" ? Promise.resolve(null) : api.get<SocialAccount[]>("/auth/oauth/accounts")])
+      .then(([profileResponse, customerResponse, socialResponse]) => {
         setProfile(profileResponse.data);
         setForm({ first_name: profileResponse.data.first_name ?? "", middle_name: profileResponse.data.middle_name ?? "", last_name: profileResponse.data.last_name ?? "", date_of_birth: profileResponse.data.date_of_birth?.slice(0, 10) ?? "", username: profileResponse.data.username ?? "" });
         setCustomer(customerResponse?.data ?? null);
+        setSocialAccounts(socialResponse?.data ?? []);
       })
       .catch(error => showToast(error instanceof Error ? error.message : "Unable to load your profile", "error"))
       .finally(() => setProfileLoading(false));
   }, [user, showToast]);
+  useEffect(() => {
+    const provider = new URLSearchParams(window.location.search).get("oauth_linked");
+    if (!provider) return;
+    showToast(`${provider === "google" ? "Google" : "Facebook"} login linked successfully.`, "success");
+    navigate("/profile", { replace: true });
+  }, [navigate, showToast]);
   useEffect(() => {
     if (profileLoading || window.location.hash !== "#booking-requirements") return;
     window.requestAnimationFrame(() => document.getElementById("booking-requirements")?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -58,6 +69,25 @@ export default function ProfilePage() {
     try { await api.post("/auth/password", password); setPassword({ current_password: "", password: "", password_confirmation: "" }); showToast("Password changed successfully.", "success"); }
     catch (error) { showToast(error instanceof Error ? error.message : "Unable to change password", "error"); }
     finally { setSaving(false); }
+  };
+  const linkSocialAccount = async (provider: "google" | "facebook") => {
+    setSocialLoading(true);
+    try {
+      const result = await api.post<{ url: string }>(`/auth/oauth/link/${provider}`);
+      window.location.assign(result.data.url);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to start social account linking", "error");
+      setSocialLoading(false);
+    }
+  };
+  const unlinkSocialAccount = async (account: SocialAccount) => {
+    try {
+      await api.delete(`/auth/oauth/accounts/${account.id}`);
+      setSocialAccounts(current => current.filter(item => item.id !== account.id));
+      showToast(`${account.provider === "google" ? "Google" : "Facebook"} login unlinked.`, "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to unlink social account", "error");
+    }
   };
   const upload = async (category: Category, selected: FileList | null, limit: number) => {
     if (!customer || !selected?.length) return;
@@ -81,6 +111,7 @@ export default function ProfilePage() {
   const content = <div className="mx-auto max-w-4xl"><div className="mb-8"><p className="text-xs uppercase tracking-widest text-[#ff641f]">Account</p><h1 className="mt-2 font-['Space_Grotesk'] text-3xl font-semibold">Profile settings</h1><p className="mt-2 text-sm text-[#777]">Manage your personal information and account security.</p></div>
     <form onSubmit={saveProfile} className="border border-black/10 bg-white p-5 sm:p-8"><h2 className="text-xl font-semibold">Personal information</h2><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm">First name<input required className={input} value={form.first_name} onChange={event => setForm(current => ({ ...current, first_name: event.target.value }))} /></label><label className="text-sm">Middle name <span className="text-[#999]">(optional)</span><input className={input} value={form.middle_name} onChange={event => setForm(current => ({ ...current, middle_name: event.target.value }))} /></label><label className="text-sm">Last name<input required className={input} value={form.last_name} onChange={event => setForm(current => ({ ...current, last_name: event.target.value }))} /></label><label className="text-sm">Date of birth    <DateTimePicker value={form.date_of_birth} onChange={value => setForm(current => ({ ...current, date_of_birth: value }))} className={input} /></label><label className="text-sm">Username<input required className={input} value={form.username} onChange={event => setForm(current => ({ ...current, username: event.target.value }))} /></label><label className="text-sm">Email address<input disabled className={`${input} bg-black/5`} value={profile?.email ?? user.email} /></label>{user.role === "customer" && <label className="text-sm">Phone number<input disabled className={`${input} bg-black/5`} value={customer?.phone ?? "Not added"} /></label>}</div><button disabled={saving} className="mt-6 bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Save profile</button></form>
     <form onSubmit={changePassword} className="mt-6 border border-black/10 bg-white p-5 sm:p-8"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">Change password</h2><p className="mt-1 text-sm text-[#777]">Email verification is required before changing your password.</p></div>{profile?.email_verified_at ? <span className="text-xs font-semibold text-emerald-700">Email verified</span> : <button type="button" className="text-xs font-semibold text-[#ff641f]" onClick={async () => { try { await api.post("/auth/email-verification"); showToast("Verification email sent.", "success"); } catch (error) { showToast(error instanceof Error ? error.message : "Unable to send verification email", "error"); } }}>Send verification email</button>}</div><div className="mt-5 grid gap-4 sm:grid-cols-3"><label className="text-sm">Current password<input required type="password" className={input} value={password.current_password} onChange={event => setPassword(current => ({ ...current, current_password: event.target.value }))} /></label><label className="text-sm">New password<input required type="password" className={input} value={password.password} onChange={event => setPassword(current => ({ ...current, password: event.target.value }))} /></label><label className="text-sm">Confirm new password<input required type="password" className={input} value={password.password_confirmation} onChange={event => setPassword(current => ({ ...current, password_confirmation: event.target.value }))} /></label></div><button disabled={saving || !profile?.email_verified_at} className="mt-6 border border-black/10 px-5 py-3 text-sm font-bold disabled:opacity-50">Change password</button></form>
+    {user.role !== "customer" && <section className="mt-6 border border-black/10 bg-white p-5 sm:p-8"><h2 className="text-xl font-semibold">Social sign-in</h2><p className="mt-1 text-sm text-[#777]">Link a verified social account to use it when signing in to your staff account.</p><div className="mt-5 space-y-3">{(["google", "facebook"] as const).map(provider => { const linked = socialAccounts.find(account => account.provider === provider); const label = provider === "google" ? "Google" : "Facebook"; return <div key={provider} className="flex flex-wrap items-center justify-between gap-3 border border-black/10 p-4"><div><p className="font-semibold">{label}</p><p className="text-xs text-[#777]">{linked ? `Linked${linked.provider_email ? ` as ${linked.provider_email}` : ""}` : "Not linked"}</p></div>{linked ? <button type="button" onClick={() => void unlinkSocialAccount(linked)} className="text-sm font-semibold text-[#ff641f]">Unlink</button> : <button type="button" disabled={socialLoading} onClick={() => void linkSocialAccount(provider)} className="bg-[#ff641f] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{socialLoading ? "Connecting..." : `Link ${label}`}</button>}</div>; })}</div></section>}
     {customer && <section id="booking-requirements" className="scroll-mt-6 mt-6 border border-black/10 bg-white p-5 sm:p-8"><h2 className="text-xl font-semibold">Booking requirements</h2><p className="mt-1 text-sm text-[#777]">Upload these once and they will be reused for future booking requests.</p>{categories.map(([category, label, limit]) => { const existing = customer.attachments?.filter(item => item.category === category) ?? []; return <div className="mt-5 border-t border-black/10 pt-5" key={category}><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold">{label}</p><span className="text-xs text-[#777]">{existing.length}/{limit} provided</span></div><input className={`${input} text-xs`} type="file" accept="image/*" multiple={limit > 1} onChange={event => { void upload(category, event.target.files, limit); event.currentTarget.value = ""; }} />{existing.length > 0 && <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{existing.map(attachment => <div className="relative overflow-hidden border border-black/10" key={attachment.id}><img src={attachment.url} alt={label} className="h-28 w-full object-cover" /><button type="button" className="absolute right-1 top-1 rounded bg-black/70 px-2 py-1 text-xs text-white" onClick={() => void removeAttachment(attachment)}>Remove</button></div>)}</div>}</div>})}</section>}
   </div>;
   const renderedContent = profileLoading ? loadingContent : content;
