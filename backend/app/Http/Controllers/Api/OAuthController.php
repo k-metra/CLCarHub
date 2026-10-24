@@ -74,6 +74,8 @@ class OAuthController extends Controller
             return redirect()->to($callbackAttempt['redirect_url']);
         }
         $callbackLock = $callbackCacheKey ? Cache::lock($callbackCacheKey.':lock', 30) : null;
+        $state = $this->decodeState($request->query('state'));
+        $isLinkCallback = isset($state['link_token']);
         try {
             if ($callbackLock) {
                 $callbackLock->block(10);
@@ -89,7 +91,6 @@ class OAuthController extends Controller
                 }
             }
             $profile = Socialite::driver($provider)->stateless()->user();
-        $state = $this->decodeState($request->query('state'));
         if (isset($state['link_token'])) {
             $pending = Cache::pull('oauth-link:'.hash('sha256', (string) $state['link_token']));
             abort_unless(is_array($pending) && $pending['provider'] === $provider, 422, 'This social linking request has expired. Please try again.');
@@ -217,7 +218,8 @@ class OAuthController extends Controller
 
             $message = $exception->getMessage() ?: 'The social login provider could not complete the sign-in request.';
 
-            return redirect()->to($this->frontendUrl().'/admin/login?oauth_error='.urlencode($message));
+            $errorPath = $isLinkCallback ? '/profile' : '/admin/login';
+            return redirect()->to($this->frontendUrl().$errorPath.'?oauth_error='.urlencode($message));
         } finally {
             if ($callbackLock) {
                 $callbackLock->release();

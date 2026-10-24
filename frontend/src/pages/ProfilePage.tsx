@@ -45,7 +45,14 @@ export default function ProfilePage() {
       .finally(() => setProfileLoading(false));
   }, [user, showToast]);
   useEffect(() => {
-    const provider = new URLSearchParams(window.location.search).get("oauth_linked");
+    const params = new URLSearchParams(window.location.search);
+    const provider = params.get("oauth_linked");
+    const oauthError = params.get("oauth_error");
+    if (oauthError) {
+      showToast(oauthError, "error");
+      navigate("/profile", { replace: true });
+      return;
+    }
     if (!provider) return;
     showToast(`${provider === "google" ? "Google" : "Facebook"} login linked successfully.`, "success");
     navigate("/profile", { replace: true });
