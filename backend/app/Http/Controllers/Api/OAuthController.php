@@ -55,7 +55,7 @@ class OAuthController extends Controller
         $driver = Socialite::driver($provider)
             ->scopes($provider === 'facebook' ? ['email', 'public_profile'] : ['openid', 'email', 'profile']);
 
-        return ['url' => $driver->with(['state' => $state])->redirect()->getTargetUrl()];
+        return ['url' => $driver->stateless()->with(['state' => $state])->redirect()->getTargetUrl()];
     }
 
     public function callback(Request $request, string $provider): RedirectResponse
