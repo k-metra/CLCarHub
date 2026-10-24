@@ -159,7 +159,6 @@ export default function VehicleDetailPage() {
         <Detail label="Seats" value={String(vehicle.seats)} />
         <Detail label="Color" value={vehicle.color} />
         <Detail label="Mileage limit" value={vehicle.mileage_limit == null ? "No limit listed" : `${vehicle.mileage_limit.toLocaleString()} km`} />
-        <Detail label="Availability" value={vehicle.status} />
       </section>
       {vehicle.description && <p className="mt-5 text-sm leading-7 text-[#666]">{vehicle.description}</p>}
       <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 mt-6">
