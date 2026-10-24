@@ -1,15 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth, canManageAccounts, canViewReports } from "../lib/AuthContext";
+import { PwaInstallButton } from "./PwaInstallButton";
 
 type SidebarSection = {
   title: string;
   items: { label: string; path: string; icon: string }[];
-};
-
-type InstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
 const sections: SidebarSection[] = [
@@ -71,43 +67,6 @@ export function AdminSidebar({
   mobile?: boolean;
 }) {
   const { user } = useAuth();
-  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
-    () => window.__clcarhubInstallPrompt ?? null,
-  );
-  const [isInstalled, setIsInstalled] = useState(
-    () =>
-      window.matchMedia("(display-mode: standalone)").matches
-      || Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
-  );
-  const [showIosInstructions, setShowIosInstructions] = useState(false);
-  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  useEffect(() => {
-    const handleInstallAvailable = () => setInstallPrompt(window.__clcarhubInstallPrompt ?? null);
-    const handleAppInstalled = () => {
-      setInstallPrompt(null);
-      setIsInstalled(true);
-    };
-    window.addEventListener("clcarhubinstallavailable", handleInstallAvailable);
-    window.addEventListener("appinstalled", handleAppInstalled);
-    return () => {
-      window.removeEventListener("clcarhubinstallavailable", handleInstallAvailable);
-      window.removeEventListener("appinstalled", handleAppInstalled);
-    };
-  }, []);
-  const installApp = async () => {
-    if (!installPrompt) return;
-    await installPrompt.prompt();
-    const choice = await installPrompt.userChoice;
-    if (choice.outcome === "accepted") setInstallPrompt(null);
-  };
-  const openInstallInstructions = () => {
-    if (isIos) {
-      setShowIosInstructions((current) => !current);
-      return;
-    }
-    void installApp();
-  };
   const visibleSections = sections.map(section => ({
     ...section,
     items: section.items.filter(item =>
@@ -131,28 +90,7 @@ export function AdminSidebar({
         >
           {collapsed ? "CL" : "ADMIN MENU"}
         </div>
-        {((installPrompt && !isInstalled) || (isIos && !isInstalled)) && (
-          <button
-            type="button"
-            className={`mb-6 flex w-full items-center justify-center gap-2 rounded bg-[#e85b00] px-3 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#ff641f] ${collapsed ? "px-2" : ""}`}
-            onClick={openInstallInstructions}
-            title={isIos ? "Add CLCarHub to your Home Screen" : "Install CLCarHub App"}
-          >
-            <span aria-hidden="true">▣</span>
-            {!collapsed && (isIos ? "Add to Home Screen" : "Install CLCarHub App")}
-          </button>
-        )}
-        {isIos && showIosInstructions && !isInstalled && !collapsed && (
-          <div className="mb-6 rounded border border-white/10 bg-white/[.06] p-3 text-xs leading-5 text-[#ddd]">
-            <p className="font-semibold text-white">Install CLCarHub on iOS</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-4">
-              <li>Tap the Share button in Safari.</li>
-              <li>Select <span className="font-semibold text-white">Add to Home Screen</span>.</li>
-              <li>Tap <span className="font-semibold text-white">Add</span>.</li>
-            </ol>
-            <p className="mt-2 text-[#aaa]">If you are using another browser on iPhone or iPad, open this page in Safari first.</p>
-          </div>
-        )}
+        <PwaInstallButton collapsed={collapsed} className="mb-6" />
         {visibleSections.map((section) => (
           <div className="mb-5" key={section.title}>
             <button
