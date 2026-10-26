@@ -19,6 +19,71 @@ class HostPartnershipTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_active_host_can_update_only_their_vehicle_status_and_the_change_is_audited(): void
+    {
+        $host = User::factory()->create(['role' => 'host', 'status' => 'active']);
+        $otherHost = User::factory()->create(['role' => 'host', 'status' => 'active']);
+        $partner = Partner::create([
+            'name' => 'Status Partner',
+            'email' => $host->email,
+            'contact_number' => '09170000011',
+            'address' => 'Manila',
+            'commission_based_on' => 'base_rent_only',
+            'commission_type' => 'percentage',
+            'commission_value' => 20,
+            'user_id' => $host->id,
+            'host_access_status' => 'active',
+        ]);
+        $otherPartner = Partner::create([
+            'name' => 'Other Partner',
+            'email' => $otherHost->email,
+            'contact_number' => '09170000012',
+            'address' => 'Manila',
+            'commission_based_on' => 'base_rent_only',
+            'commission_type' => 'percentage',
+            'commission_value' => 20,
+            'user_id' => $otherHost->id,
+            'host_access_status' => 'active',
+        ]);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota',
+            'model' => 'Vios',
+            'type' => 'sedan',
+            'plate_number' => 'STA-123',
+            'daily_rate' => 2000,
+            'status' => 'available',
+            'partner_id' => $partner->id,
+        ]);
+        $otherVehicle = Vehicle::create([
+            'brand' => 'Honda',
+            'model' => 'City',
+            'type' => 'sedan',
+            'plate_number' => 'OTH-123',
+            'daily_rate' => 2000,
+            'status' => 'available',
+            'partner_id' => $otherPartner->id,
+        ]);
+
+        $this->actingAs($host)
+            ->patchJson("/api/host/vehicles/{$vehicle->id}/status", ['status' => 'maintenance'])
+            ->assertOk()
+            ->assertJsonPath('status', 'maintenance');
+
+        $this->assertDatabaseHas('vehicles', ['id' => $vehicle->id, 'status' => 'maintenance']);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $host->id,
+            'auditable_type' => Vehicle::class,
+            'auditable_id' => $vehicle->id,
+            'action' => 'updated',
+        ]);
+
+        $this->actingAs($host)
+            ->patchJson("/api/host/vehicles/{$otherVehicle->id}/status", ['status' => 'unavailable'])
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('vehicles', ['id' => $otherVehicle->id, 'status' => 'available']);
+    }
+
     public function test_total_booking_amount_partner_share_excludes_cash_security_deposit(): void
     {
         $partner = Partner::create([
