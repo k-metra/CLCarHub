@@ -105,6 +105,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('customers', CustomerController::class);
     Route::post('/customers/{customer}/restore', [CustomerController::class, 'restore']);
     Route::middleware(EnsureRole::class.':customer')->get('/customer/profile', [CustomerController::class, 'profile']);
+    Route::middleware(EnsureRole::class.':customer')->patch('/customer/social-profile', [CustomerController::class, 'updateSocialProfile']);
     Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding', [CustomerController::class, 'completeOnboarding']);
     Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding/phone/send', [CustomerController::class, 'sendPhoneVerification'])->middleware('throttle:3,1');
     Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding/phone/verify', [CustomerController::class, 'verifyPhone'])->middleware('throttle:10,1');
