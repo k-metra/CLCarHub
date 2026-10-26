@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -58,6 +59,39 @@ export function PwaInstallButton({
     if (choice.outcome === "accepted") setInstallPrompt(null);
   };
 
+  const iosInstructions = (
+    <div className="rounded-lg border border-white/10 bg-[#242424] p-4 text-left text-sm leading-6 text-[#ddd] shadow-2xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-semibold text-white">Install CLCarHub</p>
+          <p className="mt-1 text-xs text-[#aaa]">Add a quick link to your iPhone or iPad Home Screen.</p>
+        </div>
+        <button
+          type="button"
+          className="shrink-0 rounded px-2 text-xl leading-none text-[#aaa] hover:bg-white/10 hover:text-white"
+          onClick={() => setShowIosInstructions(false)}
+          aria-label="Close installation instructions"
+        >
+          ×
+        </button>
+      </div>
+      <ol className="mt-4 space-y-3">
+        <li className="flex gap-3">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#ff641f] text-xs font-bold text-white">1</span>
+          <span>Open this page in <span className="font-semibold text-white">Safari</span>.</span>
+        </li>
+        <li className="flex gap-3">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#ff641f] text-xs font-bold text-white">2</span>
+          <span>Tap the <span className="font-semibold text-white">Share</span> button.</span>
+        </li>
+        <li className="flex gap-3">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#ff641f] text-xs font-bold text-white">3</span>
+          <span>Select <span className="font-semibold text-white">Add to Home Screen</span>, then tap <span className="font-semibold text-white">Add</span>.</span>
+        </li>
+      </ol>
+    </div>
+  );
+
   return (
     <div className={className}>
       <button
@@ -71,14 +105,19 @@ export function PwaInstallButton({
         {!collapsed && (isIos ? "Add to Home Screen" : "Install CLCarHub App")}
       </button>
       {isIos && showIosInstructions && !collapsed && (
-        <div className="mt-3 rounded border border-white/10 bg-white/[.06] p-3 text-xs leading-5 text-[#ddd]">
-          <p className="font-semibold text-white">Install CLCarHub on iPhone or iPad</p>
-          <ol className="mt-2 list-decimal space-y-1 pl-4">
-            <li>Open this page in Safari.</li>
-            <li>Tap the Share button.</li>
-            <li>Select <span className="font-semibold text-white">Add to Home Screen</span>, then tap <span className="font-semibold text-white">Add</span>.</li>
-          </ol>
-        </div>
+        <>
+          <div className="mt-3 hidden sm:block">{iosInstructions}</div>
+          {createPortal(
+            <div
+              className="fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+1rem)] z-[250] max-h-[calc(100dvh-6rem-env(safe-area-inset-bottom))] overflow-y-auto sm:hidden"
+              role="dialog"
+              aria-label="iOS installation instructions"
+            >
+              {iosInstructions}
+            </div>,
+            document.body,
+          )}
+        </>
       )}
     </div>
   );
