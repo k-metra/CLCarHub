@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Http\Controllers\Api\BookingController;
 use App\Notifications\HostInvitationNotification;
+use App\Models\Contract;
+use App\Models\PartnerEarning;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -82,6 +84,91 @@ class HostPartnershipTest extends TestCase
             ->assertNotFound();
 
         $this->assertDatabaseHas('vehicles', ['id' => $otherVehicle->id, 'status' => 'available']);
+    }
+
+    public function test_submitting_a_host_rate_recalculates_unpaid_earning_but_not_paid_earning(): void
+    {
+        $admin = User::factory()->create(['role' => 'owner', 'status' => 'active']);
+        $partner = Partner::create([
+            'name' => 'Rate Partner',
+            'email' => 'rate@example.com',
+            'contact_number' => '09170000013',
+            'address' => 'Manila',
+            'commission_based_on' => 'base_rent_only',
+            'commission_type' => 'percentage',
+            'commission_value' => 20,
+        ]);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota',
+            'model' => 'Vios',
+            'type' => 'sedan',
+            'plate_number' => 'RAT-123',
+            'daily_rate' => 2000,
+            'status' => 'available',
+            'partner_id' => $partner->id,
+        ]);
+        $customer = Customer::create(['name' => 'Rate Customer', 'phone' => '09170000014']);
+        $booking = Booking::create([
+            'reference' => 'CLCH-RATE-001',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-12 10:00',
+            'status' => Booking::COMPLETE,
+            'rental_rate' => 2000,
+            'rental_amount' => 4000,
+            'total_amount' => 4000,
+            'deposit' => 0,
+        ]);
+        $contract = Contract::create([
+            'booking_id' => $booking->id,
+            'host_details' => ['rate' => 1500],
+            'host_view_published' => false,
+        ]);
+        $earning = PartnerEarning::create([
+            'partner_id' => $partner->id,
+            'vehicle_id' => $vehicle->id,
+            'booking_id' => $booking->id,
+            'gross_amount' => 4000,
+            'commission_amount' => 3200,
+            'net_amount' => 800,
+            'status' => 'pending',
+            'earned_at' => '2030-01-12',
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson("/api/host-contracts/{$booking->id}/publish")
+            ->assertOk();
+
+        $this->assertDatabaseHas('partner_earnings', [
+            'id' => $earning->id,
+            'gross_amount' => 3000,
+            'commission_amount' => 2400,
+            'net_amount' => 600,
+        ]);
+
+        $this->actingAs($admin)
+            ->patchJson("/api/host-contracts/{$booking->id}", ['host_details' => ['rate' => 1000]])
+            ->assertOk();
+
+        $this->assertDatabaseHas('partner_earnings', [
+            'id' => $earning->id,
+            'gross_amount' => 2000,
+            'commission_amount' => 1600,
+            'net_amount' => 400,
+        ]);
+
+        $earning->update(['status' => 'paid', 'gross_amount' => 3000, 'commission_amount' => 2400, 'net_amount' => 600]);
+        $contract->update(['host_details' => ['rate' => 500]]);
+        $this->actingAs($admin)
+            ->postJson("/api/host-contracts/{$booking->id}/publish")
+            ->assertOk();
+
+        $this->assertDatabaseHas('partner_earnings', [
+            'id' => $earning->id,
+            'gross_amount' => 3000,
+            'net_amount' => 600,
+        ]);
     }
 
     public function test_total_booking_amount_partner_share_excludes_cash_security_deposit(): void
