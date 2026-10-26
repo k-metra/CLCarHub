@@ -69,6 +69,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(SocialAccount::class);
     }
 
+    public function hasFacebookAccount(): bool
+    {
+        return $this->socialAccounts()->where('provider', 'facebook')->exists();
+    }
+
     /**
      * Get the attributes that should be cast.
      *
