@@ -54,7 +54,7 @@ export function ImageLightbox({ src, alt, onRemove }: { src: string; alt: string
       <img className="h-20 w-full object-cover" src={src} alt={alt} />
     </button>
     {onRemove && <button type="button" className="mt-1 text-xs text-red-600" onClick={onRemove}>Remove</button>}
-    {open && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" onClick={() => setOpen(false)}>
+    {open &&     <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/80 p-4" role="dialog" aria-modal="true" onClick={() => setOpen(false)}>
       <div className="relative max-h-full max-w-5xl" onClick={event => event.stopPropagation()}>
         <img className="max-h-[85vh] max-w-full rounded object-contain" src={src} alt={alt} />
         <button type="button" className="absolute right-2 top-2 rounded bg-black/70 px-3 py-1 text-2xl text-white" onClick={() => setOpen(false)} aria-label="Close image preview">×</button>
@@ -81,8 +81,8 @@ export function ConfirmDialog({
   const [reason, setReason] = useState("");
   if (!open) return null;
 
-  return <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="confirmation-title">
-    <div className="theme-surface w-full max-w-md rounded bg-white p-6 shadow-2xl">
+  return <div className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="confirmation-title">
+    <div className="theme-surface max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded bg-white p-6 shadow-2xl">
       <h2 id="confirmation-title" className="font-['Space_Grotesk'] text-xl font-semibold">{title}</h2>
       <p className="mt-3 text-sm leading-6 text-[#666]">{message}</p>
       <div className="mt-6 flex justify-end gap-3">
