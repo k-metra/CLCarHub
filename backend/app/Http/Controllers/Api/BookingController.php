@@ -69,6 +69,7 @@ class BookingController extends Controller
     public function customerStore(Request $request)
     {
         $customer = $this->authenticatedCustomer($request);
+        abort_unless(filled($customer->social_profile_url), 422, 'Add a link to one of your active social profiles before booking.');
         $data = $request->validate([
             'vehicle_id' => ['required', 'exists:vehicles,id'],
             'addons' => ['nullable', 'array'],
