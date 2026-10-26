@@ -254,7 +254,7 @@ class OAuthController extends Controller
         $user = User::findOrFail($payload['user_id']);
         abort_unless($user->status === 'active', 403, 'This account is not active.');
 
-        return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken, 'first_login' => (bool) ($payload['first_login'] ?? false)];
+        return ['user' => $user->load('customer')->setAttribute('facebook_connected', $user->hasFacebookAccount()), 'token' => $user->createToken($user->role.'-session')->plainTextToken, 'first_login' => (bool) ($payload['first_login'] ?? false)];
     }
 
     public function sendPendingPhone(Request $request)
@@ -312,7 +312,7 @@ class OAuthController extends Controller
         });
         $firstLogin = $user->last_login_at === null;
         $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
-        return ['user' => $user->load('customer'), 'token' => $user->createToken('customer-session')->plainTextToken, 'first_login' => $firstLogin];
+        return ['user' => $user->load('customer')->setAttribute('facebook_connected', $user->hasFacebookAccount()), 'token' => $user->createToken('customer-session')->plainTextToken, 'first_login' => $firstLogin];
     }
 
     private function validateProvider(string $provider): void
