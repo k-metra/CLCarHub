@@ -34,6 +34,7 @@ export function PwaInstallButton({
   );
   const [isInstalled, setIsInstalled] = useState(isStandalone);
   const [showIosInstructions, setShowIosInstructions] = useState(false);
+  const [showInstallUnavailable, setShowInstallUnavailable] = useState(false);
   const isIos = isIosDevice();
 
   useEffect(() => {
@@ -50,10 +51,13 @@ export function PwaInstallButton({
     };
   }, []);
 
-  if (isInstalled || (!installPrompt && !isIos)) return null;
+  if (isInstalled) return null;
 
   const installApp = async () => {
-    if (!installPrompt) return;
+    if (!installPrompt) {
+      setShowInstallUnavailable(true);
+      return;
+    }
     await installPrompt.prompt();
     const choice = await installPrompt.userChoice;
     if (choice.outcome === "accepted") setInstallPrompt(null);
@@ -97,13 +101,22 @@ export function PwaInstallButton({
       <button
         type="button"
         className={`flex items-center justify-center gap-2 rounded bg-[#e85b00] px-3 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#ff641f] ${collapsed ? "w-full px-2" : "w-full"}`}
-        onClick={() => isIos ? setShowIosInstructions(current => !current) : void installApp()}
+        onClick={() => {
+          setShowInstallUnavailable(false);
+          if (isIos) setShowIosInstructions(current => !current);
+          else void installApp();
+        }}
         title={isIos ? "Add CLCarHub to your Home Screen" : "Install CLCarHub App"}
         aria-expanded={isIos ? showIosInstructions : undefined}
       >
         <span aria-hidden="true">▣</span>
         {!collapsed && (isIos ? "Add to Home Screen" : "Install CLCarHub App")}
       </button>
+      {!isIos && showInstallUnavailable && !collapsed && (
+        <p className="mt-2 text-xs leading-5 text-[#777]">
+          Installation is not available in this browser right now. Try the browser menu and choose <span className="font-semibold">Install app</span> or <span className="font-semibold">Add to Home Screen</span>.
+        </p>
+      )}
       {isIos && showIosInstructions && !collapsed && (
         <>
           <div className="mt-3 hidden sm:block">{iosInstructions}</div>
