@@ -8,6 +8,7 @@ use App\Models\FleetSetting;
 use App\Models\IpBlock;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\SocialAccount;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -191,6 +192,27 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('message', 'Add a link to one of your active social profiles before booking.');
 
         $this->assertDatabaseMissing('bookings', ['customer_id' => $customer->id]);
+    }
+
+    public function test_facebook_connected_customer_can_book_without_a_profile_url(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        SocialAccount::create([
+            'user_id' => $user->id,
+            'provider' => 'facebook',
+            'provider_user_id' => 'facebook-customer-1',
+        ]);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-FB', 'daily_rate' => 2000, 'status' => 'available']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated()
+            ->assertJsonPath('customer_id', $customer->id);
     }
 
     public function test_customer_can_create_a_pending_unpaid_request_without_setting_pricing(): void
