@@ -178,9 +178,6 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
             <span className="flex h-7 w-10 items-center justify-center rounded-full text-lg" aria-hidden="true">↗</span>
             <span className="whitespace-nowrap">Website</span>
           </Link>
-          <div className="flex min-h-16 min-w-[84px] flex-1 items-center justify-center px-2">
-            <PwaInstallButton />
-          </div>
         </div>
       </nav>
       {showTour && <HostLiveTour onClose={closeTour} />}
