@@ -27,7 +27,7 @@ type Customer = {
   outstanding_balance?: number;
   attachments?: CustomerAttachment[];
   bookings?: BookingRecord[];
-  user?: { last_login_ip?: string | null };
+  user?: { last_login_ip?: string | null; social_accounts?: Array<{ id: number; provider: string; provider_user_id: string; provider_email?: string | null; provider_profile_url?: string | null }> };
   ip_block_scopes?: string[];
   archived_at?: string | null;
   loyalty?: { completed_bookings: number; bookings_toward_next_reward: number; bookings_remaining: number; available_rewards: number; reward_description: string };
@@ -639,7 +639,7 @@ export default function CustomersPage() {
                   <div><p className="text-xs uppercase text-[#888]">License</p><p className="mt-1 text-sm">{profile.license_number || "—"}</p></div>
                   <div><p className="text-xs uppercase text-[#888]">Outstanding</p><p className="mt-1 font-semibold text-amber-600">{money.format(profile.outstanding_balance ?? profile.bookings?.reduce((sum, booking) => sum + (["cancelled", "rejected"].includes(booking.status) ? 0 : Number(booking.balance ?? 0)), 0) ?? 0)}</p></div>
                   <div><p className="text-xs uppercase text-[#888]">How they found us</p><p className="mt-1 text-sm">{profile.referral_source ? referralSourceLabels[profile.referral_source] : "—"}</p></div>
-                  <div className="sm:col-span-2"><p className="text-xs uppercase text-[#888]">Background-check social profile</p>{profile.social_profile_url ? <a className="mt-1 block break-all text-sm text-[#d94f12] underline" href={profile.social_profile_url} target="_blank" rel="noreferrer">{profile.social_profile_url}</a> : <p className="mt-1 text-sm">Not provided</p>}</div>
+                  <div className="sm:col-span-2"><p className="text-xs uppercase text-[#888]">Background-check social profile</p>{profile.social_profile_url ? <a className="mt-1 block break-all text-sm text-[#d94f12] underline" href={profile.social_profile_url} target="_blank" rel="noreferrer">{profile.social_profile_url}</a> : <p className="mt-1 text-sm">Not provided</p>}{profile.user?.social_accounts?.filter(account => account.provider === "facebook").map(account => <div className="mt-2 text-sm" key={account.id}><span className="font-semibold">Facebook account:</span>{" "}{account.provider_profile_url ? <a className="text-[#d94f12] underline" href={account.provider_profile_url} target="_blank" rel="noreferrer">Open profile</a> : "ID"} <span className="break-all text-[#777]">({account.provider_user_id})</span>{account.provider_email && <span className="text-[#777]"> · {account.provider_email}</span>}</div>)}</div>
                   <div className="border border-[#ff641f]/30 bg-[#fff7f3] p-3 sm:col-span-2"><p className="text-xs font-bold uppercase tracking-widest text-[#ff641f]">Loyalty card</p><p className="mt-1 font-semibold">Free 12-hour rentals: {profile.loyalty?.available_rewards ?? 0} available</p><div className="mt-2 flex gap-1">{Array.from({ length: 5 }, (_, index) => <span key={index} className={`h-2 flex-1 rounded-full ${index < (profile.loyalty?.bookings_toward_next_reward ?? 0) ? "bg-[#ff641f]" : "bg-black/10"}`} />)}</div><p className="mt-2 text-xs text-[#777]">{profile.loyalty?.completed_bookings ?? 0} completed booking(s) · {profile.loyalty?.bookings_remaining ?? 5} until next reward</p></div>
                 </div>
                 <div className="mt-8">
