@@ -8,6 +8,7 @@ use App\Models\Contract;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use App\Services\PartnerEarningService;
 
 class HostContractController extends Controller
 {
@@ -62,6 +63,9 @@ class HostContractController extends Controller
             $images[] = $path;
         }
         $contract->update(['host_details' => ['rate' => $data['host_details']['rate'] ?? null], 'host_contract_images' => $images]);
+        if ($contract->host_view_published) {
+            app(PartnerEarningService::class)->syncUnpaidForBooking($booking->fresh(['contract']));
+        }
 
         return $this->resource($booking->fresh(['vehicle.images', 'contract']));
     }
@@ -70,6 +74,7 @@ class HostContractController extends Controller
     {
         $contract = $booking->contract()->firstOrFail();
         $contract->update(['host_view_published' => true]);
+        app(PartnerEarningService::class)->syncUnpaidForBooking($booking->fresh(['contract']));
 
         return $this->resource($booking->fresh(['vehicle.images', 'contract']));
     }
