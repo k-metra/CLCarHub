@@ -24,7 +24,7 @@ class AuthController extends Controller
         $user->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
         AuditLogger::record('account', 'login', "User logged in: {$user->name}", $user, null, $request);
 
-        return ['user' => $user->load('customer'), 'token' => $user->createToken($user->role.'-session')->plainTextToken, 'first_login' => $firstLogin];
+        return ['user' => $user->load('customer')->setAttribute('facebook_connected', $user->hasFacebookAccount()), 'token' => $user->createToken($user->role.'-session')->plainTextToken, 'first_login' => $firstLogin];
     }
 
     public function activateHost(Request $request)
@@ -98,7 +98,8 @@ class AuthController extends Controller
 
     public function user(Request $request)
     {
-        return $request->user()->load('customer.attachments');
+        $user = $request->user()->load('customer.attachments');
+        return $user->setAttribute('facebook_connected', $user->hasFacebookAccount());
     }
 
     public function profile(Request $request)
