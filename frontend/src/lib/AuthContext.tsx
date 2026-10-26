@@ -15,6 +15,7 @@ export type AuthUser = {
   last_name?: string | null
   date_of_birth?: string | null
   email_verified_at?: string | null
+  facebook_connected?: boolean
   partner?: { id: number; name: string; host_access_status: string } | null
   customer?: { id: number; onboarding_completed_at?: string | null; first_name?: string | null; last_name?: string | null; date_of_birth?: string | null; address?: string | null; phone?: string | null; phone_verified_at?: string | null; social_profile_url?: string | null; attachments?: Array<{ id: number; category: string; url: string }> } | null
 }
