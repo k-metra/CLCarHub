@@ -69,7 +69,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_customer_with_booking_history_is_archived_and_can_be_restored(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
-        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'ARC-123', 'daily_rate' => 2000, 'status' => 'available']);
         Booking::create([
             'reference' => 'CLCH-2030-009999', 'customer_id' => $customer->id, 'vehicle_id' => $vehicle->id,
@@ -106,7 +106,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_booking_only_ip_blocks_prevent_booking_submission_but_not_customer_listing(): void
     {
         $user = User::factory()->create(['role' => 'customer', 'last_login_ip' => '203.0.113.10']);
-        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         Sanctum::actingAs($user);
 
         $this->getJson('/api/customer/booking-requests')->assertOk();
@@ -119,7 +119,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_all_access_ip_blocks_prevent_api_access(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
-        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         IpBlock::create(['ip_address' => '::1', 'scope' => 'all']);
         Sanctum::actingAs($user);
 
@@ -131,7 +131,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_customer_booking_submissions_are_rate_limited_by_ip(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
-        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         Sanctum::actingAs($user);
 
         $request = $this->withServerVariables(['REMOTE_ADDR' => '::1']);
@@ -148,7 +148,7 @@ class CustomerBookingRequestTest extends TestCase
     {
         Storage::fake('public');
         $user = User::factory()->create(['role' => 'customer']);
-        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         Sanctum::actingAs($user);
 
         $attachments = [];
@@ -175,10 +175,28 @@ class CustomerBookingRequestTest extends TestCase
         ])->assertUnprocessable();
     }
 
-    public function test_customer_can_create_a_pending_unpaid_request_without_setting_pricing(): void
+    public function test_customer_booking_requires_an_active_social_profile_link(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
         $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-SOCIAL', 'daily_rate' => 2000, 'status' => 'available']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Add a link to one of your active social profiles before booking.');
+
+        $this->assertDatabaseMissing('bookings', ['customer_id' => $customer->id]);
+    }
+
+    public function test_customer_can_create_a_pending_unpaid_request_without_setting_pricing(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-123', 'daily_rate' => 2000, 'status' => 'available']);
         Sanctum::actingAs($user);
 
@@ -205,7 +223,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_customer_requests_allow_destination_for_pickup_and_require_address_for_delivery(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
-        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         $otherCustomer = Customer::create(['name' => 'Other', 'phone' => '09170000001']);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-456', 'daily_rate' => 2000, 'status' => 'available']);
         $booking = Booking::create([
@@ -230,7 +248,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_customer_booking_keeps_a_twenty_five_hour_rental_within_the_default_grace_period(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
-        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-789', 'daily_rate' => 2000, 'status' => 'available']);
         Sanctum::actingAs($user);
 
@@ -248,7 +266,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_customer_booking_applies_the_late_return_grace_period_before_billing_extension(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
-        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-790', 'daily_rate' => 2000, 'status' => 'available']);
         Sanctum::actingAs($user);
 
@@ -282,7 +300,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_customer_booking_calculates_delivery_and_round_trip_return_fees_using_vehicle_rate(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
-        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         $vehicle = Vehicle::create([
             'brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-791',
             'daily_rate' => 2000, 'delivery_rate_per_km' => 50, 'status' => 'available',
@@ -324,7 +342,7 @@ class CustomerBookingRequestTest extends TestCase
     public function test_labeled_pinned_locations_still_calculate_delivery_fees(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
-        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
         $vehicle = Vehicle::create([
             'brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-792',
             'daily_rate' => 2000, 'delivery_rate_per_km' => 50, 'status' => 'available',
