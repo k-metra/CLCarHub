@@ -19,12 +19,12 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 use App\Services\PushNotificationService;
 use App\Models\BookingReturnPhoto;
-use App\Models\PartnerEarning;
 use App\Models\Customer;
 use App\Services\PayMongoService;
 use App\Services\DiscountCodeService;
 use App\Services\StaffAssignmentSmsService;
 use App\Services\PartnerAssignmentSmsService;
+use App\Services\PartnerEarningService;
 
 class BookingController extends Controller
 {
@@ -819,38 +819,7 @@ class BookingController extends Controller
 
         private function createPartnerEarning(Booking $booking): void
         {
-            $booking->loadMissing('vehicle.partner');
-            $partner = $booking->vehicle?->partner;
-
-            if (! $partner || PartnerEarning::where('booking_id', $booking->id)->exists()) {
-                return;
-            }
-
-            $grossAmount = $partner->commission_based_on === 'total_booking_amount'
-                ? max(0, (float) $booking->total_amount - $this->cashSecurityDeposit($booking))
-                : (float) $booking->rental_amount;
-            $partnerShare = $partner->commission_type === 'fixed_amount'
-                ? (float) $partner->commission_value
-                : $grossAmount * ((float) $partner->commission_value / 100);
-            $partnerShare = min($partnerShare, $grossAmount);
-
-            PartnerEarning::create([
-                'partner_id' => $partner->id,
-                'vehicle_id' => $booking->vehicle_id,
-                'booking_id' => $booking->id,
-                'gross_amount' => round($grossAmount, 2),
-                'commission_amount' => round(max(0, $grossAmount - $partnerShare), 2),
-                'net_amount' => round($partnerShare, 2),
-                'status' => 'pending',
-                'earned_at' => now()->toDateString(),
-            ]);
-        }
-
-        private function cashSecurityDeposit(Booking $booking): float
-        {
-            return ($booking->security_deposit_type ?? 'cash') === 'cash'
-                ? (float) $booking->deposit
-                : 0;
+            app(PartnerEarningService::class)->createForCompletedBooking($booking);
         }
 
         private function createSettlementPayment(Booking $booking, float $amount, int $fundId, ?int $userId, string $note): void
