@@ -3,6 +3,7 @@ import api from "./api";
 
 export type HostVehicle = {
   id: number;
+  status: "available" | "unavailable" | "maintenance" | string;
   name?: string;
   brand: string;
   model: string;
