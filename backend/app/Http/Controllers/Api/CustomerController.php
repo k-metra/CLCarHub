@@ -35,6 +35,7 @@ class CustomerController extends Controller
             'address' => ['required', 'string', 'min:5', 'max:1000'],
             'phone' => ['nullable', 'string', 'max:40'],
             'referral_source' => ['required', 'in:facebook,tiktok,google_search,word_of_mouth'],
+            'social_profile_url' => ['nullable', 'url', 'max:2048'],
         ]);
 
         $firstName = trim($data['first_name']);
@@ -56,6 +57,7 @@ class CustomerController extends Controller
                 'phone' => $phone,
                 'phone_verified_at' => $phoneChanged ? null : $customer->phone_verified_at,
                 'referral_source' => $data['referral_source'],
+                'social_profile_url' => $data['social_profile_url'] ?? null,
                 'onboarding_completed_at' => now(),
             ]);
             $customer->user()->update([
@@ -283,7 +285,7 @@ class CustomerController extends Controller
 
     private function rules(): array
     {
-        return ['name' => ['nullable', 'string', 'max:150'], 'first_name' => ['nullable', 'string', 'max:100'], 'middle_name' => ['nullable', 'string', 'max:100'], 'last_name' => ['nullable', 'string', 'max:100'], 'email' => ['nullable', 'email'], 'phone' => ['nullable', 'string', 'max:40'], 'address' => ['nullable', 'string'], 'date_of_birth' => ['nullable', 'date'], 'license_number' => ['nullable', 'string'], 'license_expiry' => ['nullable', 'date'], 'identification_information' => ['nullable', 'string'], 'notes' => ['nullable', 'string'], 'referral_source' => ['nullable', 'in:facebook,tiktok,google_search,word_of_mouth'], 'attachments' => ['nullable', 'array'], 'attachments.*.category' => ['required', 'in:license,ltms,proof_of_billing,secondary_id,selfie_license'], 'attachments.*.file' => ['required', 'image', 'max:20480']];
+        return ['name' => ['nullable', 'string', 'max:150'], 'first_name' => ['nullable', 'string', 'max:100'], 'middle_name' => ['nullable', 'string', 'max:100'], 'last_name' => ['nullable', 'string', 'max:100'], 'email' => ['nullable', 'email'], 'phone' => ['nullable', 'string', 'max:40'], 'address' => ['nullable', 'string'], 'date_of_birth' => ['nullable', 'date'], 'license_number' => ['nullable', 'string'], 'license_expiry' => ['nullable', 'date'], 'identification_information' => ['nullable', 'string'], 'notes' => ['nullable', 'string'], 'referral_source' => ['nullable', 'in:facebook,tiktok,google_search,word_of_mouth'], 'social_profile_url' => ['nullable', 'url', 'max:2048'], 'attachments' => ['nullable', 'array'], 'attachments.*.category' => ['required', 'in:license,ltms,proof_of_billing,secondary_id,selfie_license'], 'attachments.*.file' => ['required', 'image', 'max:20480']];
     }
 
     private function compositeName(array $data, ?Customer $customer = null): string
