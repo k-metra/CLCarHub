@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard', [\App\Http\Controllers\Api\HostController::class, 'dashboard']);
         Route::get('/bookings', [\App\Http\Controllers\Api\HostController::class, 'bookings']);
         Route::get('/vehicles/{vehicle}/location', [\App\Http\Controllers\Api\HostController::class, 'vehicleLocation']);
+        Route::patch('/vehicles/{vehicle}/status', [\App\Http\Controllers\Api\HostController::class, 'updateVehicleStatus']);
     });
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->group(function () {
         Route::patch('/host-contracts/{booking}', [\App\Http\Controllers\Api\HostContractController::class, 'update']);
