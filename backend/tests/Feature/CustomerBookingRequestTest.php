@@ -215,6 +215,26 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('customer_id', $customer->id);
     }
 
+    public function test_staff_customer_profile_includes_facebook_account_for_background_checks(): void
+    {
+        $staff = User::factory()->create(['role' => 'owner']);
+        $customerUser = User::factory()->create(['role' => 'customer']);
+        $customer = $customerUser->customer()->create(['name' => 'Customer']);
+        SocialAccount::create([
+            'user_id' => $customerUser->id,
+            'provider' => 'facebook',
+            'provider_user_id' => 'facebook-customer-2',
+            'provider_profile_url' => 'https://www.facebook.com/facebook-customer-2',
+        ]);
+        Sanctum::actingAs($staff);
+
+        $this->getJson("/api/customers/{$customer->id}")
+            ->assertOk()
+            ->assertJsonPath('user.social_accounts.0.provider', 'facebook')
+            ->assertJsonPath('user.social_accounts.0.provider_user_id', 'facebook-customer-2')
+            ->assertJsonPath('user.social_accounts.0.provider_profile_url', 'https://www.facebook.com/facebook-customer-2');
+    }
+
     public function test_customer_can_create_a_pending_unpaid_request_without_setting_pricing(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
