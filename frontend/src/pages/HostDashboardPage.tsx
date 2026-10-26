@@ -1,4 +1,5 @@
 import { HostShell } from "../components/HostShell";
+import { PwaInstallButton } from "../components/PwaInstallButton";
 import { useHostDashboard } from "../lib/hostPortal";
 import { formatPartnerName } from "../lib/partners";
 
@@ -19,6 +20,11 @@ export default function HostDashboardPage() {
       {loading && <p className="mt-8 text-sm text-[#777]">Loading overview...</p>}
       {error && <p className="mt-8 text-sm text-red-600">{error}</p>}
       {data && <div className="mt-8 space-y-8">
+        <aside className="rounded border border-[#ff641f]/30 bg-[#fff7f3] p-4 text-[#151515] sm:hidden">
+          <p className="text-sm font-semibold">Install CL CarHub for quick access</p>
+          <p className="mt-1 text-xs leading-5 text-[#666]">Add the host portal to your Home Screen for faster access to your earnings and vehicles.</p>
+          <PwaInstallButton className="mt-3" />
+        </aside>
         <section className="grid gap-4 md:grid-cols-4">
           {Object.entries(data.summary).map(([label, value]) => <div className="border border-black/10 bg-white p-5" key={label}><p className="text-xs uppercase tracking-widest text-[#777]">{label.replaceAll("_", " ")}</p><p className="mt-3 text-2xl font-semibold">₱{value.toLocaleString()}</p></div>)}
         </section>
