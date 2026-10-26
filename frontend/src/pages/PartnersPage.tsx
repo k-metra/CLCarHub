@@ -216,9 +216,9 @@ export default function PartnersPage() {
           </button>
         </div>
         {showForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
             <form
-              className="w-full max-w-2xl bg-white p-6 shadow-2xl"
+              className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto bg-white p-6 shadow-2xl"
               onSubmit={save}
             >
               <div className="flex items-center justify-between">
@@ -339,8 +339,8 @@ export default function PartnersPage() {
           </div>
         )}
         {provisioning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="provision-host-title">
-            <form className="theme-surface w-full max-w-xl bg-white p-6 shadow-2xl" onSubmit={provision}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="provision-host-title">
+            <form className="theme-surface max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl" onSubmit={provision}>
               <div className="flex items-start justify-between gap-4">
                 <div><p className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Host access</p><h2 id="provision-host-title" className="mt-2 font-['Space_Grotesk'] text-2xl font-semibold">Connect {provisioning.name}</h2><p className="mt-2 text-sm text-[#777]">Choose an existing account or create a secure invitation link.</p></div>
                 <button type="button" className="text-2xl text-[#777]" aria-label="Close host provisioning dialog" onClick={() => setProvisioning(null)}>×</button>
