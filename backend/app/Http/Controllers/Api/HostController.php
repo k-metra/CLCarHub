@@ -8,6 +8,7 @@ use App\Models\Vehicle;
 use App\Services\AikaGpsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class HostController extends Controller
 {
@@ -49,6 +50,21 @@ class HostController extends Controller
         abort_unless($vehicle->partner_id === $partner->id, 404);
 
         return $aikaGps->location($vehicle);
+    }
+
+    public function updateVehicleStatus(Request $request, Vehicle $vehicle)
+    {
+        $partner = $request->user()->partner()->firstOrFail();
+        abort_unless($partner->host_access_status === 'active', 403, 'Host Dashboard access is not active.');
+        abort_unless($vehicle->partner_id === $partner->id, 404);
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['available', 'unavailable', 'maintenance'])],
+        ]);
+
+        $vehicle->update(['status' => $data['status']]);
+
+        return $vehicle->fresh(['images', 'partnerContracts']);
     }
 
     public function bookings(Request $request)
