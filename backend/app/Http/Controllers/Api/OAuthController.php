@@ -103,7 +103,12 @@ class OAuthController extends Controller
             }
             SocialAccount::updateOrCreate(
                 ['provider' => $provider, 'provider_user_id' => $profile->getId()],
-                ['user_id' => $user->id, 'provider_email' => $profile->getEmail(), 'provider_avatar_url' => $profile->getAvatar()],
+                [
+                    'user_id' => $user->id,
+                    'provider_email' => $profile->getEmail(),
+                    'provider_avatar_url' => $profile->getAvatar(),
+                    'provider_profile_url' => $this->profileUrl($provider, $profile->getRaw(), $profile->getId()),
+                ],
             );
             AuditLogger::record('account', 'social_account_linked', "Linked {$provider} login: {$user->name}", $user, null, $request);
             $redirectUrl = $this->frontendUrl().'/profile?oauth_linked='.urlencode($provider);
@@ -196,6 +201,7 @@ class OAuthController extends Controller
                     'provider_user_id' => $profile->getId(),
                     'provider_email' => $profile->getEmail(),
                     'provider_avatar_url' => $profile->getAvatar(),
+                    'provider_profile_url' => $this->profileUrl($provider, $profile->getRaw(), $profile->getId()),
                 ]);
 
                 return $user;
@@ -307,7 +313,14 @@ class OAuthController extends Controller
             if ($social) return $social->user;
             $user = User::create(['name' => $pending['provider_name'], 'username' => $this->uniqueUsername($pending['provider_name']), 'email' => null, 'password' => Str::random(40), 'role' => 'customer', 'status' => 'active', 'email_verified_at' => now(), 'phone' => $pending['phone']]);
             $user->customer()->create(['name' => $pending['provider_name'], 'phone' => $pending['phone'], 'phone_verified_at' => now()]);
-            SocialAccount::create(['user_id' => $user->id, 'provider' => $pending['provider'], 'provider_user_id' => $pending['provider_user_id'], 'provider_email' => null, 'provider_avatar_url' => $pending['provider_avatar_url']]);
+            SocialAccount::create([
+                'user_id' => $user->id,
+                'provider' => $pending['provider'],
+                'provider_user_id' => $pending['provider_user_id'],
+                'provider_email' => null,
+                'provider_avatar_url' => $pending['provider_avatar_url'],
+                'provider_profile_url' => $this->profileUrl($pending['provider'], [], $pending['provider_user_id']),
+            ]);
             return $user;
         });
         $firstLogin = $user->last_login_at === null;
@@ -318,6 +331,17 @@ class OAuthController extends Controller
     private function validateProvider(string $provider): void
     {
         abort_unless(in_array($provider, self::PROVIDERS, true), 404);
+    }
+
+    private function profileUrl(string $provider, array $raw, string $providerUserId): ?string
+    {
+        if (isset($raw['link']) && is_string($raw['link']) && filter_var($raw['link'], FILTER_VALIDATE_URL)) {
+            return $raw['link'];
+        }
+
+        return $provider === 'facebook' && $providerUserId !== ''
+            ? 'https://www.facebook.com/'.$providerUserId
+            : null;
     }
 
     private function callbackCacheKey(Request $request, string $provider): ?string
