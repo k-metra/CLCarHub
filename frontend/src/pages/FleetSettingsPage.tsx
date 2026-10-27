@@ -546,7 +546,7 @@ export default function FleetSettingsPage() {
           <p className="mt-2 text-sm text-[#777]">Add the questions and answers customers should see on the public homepage.</p>
           <div className="mt-6 space-y-4">
             {settings.faqs.map((faq, index) => (
-              <div className="border border-black/10 p-4" key={`${index}-${faq.question}`}>
+              <div className="border border-black/10 p-4" key={`faq-${index}`}>
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm font-semibold">Question {index + 1}</p>
                   <button type="button" className="text-xs font-semibold text-red-600" onClick={() => removeFaq(index)}>Remove</button>
