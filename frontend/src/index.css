@@ -259,6 +259,9 @@ html.theme-dark .dashboard-theme [class~="text-blue-700"],
 html.theme-dark .dashboard-theme [class~="text-sky-700"] {
   color: #9bcfff;
 }
+html.theme-dark .dashboard-theme [class~="text-sky-900"] {
+  color: #c4e3ff;
+}
 html.theme-dark .dashboard-theme [class~="bg-gray-100"],
 html.theme-dark .dashboard-theme [class~="bg-slate-100"] {
   background-color: #303030;
