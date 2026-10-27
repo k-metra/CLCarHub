@@ -7,6 +7,7 @@ type DateTimePickerProps = {
   value: string;
   onChange: (value: string) => void;
   mode?: PickerMode;
+  minDate?: string;
   className?: string;
   required?: boolean;
   disabled?: boolean;
@@ -47,6 +48,7 @@ export function DateTimePicker({
   value,
   onChange,
   mode = "date",
+  minDate,
   className = "",
   required = false,
   disabled = false,
@@ -106,11 +108,16 @@ export function DateTimePicker({
     });
   }, [month]);
 
+  const minimumDate = minDate ? parseDate(minDate) : null;
+  const minimumDateValue = minimumDate ? formatDate(minimumDate) : null;
+  const monthValue = `${month.getFullYear()}-${pad(month.getMonth() + 1)}`;
+  const minimumMonthValue = minimumDateValue?.slice(0, 7);
   const years = Array.from({ length: 11 }, (_, index) => month.getFullYear() - 5 + index);
   const timeSlots = Array.from({ length: 96 }, (_, index) => `${pad(Math.floor(index / 4))}:${pad((index % 4) * 15)}`);
 
   const selectDate = (date: Date) => {
     const nextDate = formatDate(date);
+    if (minimumDateValue && nextDate < minimumDateValue) return;
     onChange(mode === "datetime" ? `${nextDate}T${time}` : nextDate);
     setMonth(date);
     if (mode === "date") setOpen(false);
@@ -145,7 +152,7 @@ export function DateTimePicker({
       {open && !disabled && createPortal(
         <div ref={popoverRef} style={{ top: anchor.top, left: anchor.left }} className="datetime-picker-popover theme-surface fixed z-[220] w-[22rem] rounded border border-black/10 bg-white p-3 shadow-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
-            <button type="button" className="calendar-nav flex h-10 w-10 shrink-0 items-center justify-center rounded text-lg hover:bg-black/5" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button>
+            <button type="button" disabled={Boolean(minimumMonthValue && monthValue <= minimumMonthValue)} className="calendar-nav flex h-10 w-10 shrink-0 items-center justify-center rounded text-lg hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button>
             <div className="flex min-w-0 flex-1 gap-1 sm:gap-2">
               <select className="min-w-0 flex-1 border border-black/10 px-1 py-2 text-sm font-semibold sm:px-2 sm:py-1" value={month.getMonth()} onChange={event => setMonth(new Date(month.getFullYear(), Number(event.target.value), 1))}>
                 {Array.from({ length: 12 }, (_, index) => <option value={index} key={index}>{new Date(2000, index, 1).toLocaleDateString([], { month: "long" })}</option>)}
@@ -161,7 +168,8 @@ export function DateTimePicker({
             {days.map(day => {
               const active = datePart(value) === formatDate(day);
               const inMonth = day.getMonth() === month.getMonth();
-              return <button type="button" key={formatDate(day)} onClick={() => selectDate(day)} className={`calendar-day min-h-10 rounded py-2 text-sm ${active ? "bg-[#ff641f] font-bold text-white" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>{day.getDate()}</button>;
+              const beforeMinimum = Boolean(minimumDateValue && formatDate(day) < minimumDateValue);
+              return <button type="button" disabled={beforeMinimum} key={formatDate(day)} onClick={() => selectDate(day)} className={`calendar-day min-h-10 rounded py-2 text-sm ${active ? "bg-[#ff641f] font-bold text-white" : beforeMinimum ? "cursor-not-allowed text-[#ddd]" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>{day.getDate()}</button>;
             })}
           </div>
           {mode === "datetime" && (
