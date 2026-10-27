@@ -76,13 +76,13 @@ class BookingController extends Controller
     {
         $customer = $this->authenticatedCustomer($request);
         $facebookConnected = $customer->user?->hasFacebookAccount() ?? false;
-        abort_unless(filled($customer->social_profile_url) || $facebookConnected, 422, 'Add a link to one of your active social profiles before booking.');
         $data = $request->validate([
             'vehicle_id' => ['required', 'exists:vehicles,id'],
             'addons' => ['nullable', 'array'],
             'addons.*' => ['integer', 'exists:addons,id'],
-            'pickup_at' => ['required', 'date'],
+            'pickup_at' => ['required', 'date', 'after_or_equal:today'],
             'return_at' => ['required', 'date', 'after:pickup_at'],
+            'social_profile_url' => ['nullable', 'url', 'max:2048'],
             'destination' => ['nullable', 'string', 'max:255'],
             'delivery_address' => ['required_if:payment_method,cash_on_delivery', 'nullable', 'string', 'max:255'],
             'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],
@@ -95,6 +95,12 @@ class BookingController extends Controller
             'payment_amount' => ['nullable', 'numeric', 'min:0'],
             'discount_code' => ['nullable', 'string', 'max:80'],
         ]);
+        if (! $facebookConnected && filled($data['social_profile_url'] ?? null)) {
+            Customer::query()->whereKey($customer->id)->update(['social_profile_url' => $data['social_profile_url']]);
+        }
+        unset($data['social_profile_url']);
+        $socialProfileUrl = Customer::query()->whereKey($customer->id)->value('social_profile_url');
+        abort_unless(filled($socialProfileUrl) || $facebookConnected, 422, 'Add a link to one of your active social profiles before booking.');
 
         $booking = DB::transaction(function () use ($data, $customer, $request) {
             $paymentAmount = $data['payment_amount'] ?? null;
@@ -178,7 +184,7 @@ class BookingController extends Controller
         $customer = $this->authenticatedCustomer($request);
         $data = $request->validate([
             'vehicle_id' => ['required', 'exists:vehicles,id'],
-            'pickup_at' => ['required', 'date'],
+            'pickup_at' => ['required', 'date', 'after_or_equal:today'],
             'return_at' => ['required', 'date', 'after:pickup_at'],
             'discount_code' => ['required', 'string', 'max:80'],
         ]);
