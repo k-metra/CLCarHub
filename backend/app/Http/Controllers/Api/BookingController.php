@@ -52,6 +52,12 @@ class BookingController extends Controller
         $customer = $this->authenticatedCustomer($request);
         abort_unless($booking->customer_id === $customer->id, 404);
         abort_if(in_array($booking->status, [Booking::CANCELLED, Booking::REJECTED], true), 422, 'Cancelled or rejected bookings cannot receive payments.');
+        $booking->load('vehicle');
+        abort_if(
+            $this->hasReservedVehicleConflict($booking->vehicle, $booking->pickup_at, $booking->return_at, $booking->id),
+            422,
+            'This vehicle has already been reserved by another customer during your selected dates. Please reschedule your booking. To avoid this in the future, pay at least the reservation fee when you submit your booking request.'
+        );
 
         $data = $request->validate(['amount' => ['required', 'numeric', 'min:0.01']]);
         $booking->load('payments');
@@ -95,15 +101,7 @@ class BookingController extends Controller
             unset($data['payment_amount']);
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
             abort_unless($vehicle->hasActivePartnerContract(), 422, 'This partner vehicle is not eligible for rental until its contract is approved.');
-            abort_if(
-                $vehicle->status !== 'available'
-                    || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)
-                        ->where('pickup_at', '<', $data['return_at'])
-                        ->where('return_at', '>', $data['pickup_at'])
-                        ->exists(),
-                422,
-                'The vehicle is not available for the selected period.'
-            );
+            abort_if($vehicle->status !== 'available' || $this->hasReservedVehicleConflict($vehicle, $data['pickup_at'], $data['return_at']), 422, 'The vehicle is not available for the selected period.');
 
             $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null, null);
             $rental = $rentalBreakdown['rental'];
@@ -631,6 +629,20 @@ class BookingController extends Controller
             $baseRental,
             $durationHours,
         );
+    }
+
+    private function hasReservedVehicleConflict(Vehicle $vehicle, Carbon|string $pickupAt, Carbon|string $returnAt, ?int $ignoreBookingId = null): bool
+    {
+        return $vehicle->bookings()
+            ->whereIn('status', Booking::ACTIVE_STATUSES)
+            ->where(function ($query): void {
+                $query->where('status', '<>', Booking::PENDING)
+                    ->orWhereIn('payment_status', ['partial', 'paid']);
+            })
+            ->when($ignoreBookingId, fn ($query) => $query->where('id', '<>', $ignoreBookingId))
+            ->where('pickup_at', '<', $returnAt)
+            ->where('return_at', '>', $pickupAt)
+            ->exists();
     }
 
     private function rules(bool $updating = false): array
