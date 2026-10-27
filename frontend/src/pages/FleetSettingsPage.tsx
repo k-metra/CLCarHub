@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import { Skeleton, useToast } from "../components/Ui";
@@ -159,6 +159,24 @@ export default function FleetSettingsPage() {
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [discountCodeForm, setDiscountCodeForm] = useState<DiscountCode>(emptyDiscountCode);
   const [discountCodeSaving, setDiscountCodeSaving] = useState(false);
+  const [openManager, setOpenManager] = useState<"faqs" | "discount-codes" | null>(null);
+  const [faqSearch, setFaqSearch] = useState("");
+  const [discountCodeSearch, setDiscountCodeSearch] = useState("");
+  const [discountCodeStatusFilter, setDiscountCodeStatusFilter] = useState<"all" | DiscountCode["status"]>("all");
+
+  useEffect(() => {
+    if (!openManager) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenManager(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openManager]);
 
   useEffect(() => {
     api.get<FleetSettings>("/fleet-settings")
@@ -385,6 +403,18 @@ export default function FleetSettingsPage() {
       showToast(error instanceof Error ? error.message : "Unable to delete discount code.", "error");
     }
   };
+  const filteredFaqs = useMemo(() => {
+    const query = faqSearch.trim().toLowerCase();
+    if (!query) return settings.faqs;
+    return settings.faqs.filter(faq => `${faq.question} ${faq.answer}`.toLowerCase().includes(query));
+  }, [faqSearch, settings.faqs]);
+  const filteredDiscountCodes = useMemo(() => {
+    const query = discountCodeSearch.trim().toLowerCase();
+    return discountCodes.filter(code => {
+      const matchesSearch = !query || `${code.name} ${code.code}`.toLowerCase().includes(query);
+      return matchesSearch && (discountCodeStatusFilter === "all" || code.status === discountCodeStatusFilter);
+    });
+  }, [discountCodeSearch, discountCodeStatusFilter, discountCodes]);
 
   return (
     <AdminShell title="Fleet Settings">
@@ -517,49 +547,23 @@ export default function FleetSettingsPage() {
           </div>
           {!loading && <div className="mt-5 flex items-center justify-between gap-4"><p className="text-xs text-[#777]" aria-live="polite">{saving ? "Saving your discount structures..." : "Changes are local until you save them."}</p><button type="button" disabled={saving} onClick={saveDiscountStructures} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving..." : "Save discount structures"}</button></div>}
         </section>
-        <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
             <p className="text-xs uppercase tracking-widest text-[#ff641f]">Promotions</p>
             <h2 className="mt-2 text-2xl font-semibold">Discount codes</h2>
-            <p className="mt-2 text-sm text-[#777]">Create codes that apply to the base rental after discount structures. Add-ons, deposits, and delivery are excluded.</p>
-            <form className="mt-6 grid gap-4 sm:grid-cols-2" onSubmit={saveDiscountCode}>
-              <label className="text-sm">Name<input required className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.name} onChange={event => setDiscountCodeForm(current => ({ ...current, name: event.target.value }))} /></label>
-              <label className="text-sm">Code<input required className="mt-2 w-full border border-black/10 px-3 py-2 uppercase" value={discountCodeForm.code} onChange={event => setDiscountCodeForm(current => ({ ...current, code: event.target.value.toUpperCase() }))} /></label>
-              <label className="text-sm">Type<select className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.type} onChange={event => setDiscountCodeForm(current => ({ ...current, type: event.target.value as DiscountCode["type"] }))}><option value="fixed">Fixed amount</option><option value="percentage">Percentage</option></select></label>
-              <label className="text-sm">Value<input required min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.value} onChange={event => setDiscountCodeForm(current => ({ ...current, value: event.target.value }))} /></label>
-              <label className="text-sm">Maximum discount (optional)<input min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.maximum_discount ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, maximum_discount: event.target.value || null }))} /></label>
-              <label className="text-sm">Total redemptions (optional)<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.redemptions_allowed ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, redemptions_allowed: event.target.value ? Number(event.target.value) : null }))} /></label>
-              <label className="text-sm">Starts at<DateTimePicker mode="datetime" className="mt-2 w-full border border-black/10 px-3 py-2" value={dateTimePickerValue(discountCodeForm.starts_at)} onChange={value => setDiscountCodeForm(current => ({ ...current, starts_at: value || null }))} placeholder="Choose start date and time" /></label>
-              <label className="text-sm">Ends at<DateTimePicker mode="datetime" className="mt-2 w-full border border-black/10 px-3 py-2" value={dateTimePickerValue(discountCodeForm.ends_at)} onChange={value => setDiscountCodeForm(current => ({ ...current, ends_at: value || null }))} placeholder="Choose end date and time" /></label>
-              <label className="text-sm">Minimum rental amount<input min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.minimum_booking_amount ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, minimum_booking_amount: event.target.value || null }))} /></label>
-              <label className="text-sm">Minimum duration (hours)<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.minimum_duration_hours ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, minimum_duration_hours: event.target.value ? Number(event.target.value) : null }))} /></label>
-              <label className="text-sm">Status<select className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.status} onChange={event => setDiscountCodeForm(current => ({ ...current, status: event.target.value as DiscountCode["status"] }))}>{["draft", "scheduled", "active", "paused"].map(status => <option key={status} value={status}>{status}</option>)}</select></label>
-              <label className="text-sm">Limit per customer<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.limit_per_customer} onChange={event => setDiscountCodeForm(current => ({ ...current, limit_per_customer: Number(event.target.value) }))} /></label>
-              <fieldset className="sm:col-span-2"><legend className="text-sm">Applicable vehicle categories</legend><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="border border-[#ff641f] px-3 py-2 text-sm font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm(current => ({ ...current, vehicle_types: current.vehicle_types?.length === vehicleTypes.length ? [] : allVehicleTypes() }))}>{discountCodeForm.vehicle_types?.length === vehicleTypes.length ? "Deselect all" : "Select all"}</button>{vehicleTypes.map(type => <label key={type} className="flex items-center gap-2 border border-black/10 px-3 py-2 text-sm"><input type="checkbox" checked={discountCodeForm.vehicle_types?.includes(type) ?? false} onChange={event => setDiscountCodeForm(current => ({ ...current, vehicle_types: event.target.checked ? [...(current.vehicle_types ?? []), type] : (current.vehicle_types ?? []).filter(item => item !== type) }))} />{vehicleTypeLabels[type]}</label>)}</div></fieldset>
-              <div className="flex flex-wrap items-center gap-4 text-sm sm:col-span-2"><label><input type="checkbox" checked={discountCodeForm.new_customers_only} onChange={event => setDiscountCodeForm(current => ({ ...current, new_customers_only: event.target.checked }))} /> <span className="ml-1">New customers only</span></label><label><input type="checkbox" checked={discountCodeForm.stackable} onChange={event => setDiscountCodeForm(current => ({ ...current, stackable: event.target.checked }))} /> <span className="ml-1">Stackable</span></label></div>
-              <div className="flex items-center gap-3 sm:col-span-2"><button disabled={discountCodeSaving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{discountCodeSaving ? (discountCodeForm.id ? "Updating..." : "Creating...") : (discountCodeForm.id ? "Update code" : "Create code")}</button>{discountCodeForm.id && <button type="button" disabled={discountCodeSaving} className="border border-black/10 px-5 py-3 text-sm disabled:opacity-50" onClick={() => setDiscountCodeForm(emptyDiscountCode())}>Cancel</button>}<span className="text-xs text-[#777]" role="status" aria-live="polite">{discountCodeSaving ? "Saving discount code..." : "New codes appear below immediately after saving."}</span></div>
-            </form>
-            <div className="mt-8 space-y-2">{discountCodes.map(code => <div key={code.id} className="flex flex-wrap items-center justify-between gap-3 border border-black/10 p-3 text-sm"><div><strong>{code.code}</strong><span className="ml-2 text-[#777]">{code.name}</span><span className="ml-2 rounded bg-black/5 px-2 py-1 text-xs">{code.status}</span><span className="ml-2 text-[#777]">Applied {code.redemptions_count ?? 0}{code.redemptions_allowed !== null ? ` / ${code.redemptions_allowed}` : ""} times</span></div><div className="flex gap-3"><button type="button" className="font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm({ ...code, starts_at: dateTimePickerValue(code.starts_at), ends_at: dateTimePickerValue(code.ends_at) })}>Edit</button>{code.id && <button type="button" className="text-red-600" onClick={() => void deleteDiscountCode(code.id!)}>Delete</button>}</div></div>)}</div>
+            <p className="mt-2 text-sm text-[#777]">Manage reusable codes without crowding the main fleet settings.</p>
+            <p className="mt-5 text-sm font-semibold">{discountCodes.length} {discountCodes.length === 1 ? "code" : "codes"} configured</p>
+            <button type="button" className="mt-5 bg-[#ff641f] px-5 py-3 text-sm font-bold text-white" onClick={() => setOpenManager("discount-codes")}>Open discount codes</button>
           </section>
           <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
-          <p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p>
-          <h2 className="mt-2 text-2xl font-semibold">Frequently asked questions</h2>
-          <p className="mt-2 text-sm text-[#777]">Add the questions and answers customers should see on the public homepage.</p>
-          <div className="mt-6 space-y-4">
-            {settings.faqs.map((faq, index) => (
-              <div className="border border-black/10 p-4" key={`faq-${index}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-semibold">Question {index + 1}</p>
-                  <button type="button" className="text-xs font-semibold text-red-600" onClick={() => removeFaq(index)}>Remove</button>
-                </div>
-                <input className="mt-3 w-full border border-black/10 px-3 py-3 text-sm" value={faq.question} onChange={event => updateFaq(index, { ...faq, question: event.target.value })} placeholder="What should customers know?" maxLength={255} />
-                <RichTextEditor rows={6} value={faq.answer} onChange={answer => updateFaq(index, { ...faq, answer })} placeholder="Write an answer, then select text to make it bold, italic, underlined, or a link..." />
-              </div>
-            ))}
-            <button type="button" className="border border-[#ff641f] px-4 py-3 text-sm font-semibold text-[#ff641f]" onClick={addFaq}>Add FAQ</button>
-            <div className="flex justify-end">
-              <button type="button" disabled={saving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50" onClick={() => void persistSettings()}>{saving ? "Saving..." : "Save FAQs"}</button>
-            </div>
-          </div>
+            <p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p>
+            <h2 className="mt-2 text-2xl font-semibold">Frequently asked questions</h2>
+            <p className="mt-2 text-sm text-[#777]">Manage the questions and answers shown on the public website.</p>
+            <p className="mt-5 text-sm font-semibold">{settings.faqs.length} {settings.faqs.length === 1 ? "question" : "questions"} configured</p>
+            <button type="button" className="mt-5 bg-[#ff641f] px-5 py-3 text-sm font-bold text-white" onClick={() => setOpenManager("faqs")}>Open FAQ manager</button>
+          </section>
+        </div>
+        <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <h2 className="mt-2 text-2xl font-semibold">Legal pages</h2>
           <p className="mt-2 text-sm text-[#777]">
             Edit the content shown on the public Terms and conditions and Privacy policy pages. Plain text is preserved with line breaks.
@@ -683,6 +687,63 @@ export default function FleetSettingsPage() {
           <p className="mt-2">Default security deposit, minimum rental duration, booking buffers, customer cancellation rules, and maintenance scheduling can be added here as the fleet policy grows.</p>
         </section>
       </div>
+      {openManager === "faqs" && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-2 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="faq-manager-title">
+        <section className="theme-surface flex max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+          <div className="flex items-start justify-between gap-3 border-b border-black/10 p-4 sm:gap-4 sm:p-6">
+            <div className="min-w-0"><p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p><h2 id="faq-manager-title" className="mt-2 text-2xl font-semibold">FAQ manager</h2><p className="mt-1 text-sm text-[#777]">Search, edit, and publish customer questions and answers.</p></div>
+            <button type="button" className="min-h-11 min-w-11 shrink-0 text-2xl leading-none text-[#777] hover:text-[#151515]" aria-label="Close FAQ manager" onClick={() => setOpenManager(null)}>×</button>
+          </div>
+          <div className="flex flex-col gap-3 border-b border-black/10 p-3 sm:flex-row sm:p-4">
+            <input className="min-h-11 min-w-0 flex-1 border border-black/10 px-3 py-3 text-sm" placeholder="Search questions and answers" value={faqSearch} onChange={event => setFaqSearch(event.target.value)} />
+            <button type="button" className="min-h-11 border border-[#ff641f] px-4 py-3 text-sm font-semibold text-[#ff641f]" onClick={addFaq}>+ Add FAQ</button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6">
+            {filteredFaqs.length ? <div className="space-y-4">{filteredFaqs.map(faq => {
+              const index = settings.faqs.indexOf(faq);
+              return <div className="border border-black/10 p-4" key={`faq-${index}`}>
+                <div className="flex items-start justify-between gap-3"><p className="text-sm font-semibold">Question {index + 1}</p><button type="button" className="text-xs font-semibold text-red-600" onClick={() => removeFaq(index)}>Remove</button></div>
+                <input className="mt-3 w-full border border-black/10 px-3 py-3 text-sm" value={faq.question} onChange={event => updateFaq(index, { ...faq, question: event.target.value })} placeholder="What should customers know?" maxLength={255} />
+                <RichTextEditor rows={6} value={faq.answer} onChange={answer => updateFaq(index, { ...faq, answer })} placeholder="Write an answer, then select text to make it bold, italic, underlined, or a link..." />
+              </div>;
+            })}</div> : <p className="border border-dashed border-black/15 p-8 text-center text-sm text-[#777]">{settings.faqs.length ? "No FAQs match your search." : "No FAQs yet. Add your first question."}</p>}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 p-3 sm:p-6"><p className="text-xs text-[#777]" aria-live="polite">{saving ? "Saving FAQs..." : `${settings.faqs.length} ${settings.faqs.length === 1 ? "FAQ" : "FAQs"}`}</p><button type="button" disabled={saving} className="min-h-11 bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50" onClick={() => void persistSettings()}>{saving ? "Saving..." : "Save FAQs"}</button></div>
+        </section>
+      </div>}
+      {openManager === "discount-codes" && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-2 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="discount-code-manager-title">
+        <section className="theme-surface flex max-h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-hidden rounded bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+          <div className="flex items-start justify-between gap-3 border-b border-black/10 p-4 sm:gap-4 sm:p-6">
+            <div className="min-w-0"><p className="text-xs uppercase tracking-widest text-[#ff641f]">Promotions</p><h2 id="discount-code-manager-title" className="mt-2 text-2xl font-semibold">Discount code manager</h2><p className="mt-1 text-sm text-[#777]">Search, filter, and maintain promotion codes.</p></div>
+            <button type="button" className="min-h-11 min-w-11 shrink-0 text-2xl leading-none text-[#777] hover:text-[#151515]" aria-label="Close discount code manager" onClick={() => setOpenManager(null)}>×</button>
+          </div>
+          <div className="flex flex-col gap-3 border-b border-black/10 p-3 sm:flex-row sm:p-4">
+            <input className="min-h-11 min-w-0 flex-1 border border-black/10 px-3 py-3 text-sm" placeholder="Search by code or name" value={discountCodeSearch} onChange={event => setDiscountCodeSearch(event.target.value)} />
+            <select className="min-h-11 border border-black/10 px-3 py-3 text-sm" value={discountCodeStatusFilter} onChange={event => setDiscountCodeStatusFilter(event.target.value as typeof discountCodeStatusFilter)}><option value="all">All statuses</option>{["draft", "scheduled", "active", "paused", "expired", "exhausted"].map(status => <option key={status} value={status}>{status}</option>)}</select>
+            <button type="button" className="min-h-11 border border-[#ff641f] px-4 py-3 text-sm font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm(emptyDiscountCode())}>+ New code</button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6">
+            <form className="grid gap-4 border-b border-black/10 pb-6 sm:grid-cols-2" onSubmit={saveDiscountCode}>
+              <label className="text-sm">Name<input required className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.name} onChange={event => setDiscountCodeForm(current => ({ ...current, name: event.target.value }))} /></label>
+              <label className="text-sm">Code<input required className="mt-2 w-full border border-black/10 px-3 py-2 uppercase" value={discountCodeForm.code} onChange={event => setDiscountCodeForm(current => ({ ...current, code: event.target.value.toUpperCase() }))} /></label>
+              <label className="text-sm">Type<select className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.type} onChange={event => setDiscountCodeForm(current => ({ ...current, type: event.target.value as DiscountCode["type"] }))}><option value="fixed">Fixed amount</option><option value="percentage">Percentage</option></select></label>
+              <label className="text-sm">Value<input required min="0" step="0.01" type="number" className="w-full border border-black/10 px-3 py-2" value={discountCodeForm.value} onChange={event => setDiscountCodeForm(current => ({ ...current, value: event.target.value }))} /></label>
+              <label className="text-sm">Maximum discount (optional)<input min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.maximum_discount ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, maximum_discount: event.target.value || null }))} /></label>
+              <label className="text-sm">Total redemptions (optional)<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.redemptions_allowed ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, redemptions_allowed: event.target.value ? Number(event.target.value) : null }))} /></label>
+              <label className="text-sm">Starts at<DateTimePicker mode="datetime" className="mt-2 w-full border border-black/10 px-3 py-2" value={dateTimePickerValue(discountCodeForm.starts_at)} onChange={value => setDiscountCodeForm(current => ({ ...current, starts_at: value || null }))} placeholder="Choose start date and time" /></label>
+              <label className="text-sm">Ends at<DateTimePicker mode="datetime" className="mt-2 w-full border border-black/10 px-3 py-2" value={dateTimePickerValue(discountCodeForm.ends_at)} onChange={value => setDiscountCodeForm(current => ({ ...current, ends_at: value || null }))} placeholder="Choose end date and time" /></label>
+              <label className="text-sm">Minimum rental amount<input min="0" step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.minimum_booking_amount ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, minimum_booking_amount: event.target.value || null }))} /></label>
+              <label className="text-sm">Minimum duration (hours)<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.minimum_duration_hours ?? ""} onChange={event => setDiscountCodeForm(current => ({ ...current, minimum_duration_hours: event.target.value ? Number(event.target.value) : null }))} /></label>
+              <label className="text-sm">Status<select className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.status} onChange={event => setDiscountCodeForm(current => ({ ...current, status: event.target.value as DiscountCode["status"] }))}>{["draft", "scheduled", "active", "paused"].map(status => <option key={status} value={status}>{status}</option>)}</select></label>
+              <label className="text-sm">Limit per customer<input min="1" type="number" className="mt-2 w-full border border-black/10 px-3 py-2" value={discountCodeForm.limit_per_customer} onChange={event => setDiscountCodeForm(current => ({ ...current, limit_per_customer: Number(event.target.value) }))} /></label>
+              <fieldset className="sm:col-span-2"><legend className="text-sm">Applicable vehicle categories</legend><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="border border-[#ff641f] px-3 py-2 text-sm font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm(current => ({ ...current, vehicle_types: current.vehicle_types?.length === vehicleTypes.length ? [] : allVehicleTypes() }))}>{discountCodeForm.vehicle_types?.length === vehicleTypes.length ? "Deselect all" : "Select all"}</button>{vehicleTypes.map(type => <label key={type} className="flex items-center gap-2 border border-black/10 px-3 py-2 text-sm"><input type="checkbox" checked={discountCodeForm.vehicle_types?.includes(type) ?? false} onChange={event => setDiscountCodeForm(current => ({ ...current, vehicle_types: event.target.checked ? [...(current.vehicle_types ?? []), type] : (current.vehicle_types ?? []).filter(item => item !== type) }))} />{vehicleTypeLabels[type]}</label>)}</div></fieldset>
+              <div className="flex flex-wrap items-center gap-4 text-sm sm:col-span-2"><label><input type="checkbox" checked={discountCodeForm.new_customers_only} onChange={event => setDiscountCodeForm(current => ({ ...current, new_customers_only: event.target.checked }))} /> <span className="ml-1">New customers only</span></label><label><input type="checkbox" checked={discountCodeForm.stackable} onChange={event => setDiscountCodeForm(current => ({ ...current, stackable: event.target.checked }))} /> <span className="ml-1">Stackable</span></label></div>
+              <div className="flex items-center gap-3 sm:col-span-2"><button disabled={discountCodeSaving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{discountCodeSaving ? (discountCodeForm.id ? "Updating..." : "Creating...") : (discountCodeForm.id ? "Update code" : "Create code")}</button>{discountCodeForm.id && <button type="button" disabled={discountCodeSaving} className="border border-black/10 px-5 py-3 text-sm" onClick={() => setDiscountCodeForm(emptyDiscountCode())}>Cancel</button>}</div>
+            </form>
+            <div className="mt-6 space-y-2">{filteredDiscountCodes.map(code => <div key={code.id} className="flex flex-wrap items-center justify-between gap-3 border border-black/10 p-3 text-sm"><div><strong>{code.code}</strong><span className="ml-2 text-[#777]">{code.name}</span><span className="ml-2 rounded bg-black/5 px-2 py-1 text-xs">{code.status}</span><span className="ml-2 text-[#777]">Applied {code.redemptions_count ?? 0}{code.redemptions_allowed !== null ? ` / ${code.redemptions_allowed}` : ""} times</span></div><div className="flex gap-3"><button type="button" className="font-semibold text-[#ff641f]" onClick={() => setDiscountCodeForm({ ...code, starts_at: dateTimePickerValue(code.starts_at), ends_at: dateTimePickerValue(code.ends_at) })}>Edit</button>{code.id && <button type="button" className="text-red-600" onClick={() => void deleteDiscountCode(code.id!)}>Delete</button>}</div></div>)}</div>
+            {!filteredDiscountCodes.length && <p className="mt-6 border border-dashed border-black/15 p-8 text-center text-sm text-[#777]">No discount codes match the current search or filter.</p>}
+          </div>
+        </section>
+      </div>}
     </AdminShell>
   );
 }
