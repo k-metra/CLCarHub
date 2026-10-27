@@ -678,6 +678,7 @@ export default function BookingsPage() {
     terms_and_conditions: null,
     privacy_policy: null,
     discount_structures: [],
+    faqs: [],
   });
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
