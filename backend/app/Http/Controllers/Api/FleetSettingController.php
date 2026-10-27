@@ -13,7 +13,7 @@ class FleetSettingController extends Controller
     {
         $settings = FleetSetting::firstOrCreate(['id' => 1]);
 
-        return $settings->only(['terms_and_conditions', 'privacy_policy']);
+        return $settings->only(['terms_and_conditions', 'privacy_policy', 'faqs']);
     }
 
     public function show()
@@ -23,6 +23,7 @@ class FleetSettingController extends Controller
             'reservation_fee_deductible' => true,
             'booking_sms_numbers' => [],
             'discount_structures' => [],
+            'faqs' => [],
             'default_hour_extension_rate' => 200,
             'full_day_extension_threshold_hours' => 12,
             'late_return_grace_period_minutes' => 60,
@@ -49,6 +50,9 @@ class FleetSettingController extends Controller
             'discount_structures.*.milestones' => ['required', 'array', 'min:1'],
             'discount_structures.*.milestones.*.days' => ['required', 'integer', 'min:1', 'max:3650'],
             'discount_structures.*.milestones.*.discount_percent' => ['required', 'numeric', 'between:-100,100'],
+            'faqs' => ['nullable', 'array', 'max:50'],
+            'faqs.*.question' => ['required', 'string', 'max:255'],
+            'faqs.*.answer' => ['required', 'string', 'max:5000'],
             'default_hour_extension_rate' => ['nullable', 'numeric', 'min:0'],
             'full_day_extension_threshold_hours' => ['required', 'integer', 'min:1', 'max:23'],
             'late_return_grace_period_minutes' => ['required', 'integer', 'min:0', 'max:1439'],
