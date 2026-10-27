@@ -3,7 +3,7 @@ import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import { Skeleton, useToast } from "../components/Ui";
 import api from "../lib/api";
-import { vehicleTypeLabels, vehicleTypes, type DiscountStructure, type FleetSettings } from "../types";
+import { vehicleTypeLabels, vehicleTypes, type DiscountStructure, type FaqItem, type FleetSettings } from "../types";
 import RichTextEditor from "../components/RichTextEditor";
 import { DateTimePicker } from "../components/DateTimePicker";
 
@@ -31,6 +31,7 @@ const defaults: FleetSettings = {
   terms_and_conditions: null,
   privacy_policy: null,
   discount_structures: [],
+  faqs: [],
 };
 
 type SearchResult = {
@@ -78,6 +79,7 @@ const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   terms_and_conditions: value.terms_and_conditions ?? defaults.terms_and_conditions,
   privacy_policy: value.privacy_policy ?? defaults.privacy_policy,
   discount_structures: value.discount_structures ?? defaults.discount_structures,
+  faqs: value.faqs ?? defaults.faqs,
 });
 
 const allVehicleTypes = () => [...vehicleTypes];
@@ -327,6 +329,9 @@ export default function FleetSettingsPage() {
     setExpandedStructures(current => new Set([...current].filter(itemIndex => itemIndex !== index).map(itemIndex => itemIndex > index ? itemIndex - 1 : itemIndex)));
     setSettings(current => ({ ...current, discount_structures: current.discount_structures.filter((_, itemIndex) => itemIndex !== index) }));
   };
+  const updateFaq = (index: number, faq: FaqItem) => setSettings(current => ({ ...current, faqs: current.faqs.map((item, itemIndex) => itemIndex === index ? faq : item) }));
+  const addFaq = () => setSettings(current => ({ ...current, faqs: [...current.faqs, { question: "", answer: "" }] }));
+  const removeFaq = (index: number) => setSettings(current => ({ ...current, faqs: current.faqs.filter((_, itemIndex) => itemIndex !== index) }));
   const addBookingSmsNumber = () => {
     const value = bookingSmsNumber.trim();
     if (!/^(?:\+63|0)?9\d{9}$/.test(value)) {
@@ -537,6 +542,24 @@ export default function FleetSettingsPage() {
           </section>
           <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Public website</p>
+          <h2 className="mt-2 text-2xl font-semibold">Frequently asked questions</h2>
+          <p className="mt-2 text-sm text-[#777]">Add the questions and answers customers should see on the public homepage.</p>
+          <div className="mt-6 space-y-4">
+            {settings.faqs.map((faq, index) => (
+              <div className="border border-black/10 p-4" key={`${index}-${faq.question}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-semibold">Question {index + 1}</p>
+                  <button type="button" className="text-xs font-semibold text-red-600" onClick={() => removeFaq(index)}>Remove</button>
+                </div>
+                <input className="mt-3 w-full border border-black/10 px-3 py-3 text-sm" value={faq.question} onChange={event => updateFaq(index, { ...faq, question: event.target.value })} placeholder="What should customers know?" maxLength={255} />
+                <textarea className="mt-3 min-h-28 w-full border border-black/10 px-3 py-3 text-sm" value={faq.answer} onChange={event => updateFaq(index, { ...faq, answer: event.target.value })} placeholder="Write a clear answer..." maxLength={5000} />
+              </div>
+            ))}
+            <button type="button" className="border border-[#ff641f] px-4 py-3 text-sm font-semibold text-[#ff641f]" onClick={addFaq}>Add FAQ</button>
+            <div className="flex justify-end">
+              <button type="button" disabled={saving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50" onClick={() => void persistSettings()}>{saving ? "Saving..." : "Save FAQs"}</button>
+            </div>
+          </div>
           <h2 className="mt-2 text-2xl font-semibold">Legal pages</h2>
           <p className="mt-2 text-sm text-[#777]">
             Edit the content shown on the public Terms and conditions and Privacy policy pages. Plain text is preserved with line breaks.
