@@ -5,7 +5,7 @@ import PublicFooter from "../components/PublicFooter";
 import Seo from "../components/Seo";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import api from "../lib/api";
-import { vehicleTypeLabels, type VehicleImage, type VehicleRecord } from "../types";
+import { vehicleTypeLabels, type FaqItem, type VehicleImage, type VehicleRecord } from "../types";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 const imageUrl = (vehicle: VehicleRecord) => {
@@ -37,6 +37,7 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(true);
+  const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const { user, loading } = useAuth();
   const signOut = useSignOut();
   useEffect(() => {
@@ -44,6 +45,11 @@ export default function HomePage() {
       .then((response) => setVehicles(response.data))
       .catch(() => setVehicles([]))
       .finally(() => setVehiclesLoading(false));
+  }, []);
+  useEffect(() => {
+    api.get<{ faqs?: FaqItem[] }>("/legal-settings")
+      .then(response => setFaqs(response.data.faqs ?? []))
+      .catch(() => setFaqs([]));
   }, []);
   const scrollToFleet = () => {
     document.getElementById("fleet")?.scrollIntoView({ behavior: "smooth" });
@@ -289,6 +295,20 @@ export default function HomePage() {
             care about your journey.
           </p>
         </section>
+        {faqs.length > 0 && <section className="border-y border-white/[.06] bg-[#151515] py-20" id="faq">
+          <div className="mx-auto w-[calc(100%-36px)] max-w-[900px]">
+            <Eyebrow>QUESTIONS, ANSWERED</Eyebrow>
+            <h2 className="mt-[17px] font-['Space_Grotesk'] text-[44px] font-semibold">Frequently asked <em className="not-italic text-[#ff641f]">questions.</em></h2>
+            <div className="mt-10 divide-y divide-white/[.1] border-y border-white/[.1]">
+              {faqs.map((faq, index) => <details className="group py-5" key={`${index}-${faq.question}`}>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-lg font-semibold marker:hidden">
+                  <span>{faq.question}</span><span className="text-2xl font-normal text-[#ff641f] transition group-open:rotate-45" aria-hidden="true">+</span>
+                </summary>
+                <p className="mt-4 max-w-3xl whitespace-pre-line text-sm leading-7 text-[#999]">{faq.answer}</p>
+              </details>)}
+            </div>
+          </div>
+        </section>}
         <section className="border-y border-white/[.06] bg-[#151515] py-20" id="contact">
           <div className="mx-auto w-[calc(100%-36px)] max-w-[1160px]">
             <div className="grid gap-10 lg:grid-cols-[.85fr_1.15fr] lg:items-end">
