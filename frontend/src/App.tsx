@@ -46,12 +46,13 @@ function CustomerOnboardingGuard() {
   const location = useLocation();
   const navigate = useNavigate();
   const needsOnboarding = user?.role === "customer" && !user.customer?.onboarding_completed_at;
+  const isPublicRoute = location.pathname === "/" || location.pathname === "/faq" || location.pathname === "/onboarding";
 
   useEffect(() => {
-    if (!loading && needsOnboarding && location.pathname !== "/" && location.pathname !== "/onboarding") {
+    if (!loading && needsOnboarding && !isPublicRoute) {
       navigate(`/onboarding?return_to=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
     }
-  }, [loading, needsOnboarding, location.pathname, location.search, navigate]);
+  }, [loading, needsOnboarding, isPublicRoute, location.pathname, location.search, navigate]);
 
   return null;
 }
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="/vehicles/:vehicleId" element={<VehicleDetailPage />} />
           <Route path="/terms" element={<LegalPage />} />
           <Route path="/privacy" element={<LegalPage />} />
+          <Route path="/faq" element={<CustomerFaqPage />} />
           <Route path="/review-us" element={<ReviewUsPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/facebook/complete" element={<FacebookContactPage />} />
