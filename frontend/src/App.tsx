@@ -13,6 +13,7 @@ const HostPartnershipPage = lazy(() => import("./pages/HostPartnershipPage"));
 const VehiclesPage = lazy(() => import("./pages/VehiclesPage"));
 const AddOnsPage = lazy(() => import("./pages/AddOnsPage"));
 const CustomerAccountPage = lazy(() => import("./pages/CustomerAccountPage"));
+const CustomerFaqPage = lazy(() => import("./pages/CustomerFaqPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const PartnerDetailPage = lazy(() => import("./pages/PartnerDetailPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="/host/earnings" element={<HostEarningsPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
+          <Route path="/account/faq" element={<CustomerFaqPage />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin/vehicles" element={<VehiclesPage />} />
