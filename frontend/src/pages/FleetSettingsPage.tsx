@@ -552,7 +552,7 @@ export default function FleetSettingsPage() {
                   <button type="button" className="text-xs font-semibold text-red-600" onClick={() => removeFaq(index)}>Remove</button>
                 </div>
                 <input className="mt-3 w-full border border-black/10 px-3 py-3 text-sm" value={faq.question} onChange={event => updateFaq(index, { ...faq, question: event.target.value })} placeholder="What should customers know?" maxLength={255} />
-                <textarea className="mt-3 min-h-28 w-full border border-black/10 px-3 py-3 text-sm" value={faq.answer} onChange={event => updateFaq(index, { ...faq, answer: event.target.value })} placeholder="Write a clear answer..." maxLength={5000} />
+                <RichTextEditor rows={6} value={faq.answer} onChange={answer => updateFaq(index, { ...faq, answer })} placeholder="Write an answer, then select text to make it bold, italic, underlined, or a link..." />
               </div>
             ))}
             <button type="button" className="border border-[#ff641f] px-4 py-3 text-sm font-semibold text-[#ff641f]" onClick={addFaq}>Add FAQ</button>
