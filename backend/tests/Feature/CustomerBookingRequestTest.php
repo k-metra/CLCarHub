@@ -235,6 +235,52 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('user.social_accounts.0.provider_profile_url', 'https://www.facebook.com/facebook-customer-2');
     }
 
+    public function test_unpaid_pending_booking_does_not_block_a_paid_booking_but_cannot_later_be_paid_if_dates_conflict(): void
+    {
+        $customerAUser = User::factory()->create(['role' => 'customer']);
+        $customerA = $customerAUser->customer()->create([
+            'name' => 'Customer A',
+            'social_profile_url' => 'https://instagram.com/customer-a',
+        ]);
+        $customerB = Customer::create(['name' => 'Customer B']);
+        $vehicle = Vehicle::create([
+            'brand' => 'Honda',
+            'model' => 'CB650-R',
+            'type' => 'motorcycle',
+            'plate_number' => 'CB-650',
+            'daily_rate' => 2000,
+            'status' => 'available',
+        ]);
+        $pendingBooking = Booking::create([
+            'reference' => 'CLCH-2030-PENDING',
+            'customer_id' => $customerA->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-11-27 10:00',
+            'return_at' => '2030-11-30 10:00',
+            'status' => Booking::PENDING,
+            'payment_status' => 'unpaid',
+            'rental_amount' => 6000,
+            'total_amount' => 6000,
+        ]);
+        Booking::create([
+            'reference' => 'CLCH-2030-PAID',
+            'customer_id' => $customerB->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-11-29 10:00',
+            'return_at' => '2030-11-30 10:00',
+            'status' => Booking::UPCOMING,
+            'payment_status' => 'partial',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+        Sanctum::actingAs($customerAUser);
+
+        $this->postJson("/api/customer/booking-requests/{$pendingBooking->id}/payment", [
+            'amount' => 500,
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'This vehicle has already been reserved by another customer during your selected dates. Please reschedule your booking. To avoid this in the future, pay at least the reservation fee when you submit your booking request.');
+    }
+
     public function test_customer_can_create_a_pending_unpaid_request_without_setting_pricing(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
