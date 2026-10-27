@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
 import PublicFooter from "../components/PublicFooter";
 import Seo from "../components/Seo";
+import FaqAccordion from "../components/FaqAccordion";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import api from "../lib/api";
 import { vehicleTypeLabels, type FaqItem, type VehicleImage, type VehicleRecord } from "../types";
@@ -112,15 +113,23 @@ export default function HomePage() {
               ["How it works", "#how-it-works"],
               ["Why CL CarHub", "#why-us"],
               ["Contact", "#contact"],
+              ["FAQ", "/faq"],
             ].map(([label, href]) => (
-              <a
+              href.startsWith("#") ? <a
                 className="text-[13px] text-[#bbb] hover:text-[#ff641f]"
                 href={href}
                 key={href}
                 onClick={() => setMenuOpen(false)}
               >
                 {label}
-              </a>
+              </a> : <Link
+                className="text-[13px] text-[#bbb] hover:text-[#ff641f]"
+                to={href}
+                key={href}
+                onClick={() => setMenuOpen(false)}
+              >
+                {label}
+              </Link>
             ))}
             {!loading &&
               (user ? (
@@ -320,12 +329,9 @@ export default function HomePage() {
             <Eyebrow>QUESTIONS, ANSWERED</Eyebrow>
             <h2 className="mt-[17px] font-['Space_Grotesk'] text-[44px] font-semibold">Frequently asked <em className="not-italic text-[#ff641f]">questions.</em></h2>
             <div className="mt-10 divide-y divide-white/[.1] border-y border-white/[.1]">
-              {faqs.map((faq, index) => <details className="group py-5" key={`${index}-${faq.question}`}>
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-lg font-semibold marker:hidden">
-                  <span>{faq.question}</span><span className="text-2xl font-normal text-[#ff641f] transition group-open:rotate-45" aria-hidden="true">+</span>
-                </summary>
+              {faqs.map((faq, index) => <FaqAccordion className="py-5 text-lg" key={`${index}-${faq.question}`} question={faq.question}>
                 <div className="mt-4 max-w-3xl text-sm leading-7 text-[#999]">{renderFaqAnswer(faq.answer)}</div>
-              </details>)}
+              </FaqAccordion>)}
             </div>
           </div>
         </section>}
