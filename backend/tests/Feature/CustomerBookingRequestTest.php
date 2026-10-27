@@ -194,6 +194,56 @@ class CustomerBookingRequestTest extends TestCase
         $this->assertDatabaseMissing('bookings', ['customer_id' => $customer->id]);
     }
 
+    public function test_customer_booking_persists_social_profile_submitted_with_booking(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $customer = $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-SOCIAL-BOOKING', 'daily_rate' => 2000, 'status' => 'available']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'social_profile_url' => 'https://instagram.com/customer',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('customers', [
+            'id' => $customer->id,
+            'social_profile_url' => 'https://instagram.com/customer',
+        ]);
+    }
+
+    public function test_customer_booking_rejects_pickup_dates_before_today(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $customer = $user->customer()->create([
+            'name' => 'Customer',
+            'phone' => '09170000000',
+            'social_profile_url' => 'https://instagram.com/customer',
+        ]);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota',
+            'model' => 'Vios',
+            'type' => 'sedan',
+            'plate_number' => 'CUS-DATE',
+            'daily_rate' => 2000,
+            'status' => 'available',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => now()->subDay()->format('Y-m-d H:i:s'),
+            'return_at' => now()->addDay()->format('Y-m-d H:i:s'),
+            'payment_method' => 'cash_on_pickup',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['pickup_at']);
+
+        $this->assertDatabaseMissing('bookings', ['customer_id' => $customer->id]);
+    }
+
     public function test_facebook_connected_customer_can_book_without_a_profile_url(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
