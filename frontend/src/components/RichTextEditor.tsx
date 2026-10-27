@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-type Format = "bold" | "italic" | "underline" | "heading" | "bullet" | "rule";
+type Format = "bold" | "italic" | "underline" | "link" | "heading" | "bullet" | "rule";
 
 function toggleLinePrefix(value: string, start: number, end: number, prefix: string) {
   const lineStart = value.lastIndexOf("\n", start - 1) + 1;
@@ -38,7 +38,11 @@ export default function RichTextEditor({
       const lineStart = value.lastIndexOf("\n", start - 1) + 1;
       result = { value: `${value.slice(0, lineStart)}---\n${value.slice(lineStart)}`, start: lineStart + 4, end: lineStart + 4 };
     }
-    else {
+    else if (kind === "link") {
+      const url = window.prompt("Enter a link URL (https://...):", "https://");
+      if (!url || !/^https?:\/\/\S+$/i.test(url)) return;
+      result = { value: `${value.slice(0, start)}[${selected}](${url})${value.slice(end)}`, start: start + selected.length + 3, end: start + selected.length + 3 + url.length };
+    } else {
       const marker = markers[kind];
       result = { value: `${value.slice(0, start)}${marker}${selected}${marker}${value.slice(end)}`, start: start + marker.length, end: start + marker.length + selected.length };
     }
@@ -57,6 +61,7 @@ export default function RichTextEditor({
         <button type="button" className="px-3 py-1 text-sm font-bold hover:bg-white" onClick={() => format("heading")} aria-label="Heading">H2</button>
         <button type="button" className="px-3 py-1 text-sm hover:bg-white" onClick={() => format("bullet")} aria-label="Bullet list">• List</button>
         <button type="button" className="px-3 py-1 text-sm underline hover:bg-white" onClick={() => format("underline")} aria-label="Underline">U</button>
+        <button type="button" className="px-3 py-1 text-sm text-[#ff641f] hover:bg-white" onClick={() => format("link")} aria-label="Add hyperlink">Link</button>
         <button type="button" className="px-3 py-1 text-sm hover:bg-white" onClick={() => format("rule")} aria-label="Horizontal line">―</button>
         <span className="self-center px-2 text-xs text-[#777]">Select text, then choose a format.</span>
       </div>
