@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button, Eyebrow } from "../components/Ui";
 import PublicFooter from "../components/PublicFooter";
@@ -32,6 +32,26 @@ const imageLabels: Record<string, string> = {
   thumbnail: "Thumbnail", front: "Front", back: "Back", left: "Left", right: "Right",
   interior_back: "Interior Back", interior_front: "Interior Front", trunk: "Trunk",
 };
+const renderFaqInline = (value: string): ReactNode[] => {
+  const parts: ReactNode[] = [];
+  const pattern = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(value))) {
+    if (match.index > lastIndex) parts.push(value.slice(lastIndex, match.index));
+    if (match[2] && match[3]) parts.push(<a className="text-[#ff9b73] underline underline-offset-2 hover:text-white" href={match[3]} target="_blank" rel="noreferrer" key={`${match.index}-link`}>{match[2]}</a>);
+    else if (match[4]) parts.push(<strong key={`${match.index}-bold`}>{match[4]}</strong>);
+    else if (match[5]) parts.push(<u key={`${match.index}-underline`}>{match[5]}</u>);
+    else if (match[6]) parts.push(<em key={`${match.index}-italic`}>{match[6]}</em>);
+    lastIndex = pattern.lastIndex;
+  }
+  if (lastIndex < value.length) parts.push(value.slice(lastIndex));
+  return parts;
+};
+const renderFaqAnswer = (value: string) => value.split("\n").map((line, index) => {
+  const content = line.startsWith("- ") ? <div key={index} className="flex gap-2"><span aria-hidden="true">•</span><span>{renderFaqInline(line.slice(2))}</span></div> : line.startsWith("## ") ? <h4 key={index} className="font-semibold text-[#f4f3f0]">{renderFaqInline(line.slice(3))}</h4> : line === "---" ? <hr key={index} className="border-white/[.12]" /> : <span key={index}>{renderFaqInline(line)}</span>;
+  return <Fragment key={`faq-line-${index}`}>{index > 0 && !line.startsWith("- ") && <br />}{content}</Fragment>;
+});
 
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -304,7 +324,7 @@ export default function HomePage() {
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-lg font-semibold marker:hidden">
                   <span>{faq.question}</span><span className="text-2xl font-normal text-[#ff641f] transition group-open:rotate-45" aria-hidden="true">+</span>
                 </summary>
-                <p className="mt-4 max-w-3xl whitespace-pre-line text-sm leading-7 text-[#999]">{faq.answer}</p>
+                <div className="mt-4 max-w-3xl text-sm leading-7 text-[#999]">{renderFaqAnswer(faq.answer)}</div>
               </details>)}
             </div>
           </div>
