@@ -35,8 +35,9 @@ Route::get('/addons', [AddonController::class, 'index']);
 Route::get('/legal-settings', [FleetSettingController::class, 'legal']);
 Route::middleware(['auth:sanctum', EnsureRole::class.':owner,co_owner,it_management'])
     ->get('/vehicles/locations', [VehicleController::class, 'fleetLocations']);
-Route::get('/vehicles/{vehicle}', [VehicleController::class, 'show']);
 Route::get('/vehicles/{vehicle}/availability', [VehicleController::class, 'availability']);
+Route::get('/vehicles/{vehicle}/booked-dates', [VehicleController::class, 'bookedDates']);
+Route::get('/vehicles/{vehicle}', [VehicleController::class, 'show']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/user', [AuthController::class, 'user']);
