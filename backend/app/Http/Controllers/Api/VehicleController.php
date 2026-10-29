@@ -155,6 +155,21 @@ class VehicleController extends Controller
         ];
     }
 
+    public function bookedDates(Vehicle $vehicle)
+    {
+        return [
+            'booked_dates' => $vehicle->bookings()
+                ->whereIn('status', \App\Models\Booking::ACTIVE_STATUSES)
+                ->orderBy('pickup_at')
+                ->get(['pickup_at', 'return_at'])
+                ->map(fn ($booking) => [
+                    'pickup_at' => $booking->pickup_at,
+                    'return_at' => $booking->return_at,
+                ])
+                ->values(),
+        ];
+    }
+
     public function location(Vehicle $vehicle, AikaGpsService $aikaGps)
     {
         return $aikaGps->location($vehicle);
