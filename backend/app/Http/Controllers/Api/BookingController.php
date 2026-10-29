@@ -674,7 +674,36 @@ class BookingController extends Controller
 
     private function authenticatedCustomer(Request $request)
     {
-        $customer = $request->user()?->customer;
+        $user = $request->user();
+        $customer = $user?->customer;
+        if (! $customer && $user?->role === 'host') {
+            $partner = $user->partner;
+            if ($partner) {
+                $customer = Customer::query()
+                    ->where(function ($query) use ($partner) {
+                        $query->where('user_id', $partner->user_id)
+                            ->orWhere(function ($query) use ($partner) {
+                                $query->whereNull('user_id')->where('email', $partner->email);
+                            });
+                    })
+                    ->first();
+
+                if ($customer) {
+                    $customer->update(['user_id' => $user->id]);
+                } else {
+                    $customer = Customer::create([
+                        'user_id' => $user->id,
+                        'name' => $partner->name,
+                        'first_name' => $partner->first_name,
+                        'middle_name' => $partner->middle_name,
+                        'last_name' => $partner->last_name,
+                        'email' => $partner->email,
+                        'phone' => $partner->contact_number,
+                        'address' => $partner->address,
+                    ]);
+                }
+            }
+        }
         abort_unless($customer, 403, 'Your account is not linked to a customer profile.');
 
         return $customer;
