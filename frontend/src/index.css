@@ -35,6 +35,25 @@ button:disabled { cursor: not-allowed; }
   scrollbar-width: none;
 }
 .host-mobile-nav::-webkit-scrollbar { display: none; }
+.mobile-nav-scroll-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: flex;
+  width: 26px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 92%);
+  color: #555;
+  font-size: 24px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+}
+.mobile-nav-scroll-arrow:hover { color: #ff641f; }
 html.theme-dark .host-mobile-nav {
   border-color: rgb(255 255 255 / 12%);
   background-color: rgb(24 24 24 / 96%);
@@ -537,6 +556,14 @@ html.theme-dark .vehicle-image-preview {
 }
 .customer-mobile-nav .is-active { color: #ff641f; }
 .customer-mobile-nav .is-active-icon { background-color: #fff0e9; }
+.customer-mobile-nav::-webkit-scrollbar { display: none; }
+.customer-mobile-nav { scrollbar-width: none; }
+.dashboard-theme.theme-dark .mobile-nav-scroll-arrow,
+html.theme-dark .host-mobile-nav .mobile-nav-scroll-arrow {
+  border-color: rgb(255 255 255 / 14%);
+  background: rgb(45 45 45 / 95%);
+  color: #ddd;
+}
 .dashboard-theme.theme-dark .customer-mobile-nav {
   border-color: rgb(255 255 255 / 14%);
   background: rgb(36 36 36 / 95%);
