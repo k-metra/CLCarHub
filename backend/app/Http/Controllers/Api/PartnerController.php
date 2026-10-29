@@ -32,7 +32,18 @@ class PartnerController extends Controller
         $data['contact_number'] = app(PartnerAssignmentSmsService::class)->normalizePhone($data['contact_number']) ?? $data['contact_number'];
         $data['name'] = $this->compositeName($data);
 
-        return response()->json(Partner::create($data), 201);
+        $partner = Partner::create($data);
+        \App\Models\Customer::create([
+            'name' => $partner->name,
+            'first_name' => $partner->first_name,
+            'middle_name' => $partner->middle_name,
+            'last_name' => $partner->last_name,
+            'email' => $partner->email,
+            'phone' => $partner->contact_number,
+            'address' => $partner->address,
+        ]);
+
+        return response()->json($partner, 201);
     }
 
     public function show(Partner $partner)
@@ -135,6 +146,20 @@ class PartnerController extends Controller
                 'host_access_granted_at' => null,
                 'host_access_revoked_at' => null,
             ]);
+            $customer = \App\Models\Customer::whereNull('user_id')->where('email', $partner->email)->first();
+            if ($customer) {
+                $customer->update(['user_id' => $user->id]);
+            } else {
+                $user->customer()->create([
+                    'name' => $partner->name,
+                    'first_name' => $partner->first_name,
+                    'middle_name' => $partner->middle_name,
+                    'last_name' => $partner->last_name,
+                    'email' => $partner->email,
+                    'phone' => $partner->contact_number,
+                    'address' => $partner->address,
+                ]);
+            }
 
             return [$user, $token];
         });
