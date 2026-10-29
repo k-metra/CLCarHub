@@ -10,6 +10,7 @@ const navigation = [
   { label: "My vehicles", href: "/host/vehicles", icon: "▱", tour: "vehicles" },
   { label: "Bookings", href: "/host/bookings", icon: "◷", tour: "bookings" },
   { label: "Earnings", href: "/host/earnings", icon: "◒", tour: "earnings" },
+  { label: "Rent a vehicle", href: "/host/rent", icon: "▣", tour: "rent" },
 ];
 
 const hostTourSteps = [
