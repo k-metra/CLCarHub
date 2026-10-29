@@ -14,6 +14,8 @@ class PayMongoService
         abort_unless(is_string($secretKey) && $secretKey !== '', 503, 'Online payments are not configured.');
 
         $frontendUrl = rtrim((string) config('services.paymongo.frontend_url', config('app.url')), '/');
+        $booking->loadMissing('customer.user');
+        $returnPath = $booking->customer?->user?->role === 'host' ? '/host/rent' : '/account';
         $lineItems = $this->checkoutLineItems($booking, $amount);
         $response = Http::withBasicAuth($secretKey, '')
             ->acceptJson()
@@ -22,8 +24,8 @@ class PayMongoService
                     'attributes' => [
                         'line_items' => $lineItems,
                         'payment_method_types' => ['card', 'gcash', 'paymaya', 'qrph'],
-                        'success_url' => $frontendUrl.'/account?payment=success&booking='.$booking->id,
-                        'cancel_url' => $frontendUrl.'/account?payment=cancelled&booking='.$booking->id,
+                        'success_url' => $frontendUrl.$returnPath.'?payment=success&booking='.$booking->id,
+                        'cancel_url' => $frontendUrl.$returnPath.'?payment=cancelled&booking='.$booking->id,
                         'reference_number' => $booking->reference,
                         'pass_on_fees' => (bool) config('services.paymongo.pass_on_fees', true),
                     ],
