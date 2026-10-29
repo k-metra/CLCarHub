@@ -100,7 +100,7 @@ class BookingController extends Controller
         }
         unset($data['social_profile_url']);
         $socialProfileUrl = Customer::query()->whereKey($customer->id)->value('social_profile_url');
-        abort_unless(filled($socialProfileUrl) || $facebookConnected, 422, 'Add a link to one of your active social profiles before booking.');
+        abort_unless($request->user()?->role === 'host' || filled($socialProfileUrl) || $facebookConnected, 422, 'Add a link to one of your active social profiles before booking.');
 
         $booking = DB::transaction(function () use ($data, $customer, $request) {
             $paymentAmount = $data['payment_amount'] ?? null;
