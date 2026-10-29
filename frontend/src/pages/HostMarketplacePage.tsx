@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { HostShell } from "../components/HostShell";
+import { DateTimePicker } from "../components/DateTimePicker";
+import { useAuth } from "../lib/AuthContext";
 import api from "../lib/api";
 import type { Paginated, VehicleRecord } from "../types";
 
@@ -25,9 +27,15 @@ function vehicleTitle(vehicle: VehicleRecord) {
 }
 
 export default function HostMarketplacePage() {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pickupAt, setPickupAt] = useState("");
+  const [returnAt, setReturnAt] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [bookingError, setBookingError] = useState("");
 
   useEffect(() => {
     api.get<Paginated<VehicleRecord>>("/vehicles?per_page=100")
@@ -39,6 +47,29 @@ export default function HostMarketplacePage() {
   const groups = useMemo(() => vehicleGroups
     .map(group => ({ ...group, vehicles: vehicles.filter(vehicle => group.types.includes(vehicle.type)) }))
     .filter(group => group.vehicles.length > 0), [vehicles]);
+  const selectedVehicle = vehicles.find(vehicle => String(vehicle.id) === searchParams.get("vehicle_id"));
+
+  const submitBooking = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedVehicle || !user?.customer?.id || !pickupAt || !returnAt) return;
+    setSaving(true);
+    setBookingError("");
+    try {
+      await api.post("/bookings", {
+        customer_id: user.customer.id,
+        vehicle_id: selectedVehicle.id,
+        pickup_at: pickupAt,
+        return_at: returnAt,
+        payment_method: "cash_on_pickup",
+        status: "upcoming",
+      });
+      setSearchParams({});
+    } catch (requestError) {
+      setBookingError(requestError instanceof Error ? requestError.message : "Unable to submit rental");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <HostShell title="Rent a vehicle">
@@ -54,7 +85,23 @@ export default function HostMarketplacePage() {
         {loading && <p className="mt-8 text-sm text-[#777]">Loading vehicles...</p>}
         {error && <p className="mt-8 border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
         {!loading && !error && groups.length === 0 && <p className="mt-8 border border-black/10 bg-white p-6 text-sm text-[#777]">No vehicles are currently available.</p>}
-        <div className="mt-8 space-y-10">
+        {selectedVehicle && <section className="mt-8 border border-black/10 bg-white p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#ff641f]">Rent this vehicle</p>
+              <h3 className="mt-2 text-2xl font-semibold">{vehicleTitle(selectedVehicle)}</h3>
+              <p className="mt-1 text-sm text-[#777]">{money.format(Number(selectedVehicle.daily_rate))} / day</p>
+            </div>
+            <button type="button" className="text-sm text-[#777] hover:text-[#151515]" onClick={() => setSearchParams({})}>Back to marketplace</button>
+          </div>
+          <form className="mt-6 grid gap-4 sm:grid-cols-2" onSubmit={submitBooking}>
+            <label className="text-sm font-semibold">Pickup<DateTimePicker required mode="datetime" minDate={new Date().toISOString().slice(0, 10)} value={pickupAt} onChange={setPickupAt} className="mt-2 w-full border border-black/10 px-3 py-3" /></label>
+            <label className="text-sm font-semibold">Return<DateTimePicker required mode="datetime" minDate={new Date().toISOString().slice(0, 10)} value={returnAt} onChange={setReturnAt} className="mt-2 w-full border border-black/10 px-3 py-3" /></label>
+            {bookingError && <p className="sm:col-span-2 text-sm text-red-600">{bookingError}</p>}
+            <button type="submit" disabled={saving} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50 sm:col-span-2">{saving ? "Submitting..." : "Submit rental request"}</button>
+          </form>
+        </section>}
+        {!selectedVehicle && <div className="mt-8 space-y-10">
           {groups.map(group => (
             <section key={group.label}>
               <h3 className="text-xl font-bold">{group.label}</h3>
@@ -78,7 +125,7 @@ export default function HostMarketplacePage() {
               </div>
             </section>
           ))}
-        </div>
+        </div>}
       </div>
     </HostShell>
   );
