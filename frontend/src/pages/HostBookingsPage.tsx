@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HostShell } from "../components/HostShell";
 import api from "../lib/api";
+import { useSearchParams } from "react-router-dom";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 
@@ -53,6 +54,7 @@ function statusClass(status: string): string {
 }
 
 export default function HostBookingsPage() {
+  const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState<HostBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -65,6 +67,11 @@ export default function HostBookingsPage() {
       .catch(requestError => setError(requestError instanceof Error ? requestError.message : "Unable to load bookings"))
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => {
+    const bookingId = searchParams.get("booking");
+    if (!bookingId || loading) return;
+    window.setTimeout(() => document.getElementById(`host-booking-${bookingId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+  }, [loading, searchParams]);
   const filteredBookings = bookings.filter(booking => {
     const haystack = `${booking.reference} ${booking.vehicle.name ?? ""} ${booking.vehicle.brand} ${booking.vehicle.model} ${booking.vehicle.plate_number}`.toLowerCase();
     return haystack.includes(search.toLowerCase()) && (status === "all" || booking.status === status);
@@ -79,7 +86,7 @@ export default function HostBookingsPage() {
         {error && <p className="mt-6 text-sm text-red-600">{error}</p>}
         {!loading && !error && bookings.length === 0 && <p className="mt-6 text-sm text-[#777]">No bookings have been assigned to your units.</p>}
         {!loading && !error && bookings.length > 0 && <div className="mt-6 divide-y divide-black/10 border-t border-black/10">
-          {filteredBookings.map(booking => <article className="flex flex-wrap items-center justify-between gap-4 py-4" key={booking.id}>
+          {filteredBookings.map(booking => <article id={`host-booking-${booking.id}`} className={`flex flex-wrap items-center justify-between gap-4 py-4 ${String(booking.id) === searchParams.get("booking") ? "rounded border border-[#ff641f]/40 bg-[#fff7f3] px-3" : ""}`} key={booking.id}>
             <div className="flex min-w-0 items-center gap-3">
               {resolveImageUrl(booking.vehicle.image_url) ? <img className="h-12 w-16 shrink-0 rounded object-cover" src={resolveImageUrl(booking.vehicle.image_url) ?? undefined} alt="" /> : <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded bg-[#f4f3f0] text-lg text-[#999]" aria-hidden="true">▱</div>}
               <div className="min-w-0">
