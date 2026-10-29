@@ -358,6 +358,34 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('total_amount', '4000.00');
     }
 
+    public function test_outside_laguna_destination_uses_the_vehicle_outside_laguna_daily_rate(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota',
+            'model' => 'Vios',
+            'type' => 'sedan',
+            'plate_number' => 'OUT-123',
+            'daily_rate' => 2000,
+            'outside_laguna_rate' => 3500,
+            'status' => 'available',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-12 10:00',
+            'destination_province' => 'Metro Manila',
+            'destination_city' => 'Manila',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated()
+            ->assertJsonPath('destination_zone', 'outside_laguna')
+            ->assertJsonPath('rental_rate', '3500.00')
+            ->assertJsonPath('rental_amount', '7000.00');
+    }
+
     public function test_customer_requests_allow_destination_for_pickup_and_require_address_for_delivery(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
