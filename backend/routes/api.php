@@ -105,8 +105,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/customers/summary', [CustomerController::class, 'summary']);
     Route::apiResource('customers', CustomerController::class);
     Route::post('/customers/{customer}/restore', [CustomerController::class, 'restore']);
-    Route::middleware(EnsureRole::class.':customer')->get('/customer/profile', [CustomerController::class, 'profile']);
-    Route::middleware(EnsureRole::class.':customer')->patch('/customer/social-profile', [CustomerController::class, 'updateSocialProfile']);
+    Route::middleware(EnsureRole::class.':customer,host')->get('/customer/profile', [CustomerController::class, 'profile']);
+    Route::middleware(EnsureRole::class.':customer,host')->patch('/customer/social-profile', [CustomerController::class, 'updateSocialProfile']);
     Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding', [CustomerController::class, 'completeOnboarding']);
     Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding/phone/send', [CustomerController::class, 'sendPhoneVerification'])->middleware('throttle:3,1');
     Route::middleware(EnsureRole::class.':customer')->post('/customer/onboarding/phone/verify', [CustomerController::class, 'verifyPhone'])->middleware('throttle:10,1');
@@ -121,7 +121,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/bookings/{booking}/return-photos', [BookingController::class, 'storeReturnPhotos']);
     Route::delete('/bookings/{booking}/return-photos/{photo}', [BookingController::class, 'destroyReturnPhoto']);
     Route::get('/bookings/{booking}/invoice', [BookingController::class, 'invoice']);
-    Route::middleware(EnsureRole::class.':customer')->prefix('customer/booking-requests')->group(function () {
+    Route::middleware(EnsureRole::class.':customer,host')->prefix('customer/booking-requests')->group(function () {
         Route::get('/', [BookingController::class, 'customerIndex']);
         Route::post('/discount-preview', [BookingController::class, 'customerDiscountPreview']);
         Route::post('/', [BookingController::class, 'customerStore'])
