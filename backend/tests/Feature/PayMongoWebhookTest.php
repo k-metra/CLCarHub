@@ -58,7 +58,8 @@ class PayMongoWebhookTest extends TestCase
                         'id' => 'cs_test_123',
                         'attributes' => [
                             'reference_number' => $booking->reference,
-                            'payments' => [['attributes' => ['amount_paid' => 200000]]],
+                            'line_items' => [['amount' => 100000, 'quantity' => 1]],
+                            'payments' => [['attributes' => ['amount_paid' => 103000, 'fee' => 3000]]],
                         ],
                     ],
                 ],
@@ -76,21 +77,64 @@ class PayMongoWebhookTest extends TestCase
             'booking_id' => $booking->id,
             'provider' => 'paymongo',
             'provider_reference' => 'cs_test_123',
-            'amount' => '2000.00',
+            'amount' => '1000.00',
+        ]);
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => Booking::UPCOMING,
+            'payment_status' => 'partial',
+        ]);
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertDatabaseCount('fund_transactions', 1);
+
+        $booking->update(['paymongo_checkout_session_id' => 'cs_test_456']);
+        $secondPayload = [
+            'data' => [
+                'id' => 'evt_test_456',
+                'attributes' => [
+                    'type' => 'payment.paid',
+                    'data' => [
+                        'id' => 'py_test_456',
+                        'attributes' => [
+                            'checkout_session' => [
+                                'id' => 'cs_test_456',
+                                'attributes' => [
+                                    'reference_number' => $booking->reference,
+                                    'line_items' => [['amount' => 100000, 'quantity' => 1]],
+                                    'payments' => [['attributes' => ['amount_paid' => 103000, 'fee' => 3000]]],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $secondRawPayload = json_encode($secondPayload, JSON_THROW_ON_ERROR);
+        $secondSignature = 't=456,li='.hash_hmac('sha256', '456.'.$secondRawPayload, 'webhook-secret');
+
+        $this->withHeader('Paymongo-Signature', $secondSignature)
+            ->postJson('/api/payments/paymongo/webhook', $secondPayload)
+            ->assertOk();
+
+        $this->assertDatabaseHas('payments', [
+            'booking_id' => $booking->id,
+            'provider' => 'paymongo',
+            'provider_reference' => 'cs_test_456',
+            'amount' => '1000.00',
         ]);
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
             'status' => Booking::UPCOMING,
             'payment_status' => 'paid',
         ]);
-        $this->assertDatabaseCount('payments', 1);
-        $this->assertDatabaseCount('fund_transactions', 1);
+        $this->assertDatabaseCount('payments', 2);
+        $this->assertDatabaseCount('fund_transactions', 2);
 
-        $this->withHeader('Paymongo-Signature', $signature)
-            ->postJson('/api/payments/paymongo/webhook', $payload)
+        $this->withHeader('Paymongo-Signature', $secondSignature)
+            ->postJson('/api/payments/paymongo/webhook', $secondPayload)
             ->assertOk();
 
-        $this->assertDatabaseCount('payments', 1);
-        $this->assertDatabaseCount('fund_transactions', 1);
+        $this->assertDatabaseCount('payments', 2);
+        $this->assertDatabaseCount('fund_transactions', 2);
     }
 }
