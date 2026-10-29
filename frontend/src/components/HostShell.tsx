@@ -9,6 +9,7 @@ const navigation = [
   { label: "Overview", href: "/host", icon: "⌂", tour: "overview" },
   { label: "My vehicles", href: "/host/vehicles", icon: "▱", tour: "vehicles" },
   { label: "Bookings", href: "/host/bookings", icon: "◷", tour: "bookings" },
+  { label: "My rentals", href: "/host/rentals", icon: "▣", tour: "rentals" },
   { label: "Earnings", href: "/host/earnings", icon: "◒", tour: "earnings" },
   { label: "Rent a vehicle", href: "/host/rent", icon: "▣", tour: "rent" },
 ];
