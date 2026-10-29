@@ -60,6 +60,7 @@ type VehicleForm = {
   transmission: string;
   fuel_type: string;
   daily_rate: string;
+  outside_laguna_rate: string;
   twelve_hour_rate: string;
   mileage_limit: string;
   hour_extension_rate: string;
@@ -105,6 +106,7 @@ const emptyForm: VehicleForm = {
   transmission: "automatic",
   fuel_type: "regular_unleaded",
   daily_rate: "",
+  outside_laguna_rate: "",
   twelve_hour_rate: "",
   mileage_limit: "",
   hour_extension_rate: "",
@@ -128,6 +130,7 @@ const fields: Array<[keyof VehicleForm, string, string]> = [
   ["plate_number", "Plate number", "text"],
   ["seats", "Seat count", "number"],
   ["daily_rate", "Daily rate", "number"],
+  ["outside_laguna_rate", "Outside Laguna 24-hour rate (optional)", "number"],
   ["twelve_hour_rate", "12-hour rental rate (optional; defaults to 50% of daily rate)", "number"],
   ["mileage_limit", "Overall mileage limit (km, optional)", "number"],
   ["hour_extension_rate", "Hourly extension rate (optional)", "number"],
@@ -294,6 +297,7 @@ export default function VehiclesPage() {
       transmission: vehicle.transmission ?? "automatic",
       fuel_type: vehicle.fuel_type ?? "regular_unleaded",
       daily_rate: vehicle.daily_rate,
+      outside_laguna_rate: vehicle.outside_laguna_rate ?? "",
       twelve_hour_rate: vehicle.twelve_hour_rate ?? "",
       mileage_limit: vehicle.mileage_limit?.toString() ?? "",
       hour_extension_rate: vehicle.hour_extension_rate ?? "",
@@ -325,7 +329,7 @@ export default function VehiclesPage() {
     Object.entries(form).forEach(([key, value]) => {
       if (key === "image" || key === "aika_enabled" || key === "aika_device_id" || key === "aika_device_password") return;
       if (typeof value === "boolean") return;
-      if (key === "partner_id" || key === "delivery_rate_per_km") {
+      if (key === "partner_id" || key === "delivery_rate_per_km" || key === "outside_laguna_rate") {
         payload.append(key, value || "");
       } else if (value !== null && value !== "") {
         payload.append(key, value instanceof File ? value : value);
