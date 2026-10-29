@@ -134,7 +134,7 @@ function DeliveryMap({ center, position, onPin }: { center: [number, number]; po
 }
 
 export default function CustomerAccountPage() {
-  const { user, loading } = useAuth(); const facebookConnected = Boolean(user?.facebook_connected); const signOut = useSignOut(); const { showToast } = useToast(); const { theme } = useTheme(); const navigate = useNavigate();
+  const { user, loading } = useAuth(); const facebookConnected = Boolean(user?.facebook_connected); const isHost = user?.role === "host"; const signOut = useSignOut(); const { showToast } = useToast(); const { theme } = useTheme(); const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tourStorageKey = user ? `clcarhub-customer-tour-pending-${user.id}` : "";
   const [showTutorial, setShowTutorial] = useState(() => Boolean(user && window.localStorage.getItem(`clcarhub-customer-tour-pending-${user.id}`) === "1"));
@@ -445,12 +445,12 @@ export default function CustomerAccountPage() {
   };
   const proceedDetails = async () => {
     if (form.payment_method === "cash_on_delivery" && (!deliveryPosition || deliveryDistance === null)) { showToast("Please select a delivery location and wait for the road distance to be calculated.", "error"); return; }
-    if (!facebookConnected && !bookingSocialProfileUrl.trim()) { showToast("Add an active social profile link so staff can complete your background check before booking.", "error"); return; }
-    const missing = attachmentRequirements.filter(([category]) => existingAttachmentCount(category) + files[category].length < 1);
+    if (!isHost && !facebookConnected && !bookingSocialProfileUrl.trim()) { showToast("Add an active social profile link so staff can complete your background check before booking.", "error"); return; }
+    const missing = isHost ? [] : attachmentRequirements.filter(([category]) => existingAttachmentCount(category) + files[category].length < 1);
     if (missing.length) { showToast(`Please provide: ${missing.map(([, label]) => label).join(", ")}.`, "error"); return; }
     try {
       setSubmitting(true);
-      if (!facebookConnected && bookingSocialProfileUrl.trim() !== (customer?.social_profile_url ?? "")) {
+      if (!isHost && !facebookConnected && bookingSocialProfileUrl.trim() !== (customer?.social_profile_url ?? "")) {
         const response = await api.patch<CustomerResult>("/customer/social-profile", { social_profile_url: bookingSocialProfileUrl.trim() });
         setCustomer(response.data);
       }
@@ -491,13 +491,13 @@ export default function CustomerAccountPage() {
       showToast("Please agree to the rental terms before submitting your request.", "error");
       return;
     }
-    if (!facebookConnected && !bookingSocialProfileUrl.trim()) {
+    if (!isHost && !facebookConnected && !bookingSocialProfileUrl.trim()) {
       showToast("Add an active social profile link so staff can complete your background check before booking.", "error");
       return;
     }
     setSubmitting(true);
     try {
-      if (!facebookConnected && bookingSocialProfileUrl.trim() !== (customer?.social_profile_url ?? "")) {
+      if (!isHost && !facebookConnected && bookingSocialProfileUrl.trim() !== (customer?.social_profile_url ?? "")) {
         const response = await api.patch<CustomerResult>("/customer/social-profile", { social_profile_url: bookingSocialProfileUrl.trim() });
         setCustomer(response.data);
       }
@@ -525,7 +525,7 @@ export default function CustomerAccountPage() {
     } catch (error) { showToast(error instanceof Error ? error.message : "Unable to open payment checkout", "error"); } finally { setSubmitting(false); }
   };
 
-  if (loading) return null; if (!user) return <Navigate to="/admin/login" replace />; if (user.role !== "customer") return <Navigate to="/admin" replace />;
+  if (loading) return null; if (!user) return <Navigate to="/admin/login" replace />; if (!["customer", "host"].includes(user.role)) return <Navigate to="/admin" replace />;
   const toggleStarredVehicle = (vehicleId: number) => {
     setStarredVehicleIds(current => {
       const next = current.includes(vehicleId) ? current.filter(id => id !== vehicleId) : [...current, vehicleId];
