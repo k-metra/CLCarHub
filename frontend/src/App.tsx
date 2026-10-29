@@ -37,6 +37,7 @@ const HostDashboardPage = lazy(() => import("./pages/HostDashboardPage"));
 const HostBookingsPage = lazy(() => import("./pages/HostBookingsPage"));
 const HostVehiclesPage = lazy(() => import("./pages/HostVehiclesPage"));
 const HostEarningsPage = lazy(() => import("./pages/HostEarningsPage"));
+const HostMarketplacePage = lazy(() => import("./pages/HostMarketplacePage"));
 const HostActivationPage = lazy(() => import("./pages/HostActivationPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const FacebookContactPage = lazy(() => import("./pages/FacebookContactPage"));
@@ -95,6 +96,7 @@ export default function App() {
           <Route path="/host/vehicles" element={<HostVehiclesPage />} />
           <Route path="/host/bookings" element={<HostBookingsPage />} />
           <Route path="/host/earnings" element={<HostEarningsPage />} />
+          <Route path="/host/rent" element={<HostMarketplacePage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
           <Route path="/account/faq" element={<CustomerFaqPage />} />
