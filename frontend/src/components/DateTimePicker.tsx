@@ -2,12 +2,14 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type PickerMode = "date" | "datetime";
+export type BookedDateRange = { pickup_at: string; return_at: string };
 
 type DateTimePickerProps = {
   value: string;
   onChange: (value: string) => void;
   mode?: PickerMode;
   minDate?: string;
+  bookedDates?: BookedDateRange[];
   className?: string;
   required?: boolean;
   disabled?: boolean;
@@ -49,6 +51,7 @@ export function DateTimePicker({
   onChange,
   mode = "date",
   minDate,
+  bookedDates = [],
   className = "",
   required = false,
   disabled = false,
@@ -117,7 +120,7 @@ export function DateTimePicker({
 
   const selectDate = (date: Date) => {
     const nextDate = formatDate(date);
-    if (minimumDateValue && nextDate < minimumDateValue) return;
+    if ((minimumDateValue && nextDate < minimumDateValue) || bookedDates.some(range => nextDate >= datePart(range.pickup_at) && nextDate <= datePart(range.return_at))) return;
     onChange(mode === "datetime" ? `${nextDate}T${time}` : nextDate);
     setMonth(date);
     if (mode === "date") setOpen(false);
@@ -169,9 +172,12 @@ export function DateTimePicker({
               const active = datePart(value) === formatDate(day);
               const inMonth = day.getMonth() === month.getMonth();
               const beforeMinimum = Boolean(minimumDateValue && formatDate(day) < minimumDateValue);
-              return <button type="button" disabled={beforeMinimum} key={formatDate(day)} onClick={() => selectDate(day)} className={`calendar-day min-h-10 rounded py-2 text-sm ${active ? "bg-[#ff641f] font-bold text-white" : beforeMinimum ? "cursor-not-allowed text-[#ddd]" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>{day.getDate()}</button>;
+              const booked = bookedDates.some(range => formatDate(day) >= datePart(range.pickup_at) && formatDate(day) <= datePart(range.return_at));
+              const unavailable = beforeMinimum || booked;
+              return <button type="button" disabled={unavailable} title={booked ? `Booked for ${displayDate(formatDate(day))}` : undefined} aria-label={`${displayDate(formatDate(day))}${booked ? " — booked" : ""}`} key={formatDate(day)} onClick={() => selectDate(day)} className={`calendar-day min-h-10 rounded py-2 text-sm ${booked ? "cursor-not-allowed bg-red-100 font-semibold text-red-700 ring-1 ring-red-300" : beforeMinimum ? "cursor-not-allowed text-[#ddd]" : active ? "bg-[#ff641f] font-bold text-white" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>{day.getDate()}</button>;
             })}
           </div>
+          {bookedDates.length > 0 && <p className="mt-2 text-[11px] text-red-700"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />Booked dates cannot be selected.</p>}
           {mode === "datetime" && (
             <div className="mt-4 border-t border-black/10 pt-3">
               <div className="mb-2 flex items-center justify-between gap-3">
