@@ -101,11 +101,52 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
   const navigate = useNavigate();
   const [showTour, setShowTour] = useState(() => new URLSearchParams(location.search).get("host_tutorial") === "1");
   const mobileNavigationRef = useRef<HTMLElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    const updateScrollState = () => {
+      const nav = mobileNavigationRef.current;
+      if (!nav) return;
+      setCanScrollLeft(nav.scrollLeft > 2);
+      setCanScrollRight(nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2);
+    };
+    const nav = mobileNavigationRef.current;
+    const frame = window.requestAnimationFrame(updateScrollState);
+    const observer = nav ? new ResizeObserver(updateScrollState) : null;
+    if (nav) observer?.observe(nav);
+    window.addEventListener("resize", updateScrollState);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, []);
 
   useEffect(() => {
     const activeItem = mobileNavigationRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
     activeItem?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    window.setTimeout(() => {
+      const nav = mobileNavigationRef.current;
+      if (!nav) return;
+      setCanScrollLeft(nav.scrollLeft > 2);
+      setCanScrollRight(nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2);
+    }, 250);
   }, [location.pathname]);
+
+  const updateScrollState = () => {
+    const nav = mobileNavigationRef.current;
+    if (!nav) return;
+    setCanScrollLeft(nav.scrollLeft > 2);
+    setCanScrollRight(nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2);
+  };
+
+  const scrollMobileNavigation = (direction: number) => {
+    const nav = mobileNavigationRef.current;
+    if (!nav) return;
+    nav.scrollBy({ left: direction * 180, behavior: "smooth" });
+    window.setTimeout(updateScrollState, 250);
+  };
   const closeTour = () => {
     const params = new URLSearchParams(location.search);
     params.delete("host_tutorial");
@@ -153,7 +194,9 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
         ref={mobileNavigationRef}
         className="host-mobile-nav fixed inset-x-0 bottom-0 z-[190] overflow-x-auto border-t border-black/10 bg-white/95 shadow-[0_-8px_24px_rgba(0,0,0,.08)] backdrop-blur print:hidden lg:hidden"
         aria-label="Host navigation"
+        onScroll={updateScrollState}
       >
+        {canScrollLeft && <button type="button" className="mobile-nav-scroll-arrow left-1" onClick={() => scrollMobileNavigation(-1)} aria-label="Scroll navigation left">‹</button>}
         <div className="flex min-w-max items-stretch px-2 pb-[env(safe-area-inset-bottom)]">
           {navigation.map(item => {
             const active = location.pathname === item.href;
@@ -180,6 +223,7 @@ export function HostShell({ children, title }: { children: ReactNode; title: str
             <span className="whitespace-nowrap">Website</span>
           </Link>
         </div>
+        {canScrollRight && <button type="button" className="mobile-nav-scroll-arrow right-1" onClick={() => scrollMobileNavigation(1)} aria-label="Scroll navigation right">›</button>}
       </nav>
       {showTour && <HostLiveTour onClose={closeTour} />}
     </div>
