@@ -107,7 +107,7 @@ export default function VehicleDetailPage() {
     const schedule = new URLSearchParams({ vehicle_id: String(vehicle.id) });
     if (pickupAt) schedule.set("pickup_at", pickupAt);
     if (returnAt) schedule.set("return_at", returnAt);
-    navigate(user?.role === "customer" ? `/account?tab=request&${schedule}` : `/admin/login?register=1&${schedule}`);
+    navigate(user?.role === "customer" ? `/account?tab=request&${schedule}` : user?.role === "host" ? `/host/rent?${schedule}` : `/admin/login?register=1&${schedule}`);
   };
 
   const isCustomer = user?.role === "customer";
