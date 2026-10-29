@@ -109,4 +109,16 @@ class HostController extends Controller
             ->values();
     }
 
+    public function rentals(Request $request)
+    {
+        $customer = $request->user()->customer;
+        abort_unless($customer, 403, 'Your account is not linked to a customer profile.');
+
+        return Booking::query()
+            ->where('customer_id', $customer->id)
+            ->with(['vehicle.images', 'payments'])
+            ->latest('pickup_at')
+            ->get();
+    }
+
 }
