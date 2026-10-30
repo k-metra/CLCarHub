@@ -25,6 +25,7 @@ import { ConfirmDialog, RowActions, useToast } from "../components/Ui";
 import { LocationPicker } from "../components/LocationPicker";
 import { discountedRental, discountPercent } from "../lib/discounts";
 import { addonPricingLabel } from "../lib/addons";
+import { citiesByProvince, philippineProvinces } from "../lib/philippineLocations";
 
 type Customer = {
   id: number;
@@ -160,6 +161,8 @@ type BookingForm = {
   return_at: string;
   actual_return_at: string;
   destination: string;
+  destination_province: string;
+  destination_city: string;
   rental_rate: string;
   delivery_address: string;
   delivery_latitude: string;
@@ -205,6 +208,8 @@ const emptyForm: BookingForm = {
   return_at: "",
   actual_return_at: "",
   destination: "",
+  destination_province: "",
+  destination_city: "",
   rental_rate: "",
   delivery_address: "",
   delivery_latitude: "",
@@ -1106,6 +1111,8 @@ export default function BookingsPage() {
         ? dateTimeLocalValue(booking.actual_return_at)
         : "",
       destination: booking.destination ?? "",
+      destination_province: booking.destination_province ?? "",
+      destination_city: booking.destination_city ?? "",
       rental_rate: booking.rental_rate ?? "",
       discount_percent_override: booking.discount_percent_override ?? "",
       discount_code: "",
@@ -3463,6 +3470,47 @@ export default function BookingsPage() {
                       value={form.destination}
                       onChange={(e) => setField("destination", e.target.value)}
                     />
+                  </label>
+                  <label className="text-xs text-[#777]">
+                    Province
+                    <select
+                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
+                      value={form.destination_province}
+                      onChange={(event) => {
+                        setForm((current) => ({
+                          ...current,
+                          destination_province: event.target.value,
+                          destination_city: "",
+                        }));
+                      }}
+                    >
+                      <option value="">Select province</option>
+                      {philippineProvinces.map((province) => (
+                        <option key={province} value={province}>
+                          {province}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs text-[#777]">
+                    City / municipality
+                    <select
+                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm disabled:bg-[#f5f5f3]"
+                      value={form.destination_city}
+                      onChange={(event) => setField("destination_city", event.target.value)}
+                      disabled={!form.destination_province}
+                    >
+                      <option value="">
+                        {form.destination_province
+                          ? "Select city / municipality"
+                          : "Select a province first"}
+                      </option>
+                      {(citiesByProvince[form.destination_province] ?? []).map((city) => (
+                        <option key={city} value={city}>
+                          {city}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="text-xs text-[#777]">
                     Rental rate per day (optional)
