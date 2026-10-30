@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 use App\Services\PushNotificationService;
 use App\Models\BookingReturnPhoto;
 use App\Models\Customer;
@@ -28,6 +29,14 @@ use App\Services\PartnerEarningService;
 
 class BookingController extends Controller
 {
+    private const LUZON_PROVINCES = [
+        'Abra', 'Albay', 'Apayao', 'Aurora', 'Bataan', 'Batangas', 'Benguet', 'Bulacan',
+        'Cagayan', 'Camarines Norte', 'Camarines Sur', 'Cavite', 'Ifugao', 'Ilocos Norte',
+        'Ilocos Sur', 'Isabela', 'Kalinga', 'La Union', 'Laguna', 'Metro Manila',
+        'Mountain Province', 'Nueva Ecija', 'Nueva Vizcaya', 'Pampanga', 'Pangasinan',
+        'Quezon', 'Quirino', 'Rizal', 'Tarlac', 'Zambales',
+    ];
+
     public function customerIndex(Request $request)
     {
         Booking::synchronizeAutomaticStatuses();
@@ -84,7 +93,7 @@ class BookingController extends Controller
             'return_at' => ['required', 'date', 'after:pickup_at'],
             'social_profile_url' => ['nullable', 'url', 'max:2048'],
             'destination' => ['nullable', 'string', 'max:255'],
-            'destination_province' => ['nullable', 'string', 'max:100'],
+            'destination_province' => ['nullable', 'string', 'max:100', Rule::in(self::LUZON_PROVINCES)],
             'destination_city' => ['nullable', 'string', 'max:100'],
             'delivery_address' => ['required_if:payment_method,cash_on_delivery', 'nullable', 'string', 'max:255'],
             'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],
@@ -690,7 +699,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'discount_code' => ['nullable', 'string', 'max:80'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'destination_province' => ['nullable', 'string', 'max:100'], 'destination_city' => ['nullable', 'string', 'max:100'], 'destination_zone' => ['nullable', 'in:laguna,outside_laguna'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_override' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'custom_delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'discount_percent_override' => ['nullable', 'numeric', 'between:0,100'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'discount_code' => ['nullable', 'string', 'max:80'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'destination_province' => ['nullable', 'string', 'max:100', Rule::in(self::LUZON_PROVINCES)], 'destination_city' => ['nullable', 'string', 'max:100'], 'destination_zone' => ['nullable', 'in:laguna,outside_laguna'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_distance_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_override' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'custom_delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'discount_percent_override' => ['nullable', 'numeric', 'between:0,100'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payment_status' => ['sometimes', 'in:unpaid,partial,paid,refunded'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function isEarlierBookingStatus(string $requestedStatus, string $currentStatus): bool
