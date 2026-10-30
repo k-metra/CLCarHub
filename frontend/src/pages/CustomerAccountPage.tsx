@@ -201,6 +201,34 @@ export default function CustomerAccountPage() {
     setStep(1);
   }, [searchParams, vehicles]);
   useEffect(() => {
+    const pickupMode = searchParams.get("pickup_mode") ?? "";
+    const destination = searchParams.get("destination") ?? "";
+    const province = searchParams.get("destination_province") ?? "";
+    const city = searchParams.get("destination_city") ?? "";
+    const deliveryAddress = searchParams.get("delivery_address") ?? "";
+    const deliveryLatitude = Number(searchParams.get("delivery_latitude"));
+    const deliveryLongitude = Number(searchParams.get("delivery_longitude"));
+    const notes = searchParams.get("notes") ?? "";
+    const pickupDate = searchParams.get("pickup_date") ?? "";
+    const returnDate = searchParams.get("return_date") ?? "";
+    if (!destination && !province && !city && !deliveryAddress && !notes && !pickupDate && !returnDate && pickupMode !== "delivery") return;
+    if (Number.isFinite(deliveryLatitude) && Number.isFinite(deliveryLongitude)) {
+      setDeliveryPosition([deliveryLatitude, deliveryLongitude]);
+      setDeliveryCenter([deliveryLatitude, deliveryLongitude]);
+    }
+    setForm(current => ({
+      ...current,
+      destination: destination || current.destination,
+      destination_province: province || current.destination_province,
+      destination_city: city || current.destination_city,
+      delivery_address: deliveryAddress || current.delivery_address,
+      notes: notes || current.notes,
+      pickup_date: pickupDate || current.pickup_date,
+      return_date: returnDate || current.return_date,
+      payment_method: pickupMode === "delivery" ? "cash_on_delivery" : current.payment_method,
+    }));
+  }, [searchParams]);
+  useEffect(() => {
     const payment = searchParams.get("payment");
     const bookingId = searchParams.get("booking");
     if (!bookingId || !payment || !["success", "cancelled"].includes(payment)) return;
