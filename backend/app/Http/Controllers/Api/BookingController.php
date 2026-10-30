@@ -271,7 +271,15 @@ class BookingController extends Controller
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
             abort_unless($vehicle->hasActivePartnerContract(), 422, 'This partner vehicle is not eligible for rental until its contract is approved.');
             abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
-                $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null, $data['discount_percent_override'] ?? null);
+            $outsideLaguna = filled($data['destination_province'] ?? null) && ! $this->isLaguna($data['destination_province']);
+            if (($data['rental_rate'] ?? null) === null && $outsideLaguna && $vehicle->outside_laguna_rate !== null) {
+                $data['rental_rate'] = (float) $vehicle->outside_laguna_rate;
+            }
+            $data['destination_zone'] = $outsideLaguna ? 'outside_laguna' : 'laguna';
+            if (blank($data['destination'] ?? null) && filled($data['destination_city'] ?? null) && filled($data['destination_province'] ?? null)) {
+                $data['destination'] = $data['destination_city'].', '.$data['destination_province'];
+            }
+            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null, $data['discount_percent_override'] ?? null);
             $rental = $rentalBreakdown['rental'];
             $customer = Customer::findOrFail($data['customer_id']);
             $discountCode = $this->resolveDiscountCode($data, $customer, $vehicle, $rental);
@@ -529,6 +537,24 @@ class BookingController extends Controller
             abort_unless($request->user()->canManageAccounts(), 403, 'Only ITM and above can remove booking assignments.');
         }
         $fleetSettings = FleetSetting::findOrFail(1);
+        $destinationProvince = array_key_exists('destination_province', $data)
+            ? $data['destination_province']
+            : $booking->destination_province;
+        $outsideLaguna = filled($destinationProvince) && ! $this->isLaguna($destinationProvince);
+        $data['destination_zone'] = $outsideLaguna ? 'outside_laguna' : 'laguna';
+        if (blank($data['destination'] ?? null)) {
+            $destinationCity = array_key_exists('destination_city', $data)
+                ? $data['destination_city']
+                : $booking->destination_city;
+            $data['destination'] = filled($destinationCity) && filled($destinationProvince)
+                ? $destinationCity.', '.$destinationProvince
+                : null;
+        }
+        if (($data['rental_rate'] ?? null) === null) {
+            $data['rental_rate'] = $outsideLaguna && $vehicle->outside_laguna_rate !== null
+                ? (float) $vehicle->outside_laguna_rate
+                : null;
+        }
         $effectiveStatus = $data['status'] ?? $booking->status;
         if (
             in_array($effectiveStatus, Booking::ACTIVE_STATUSES, true)
