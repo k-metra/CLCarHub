@@ -14,6 +14,14 @@ export const philippineProvinces = [
   "Zambales", "Zamboanga del Norte", "Zamboanga del Sur", "Zamboanga Sibugay",
 ] as const;
 
+export const luzonProvinces = [
+  "Abra", "Albay", "Apayao", "Aurora", "Bataan", "Batangas", "Benguet", "Bulacan",
+  "Cagayan", "Camarines Norte", "Camarines Sur", "Cavite", "Ifugao", "Ilocos Norte",
+  "Ilocos Sur", "Isabela", "Kalinga", "La Union", "Laguna", "Metro Manila",
+  "Mountain Province", "Nueva Ecija", "Nueva Vizcaya", "Pampanga", "Pangasinan",
+  "Quezon", "Quirino", "Rizal", "Tarlac", "Zambales",
+] as const;
+
 export const citiesByProvince: Record<string, string[]> = {
   Laguna: ["Alaminos", "Bay", "Biñan", "Cabuyao", "Calamba", "Calauan", "Cavinti", "Famy", "Kalayaan", "Liliw", "Los Baños", "Luisiana", "Lumban", "Mabitac", "Magdalena", "Majayjay", "Nagcarlan", "Paete", "Pagsanjan", "Pakil", "Pangil", "Rizal", "San Pablo", "San Pedro", "Santa Cruz", "Santa Maria", "Santa Rosa", "Siniloan", "Victoria"],
   "Metro Manila": ["Caloocan", "Las Piñas", "Makati", "Malabon", "Mandaluyong", "Manila", "Marikina", "Muntinlupa", "Navotas", "Parañaque", "Pasay", "Pasig", "Quezon City", "San Juan", "Taguig", "Valenzuela"],
