@@ -1,11 +1,13 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Button, Eyebrow } from "../components/Ui";
+import { Eyebrow } from "../components/Ui";
 import PublicFooter from "../components/PublicFooter";
 import Seo from "../components/Seo";
 import FaqAccordion from "../components/FaqAccordion";
+import { LocationPicker, type LocationValue } from "../components/LocationPicker";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import api from "../lib/api";
+import { citiesByProvince, luzonProvinces } from "../lib/philippineLocations";
 import { vehicleTypeLabels, type FaqItem, type VehicleImage, type VehicleRecord } from "../types";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
@@ -33,6 +35,12 @@ const imageLabels: Record<string, string> = {
   thumbnail: "Thumbnail", front: "Front", back: "Back", left: "Left", right: "Right",
   interior_back: "Interior Back", interior_front: "Interior Front", trunk: "Trunk",
 };
+const fleetCategories = [
+  { label: "Cars", types: ["sedan", "hatchback", "crossover"] },
+  { label: "SUVs, AUVs & pickups", types: ["suv", "auv", "pickup"] },
+  { label: "MPVs & vans", types: ["mpv", "van"] },
+  { label: "Motorcycles & big bikes", types: ["motorcycle"] },
+] as const;
 const renderFaqInline = (value: string): ReactNode[] => {
   const parts: ReactNode[] = [];
   const pattern = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*)/g;
@@ -54,13 +62,142 @@ const renderFaqAnswer = (value: string) => value.split("\n").map((line, index) =
   return <Fragment key={`faq-line-${index}`}>{index > 0 && !line.startsWith("- ") && <br />}{content}</Fragment>;
 });
 
+function SearchPanel({
+  activeField,
+  pickupMode,
+  setPickupMode,
+  garage,
+  setGarage,
+  province,
+  setProvince,
+  city,
+  setCity,
+  tripDetails,
+  setTripDetails,
+  pickupDate,
+  setPickupDate,
+  returnDate,
+  setReturnDate,
+  deliveryLocation,
+  setDeliveryLocation,
+}: {
+  activeField: "from" | "to" | "dates" | null;
+  pickupMode: "garage" | "delivery";
+  setPickupMode: (value: "garage" | "delivery") => void;
+  garage: string;
+  setGarage: (value: string) => void;
+  province: string;
+  setProvince: (value: string) => void;
+  city: string;
+  setCity: (value: string) => void;
+  tripDetails: string;
+  setTripDetails: (value: string) => void;
+  pickupDate: string;
+  setPickupDate: (value: string) => void;
+  returnDate: string;
+  setReturnDate: (value: string) => void;
+  deliveryLocation: LocationValue;
+  setDeliveryLocation: (value: LocationValue) => void;
+}) {
+  const showFrom = activeField === null || activeField === "from";
+  const showTo = activeField === null || activeField === "to";
+  const showDates = activeField === null || activeField === "dates";
+  const showTripDetails = activeField === null;
+  return <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">
+    <p className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Plan your rental</p>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      {showFrom && <>
+        <label className="text-xs text-[#aaa]">Pickup
+          <select className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white" value={pickupMode} onChange={event => setPickupMode(event.target.value as "garage" | "delivery")}>
+            <option value="garage">Pickup from garage</option>
+            <option value="delivery">Delivery to me</option>
+          </select>
+        </label>
+        {pickupMode === "garage" ? <label className="text-xs text-[#aaa]">Garage
+          <select className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white" value={garage} onChange={event => setGarage(event.target.value)}>
+            <option value="Cabuyao">CL CarHub - Cabuyao</option>
+            <option value="Calamba">CL CarHub - Calamba</option>
+          </select>
+        </label> : <div className="sm:col-span-2">
+          <LocationPicker label="Vehicle handover location" value={deliveryLocation} onChange={setDeliveryLocation} />
+        </div>}
+      </>}
+      {showTo && <>
+        <label className="text-xs text-[#aaa]">Province
+          <select className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white" value={province} onChange={event => { setProvince(event.target.value); setCity(""); }}>
+            <option value="">Select province</option>
+            {luzonProvinces.map(item => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <label className="text-xs text-[#aaa]">City / municipality
+          <select className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white disabled:opacity-50" value={city} onChange={event => setCity(event.target.value)} disabled={!province}>
+            <option value="">Select city / municipality</option>
+            {(citiesByProvince[province] ?? []).map(item => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+      </>}
+      {showDates && <>
+        <label className="text-xs text-[#aaa]">Pickup date
+          <input type="date" className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white" value={pickupDate} onChange={event => setPickupDate(event.target.value)} />
+        </label>
+        <label className="text-xs text-[#aaa]">Return date
+          <input type="date" className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white" value={returnDate} min={pickupDate || undefined} onChange={event => setReturnDate(event.target.value)} />
+        </label>
+      </>}
+      {showTripDetails && <label className="text-xs text-[#aaa] sm:col-span-2">Trip details <span className="text-[#777]">(optional)</span>
+        <input className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white placeholder:text-[#666]" value={tripDetails} onChange={event => setTripDetails(event.target.value)} placeholder="Dates, destination, or anything else we should know" />
+      </label>}
+    </div>
+  </div>;
+}
+
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeSearchField, setActiveSearchField] = useState<"from" | "to" | "dates" | null>(null);
+  const [pickupMode, setPickupMode] = useState<"garage" | "delivery">("garage");
+  const [garage, setGarage] = useState("Cabuyao");
+  const [province, setProvince] = useState("");
+  const [city, setCity] = useState("");
+  const [tripDetails, setTripDetails] = useState("");
+  const [pickupDate, setPickupDate] = useState("");
+  const [returnDate, setReturnDate] = useState("");
+  const [deliveryLocation, setDeliveryLocation] = useState<LocationValue>({ address: "", latitude: null, longitude: null });
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchApplied, setSearchApplied] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(true);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const { user, loading } = useAuth();
   const signOut = useSignOut();
+  const searchVehicles = async () => {
+    if (!pickupDate || !returnDate) {
+      setSearchError("Choose pickup and return dates to see available units.");
+      setSearchOpen(true);
+      setActiveSearchField("dates");
+      return;
+    }
+    setSearchLoading(true);
+    setSearchError("");
+    try {
+      const response = await api.get<VehicleRecord[]>("/vehicles/availability", {
+        params: {
+          type: "all",
+          pickup_at: new Date(`${pickupDate}T09:00:00`).toISOString(),
+          return_at: new Date(`${returnDate}T09:00:00`).toISOString(),
+        },
+      });
+      setVehicles(response.data);
+      setSearchApplied(true);
+      setSearchOpen(false);
+      window.setTimeout(() => document.getElementById("fleet")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : "Unable to check vehicle availability.");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
   useEffect(() => {
     api.get<VehicleRecord[]>("/vehicles/featured")
       .then((response) => setVehicles(response.data))
@@ -72,10 +209,6 @@ export default function HomePage() {
       .then(response => setFaqs(response.data.faqs ?? []))
       .catch(() => setFaqs([]));
   }, []);
-  const scrollToFleet = () => {
-    document.getElementById("fleet")?.scrollIntoView({ behavior: "smooth" });
-    setMenuOpen(false);
-  };
   return (
     <div className="min-h-screen overflow-hidden bg-[#0b0b0b] text-[#f4f3f0]">
       <Seo
@@ -92,11 +225,32 @@ export default function HomePage() {
           areaServed: "Philippines",
         }}
       />
-      <header className="absolute z-10 w-full border-b border-white/[.08]">
-        <nav className="mx-auto flex h-[84px] w-[calc(100%-56px)] max-w-[1160px] items-center justify-between">
+      <header className="relative z-10 w-full border-b border-white/[.08] bg-[#0b0b0b]">
+        <nav className="mx-auto flex min-h-[76px] w-[calc(100%-36px)] max-w-[1240px] items-center gap-5 py-3">
           <Link className="shrink-0" to="/" aria-label="CLCarHub home">
             <img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-20 w-32 object-contain object-left" />
           </Link>
+          <div className="relative hidden min-w-0 flex-1 md:block">
+            <div className="flex min-h-12 w-full items-stretch border border-white/[.15] bg-[#151515] px-1 shadow-[0_8px_24px_#0005]">
+              <button type="button" className="flex min-w-0 flex-1 items-center gap-2 px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("from"); setSearchOpen(true); }} aria-label="Choose pickup location">
+                <span className="text-lg text-[#ff641f]" aria-hidden="true">⌖</span>
+                <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">From</span><span className="block truncate text-xs text-[#d0cdca]">{pickupMode === "garage" ? `${garage} garage` : "Delivery location"}</span></span>
+              </button>
+              <button type="button" className="flex min-w-0 flex-1 items-center gap-2 border-l border-white/10 px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("to"); setSearchOpen(true); }} aria-label="Choose destination">
+                <span className="text-lg text-[#ff641f]" aria-hidden="true">⚑</span>
+                <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">To</span><span className="block truncate text-xs text-[#d0cdca]">{province && city ? `${city}, ${province}` : "Destination"}</span></span>
+              </button>
+              <button type="button" className="flex min-w-0 flex-1 items-center gap-2 border-l border-white/10 px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("dates"); setSearchOpen(true); }} aria-label="Choose rental dates">
+                <span className="text-lg text-[#ff641f]" aria-hidden="true">▣</span>
+                <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">Dates</span><span className="block truncate text-xs text-[#d0cdca]">{pickupDate && returnDate ? `${pickupDate} - ${returnDate}` : "Add dates"}</span></span>
+              </button>
+              <button type="button" className="my-1 flex w-12 shrink-0 items-center justify-center bg-[#ff641f] text-sm font-bold text-white hover:bg-[#ff7b42] disabled:cursor-wait disabled:opacity-70" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))} disabled={searchLoading} aria-label={searchOpen ? "Search available vehicles" : "Open search options"}>{searchLoading ? "…" : "⌕"}</button>
+            </div>
+            {searchOpen && <SearchPanel activeField={activeSearchField} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+          </div>
+          <Link className="hidden text-sm font-semibold text-[#bbb] hover:text-[#ff641f] lg:block" to="/faq">FAQ</Link>
+          <Link className="hidden rounded-full bg-[#242424] px-5 py-3 text-sm font-bold text-white hover:bg-[#ff641f] md:block" to="/host-partnership">Become a host</Link>
+          <button type="button" className="hidden h-11 w-11 items-center justify-center rounded-full border border-white/20 text-lg text-[#bbb] hover:border-[#ff641f] hover:text-white md:flex" onClick={() => setMenuOpen(current => !current)} aria-label="Open account menu" aria-expanded={menuOpen}>☰</button>
           <button
             className="flex flex-col gap-[5px] md:hidden"
             onClick={() => setMenuOpen(!menuOpen)}
@@ -106,31 +260,8 @@ export default function HomePage() {
             <span className="h-px w-[23px] bg-white" />
           </button>
           <div
-            className={`${menuOpen ? "flex" : "hidden"} absolute left-0 right-0 top-[70px] flex-col gap-5 bg-[#111] p-[25px_30px] md:static md:flex md:flex-row md:items-center md:gap-[34px] md:bg-transparent md:p-0`}
+            className={`${menuOpen ? "flex" : "hidden"} absolute left-0 right-0 top-[70px] flex-col gap-5 border-y border-white/[.08] bg-[#0b0b0b] p-[25px_30px] shadow-2xl md:left-auto md:right-[18px] md:top-[68px] md:w-64 md:border md:border-white/[.12] md:p-5`}
           >
-            {[
-              ["Our fleet", "#fleet"],
-              ["How it works", "#how-it-works"],
-              ["Why CL CarHub", "#why-us"],
-              ["Contact", "#contact"],
-              ["FAQ", "/faq"],
-            ].map(([label, href]) => (
-              href.startsWith("#") ? <a
-                className="text-[13px] text-[#bbb] hover:text-[#ff641f]"
-                href={href}
-                key={href}
-                onClick={() => setMenuOpen(false)}
-              >
-                {label}
-              </a> : <Link
-                className="text-[13px] text-[#bbb] hover:text-[#ff641f]"
-                to={href}
-                key={href}
-                onClick={() => setMenuOpen(false)}
-              >
-                {label}
-              </Link>
-            ))}
             {!loading &&
               (user ? (
                 <>
@@ -155,135 +286,65 @@ export default function HomePage() {
                   Sign in ↗
                 </Link>
               ))}
+            <Link className="text-[13px] text-[#bbb] hover:text-[#ff641f] md:hidden" to="/faq">FAQ</Link>
+            <Link className="text-[13px] text-[#bbb] hover:text-[#ff641f] md:hidden" to="/host-partnership">Become a host</Link>
           </div>
         </nav>
       </header>
-      <main>
-        <section className="relative min-h-[710px] bg-[radial-gradient(circle_at_77%_48%,#5d1d08_0,#241007_24%,#0b0b0b_58%)]">
-          <div className="absolute inset-0 opacity-[.15] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:80px_80px]" />
-          <div className="relative mx-auto grid min-h-[710px] w-[calc(100%-56px)] max-w-[1160px] items-center md:grid-cols-[43%_57%]">
-            <div>
-              <Eyebrow>● PREMIUM VEHICLE RENTALS</Eyebrow>
-              <h1 className="my-[25px] font-['Space_Grotesk'] text-[64px] font-semibold leading-[.94] tracking-[-5px] sm:text-[88px]">
-                Your ride.
-                <br />
-                <em className="not-italic text-[#ff641f]">Your way.</em>
-              </h1>
-              <p className="max-w-[385px] text-[16px] leading-[1.65] text-[#a9a7a4]">
-                A reliable car and big bike rental company for every local and
-                balikbayan.
-              </p>
-              <div className="mt-[35px] flex gap-[25px]">
-                <Button onClick={scrollToFleet}>Browse vehicles →</Button>
-                <a className="inline-flex w-fit items-center rounded-[30px] border border-white/30 px-[17px] py-[11px] text-[13px] transition hover:border-[#ff641f] hover:bg-[#ff641f]/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#ff641f] focus:ring-offset-2 focus:ring-offset-[#0b0b0b]" href="#how-it-works">
-                  See how it works ↓
-                </a>
-              </div>
-
-              <div className="mt-[35px] flex flex-wrap gap-x-[25px] gap-y-[12px] text-[11px] font-medium text-[#c8c5c1">
-                <span>✓ DTI Registered</span>
-                <span>✓ BIR Registered</span>
-                <span>
-                  ✦ FREE Loyalty Card{" "}
-                  <span className="text-[#ff641f]">(12-Hour FREE Rental)</span>
-                </span>
-              </div>
-          
-            </div>
-            <div className="pointer-events-none absolute inset-y-0 right-[-8%] hidden w-[58%] md:block">
-              <div className="absolute inset-[-12%] bg-[radial-gradient(ellipse_at_center,#ff641f33_0%,#5d1d0818_36%,#0b0b0b00_68%)] blur-3xl" />
-              <div
-                className="relative ml-auto flex h-full max-w-[520px] items-center justify-center overflow-hidden mix-blend-screen"
-                style={{
-                  maskImage: "radial-gradient(ellipse 63% 48% at center, black 35%, rgba(0,0,0,.9) 58%, transparent 100%)",
-                  maskComposite: "intersect",
-                  WebkitMaskImage: "radial-gradient(ellipse 63% 48% at center, black 35%, rgba(0,0,0,.9) 58%, transparent 100%)",
-                }}
-              >
-                <img
-                  src="/herogif.gif"
-                  alt=""
-                  className="h-[92%] w-full object-contain opacity-90 mix-blend-screen drop-shadow-[0_30px_35px_#000]"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b0b0b66_0%,transparent_24%,transparent_76%,#0b0b0b66_100%),linear-gradient(0deg,#0b0b0b99_0%,transparent_20%,transparent_80%,#0b0b0b99_100%)]" />
-            </div>
-          </div>
-        </section>
-        <section className="mx-auto mt-16 w-[calc(100%-36px)] max-w-[1160px]" aria-labelledby="host-partnership-heading">
-          <Link
-            to="/host-partnership"
-            className="group relative block overflow-hidden border border-[#ff641f]/35 bg-[#17110d] p-6 transition hover:border-[#ff641f] hover:shadow-[0_18px_45px_#ff641f1c] sm:p-8"
-          >
-            <div className="pointer-events-none absolute -right-16 -top-28 h-72 w-72 rounded-full bg-[#ff641f]/15 blur-3xl transition group-hover:bg-[#ff641f]/25" />
-            <div className="relative flex flex-col gap-7 md:flex-row md:items-center md:justify-between">
-              <div className="max-w-[680px]">
-                <p className="text-[10px] font-bold uppercase tracking-[2.4px] text-[#ff8a55]">Own a vehicle?</p>
-                <h2 id="host-partnership-heading" className="mt-3 font-['Space_Grotesk'] text-3xl font-semibold leading-tight sm:text-4xl">
-                  Turn your car into
-                  <em className="not-italic text-[#ff641f]"> extra income.</em>
-                </h2>
-                <p className="mt-3 max-w-[590px] text-sm leading-6 text-[#b9a69c]">
-                  Join the CL CarHub Host Partnership Program and put your vehicle to work with a flexible rental partnership.
-                </p>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-3 text-sm font-bold text-white">
-                Explore the program
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#ff641f] text-lg transition group-hover:translate-x-1" aria-hidden="true">→</span>
-              </span>
-            </div>
-          </Link>
-        </section>
+      <main className="bg-[#0b0b0b] text-[#f4f3f0]">
+        <div className="relative border-b border-white/[.08] bg-[#111] px-[18px] py-3 md:hidden">
+          <button type="button" className="flex h-12 w-full items-center gap-3 border border-white/[.15] bg-[#151515] px-4 text-left" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))}><span className="text-[#ff641f]">⌖</span><span className="flex-1 truncate text-sm text-[#bbb]">Find your next CL CarHub ride</span><span className="bg-[#ff641f] px-3 py-2 text-xs font-bold">{searchOpen ? "Search" : "Plan"}</span></button>
+          {searchOpen && <SearchPanel activeField={null} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+        </div>
         <section
-          className="mx-auto w-[calc(100%-36px)] max-w-[1160px] py-20 md:py-[120px]"
+          className="mx-auto w-[calc(100%-36px)] max-w-[1240px] py-10 sm:py-14"
           id="fleet"
         >
-          <div className="mb-12">
-            <Eyebrow>OUR FLEET</Eyebrow>
-            <h2 className="mt-[17px] font-['Space_Grotesk'] text-[44px] font-semibold leading-[.94] tracking-[-3px] md:text-[54px]">
-              Made for the
-              <br />
-              <em className="not-italic text-[#ff641f]">road ahead.</em>
-            </h2>
+          <div className="mb-10 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[2.5px] text-[#ff641f]">CL CarHub fleet</p>
+              <h1 className="mt-2 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-1px] md:text-4xl">{searchApplied ? "Available for your dates." : "Choose your next ride."}</h1>
+            </div>
+            <Link to="/vehicles" className="shrink-0 text-sm font-bold text-[#ff641f] hover:text-[#d94f12]">View all <span aria-hidden="true">→</span></Link>
           </div>
-          <div className="grid gap-[18px] md:grid-cols-3">
-            {vehiclesLoading ? Array.from({ length: 3 }, (_, index) => (
-              <div className="animate-pulse border border-white/[.07] bg-[#151515]" key={`vehicle-skeleton-${index}`} aria-hidden="true">
-                <div className="h-[240px] bg-white/[.06]" />
-                <div className="space-y-4 p-[22px]">
-                  <div className="h-3 w-2/5 bg-white/[.08]" />
-                  <div className="h-6 w-4/5 bg-white/[.08]" />
-                  <div className="h-6 w-1/3 bg-white/[.08]" />
-                  <div className="flex gap-2">
-                    <div className="h-6 w-16 bg-white/[.08]" />
-                    <div className="h-6 w-20 bg-white/[.08]" />
-                  </div>
-                </div>
+          {searchError && <p className="mb-6 border border-[#ff641f]/40 bg-[#2a1710] p-3 text-sm text-[#ffb18e]">{searchError}</p>}
+          {vehiclesLoading ? <div className="flex gap-4 overflow-hidden">{Array.from({ length: 4 }, (_, index) => <div className="h-[350px] min-w-[280px] animate-pulse bg-[#151515]" key={`vehicle-skeleton-${index}`} />)}</div> : fleetCategories.map(category => {
+            const categoryVehicles = vehicles.filter(vehicle => (category.types as readonly string[]).includes(vehicle.type));
+            if (!categoryVehicles.length) return null;
+            return <section className="mt-10 first:mt-0" key={category.label} aria-labelledby={`category-${category.label}`}>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 id={`category-${category.label}`} className="font-['Space_Grotesk'] text-xl font-semibold">{category.label}</h2>
+                <span className="text-xs text-[#777]">Swipe to browse <span aria-hidden="true">→</span></span>
               </div>
-            )) : vehicles.slice(0, 3).map((vehicle) => {
+              <div className="flex snap-x gap-4 overflow-x-auto pb-4">
+                {categoryVehicles.map((vehicle) => {
               const image = imageUrl(vehicle);
               return (
-                <Link to={`/vehicles/${vehicle.id}`} className="group cursor-pointer border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] focus:ring-offset-2 focus:ring-offset-[#0b0b0b]">
-                  {image && <img className="h-[240px] w-full object-cover saturate-[.7]" src={image} alt={vehicle.name || `${vehicle.brand} ${vehicle.model}`} />}
-                  <div className="p-[22px]">
-                    <small className="text-[9px] uppercase tracking-[1.5px] text-[#ff641f]">{vehicleTypeLabels[vehicle.type]} · {vehicle.transmission}</small>
-                    <h3 className="mt-2 font-['Space_Grotesk'] text-xl">{vehicle.name || `${vehicle.brand} ${vehicle.model}`}</h3>
-                    <strong className="mt-4 block font-['Space_Grotesk'] text-lg">₱{Number(vehicle.daily_rate).toLocaleString()}<i className="text-xs text-[#777]">/day</i></strong>
-                    <div className="my-5 flex flex-wrap gap-2">
-                      <span className="border border-white/[.12] px-2 py-1.5 text-[10px] text-[#999]">{vehicle.seats} seats</span>
-                      {vehicle.mileage_limit !== null && vehicle.mileage_limit !== undefined && <span className="border border-white/[.12] px-2 py-1.5 text-[10px] text-[#999]">{vehicle.mileage_limit.toLocaleString()} km total</span>}
+                <Link key={vehicle.id} to={`/vehicles/${vehicle.id}`} className="group w-[280px] min-w-[280px] snap-start overflow-hidden border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] sm:w-[300px] sm:min-w-[300px]">
+                  <div className="relative h-[220px] overflow-hidden bg-[#191919]">
+                    {image ? <img className="h-full w-full object-cover saturate-[.7] transition duration-500 group-hover:scale-105" src={image} alt={vehicle.name || `${vehicle.brand} ${vehicle.model}`} /> : <div className="flex h-full items-center justify-center text-sm text-[#777]">Vehicle photo coming soon</div>}
+                    <span className="absolute bottom-3 left-3 bg-[#ff641f] px-3 py-1 text-[10px] font-bold text-white">{vehicleTypeLabels[vehicle.type]}</span>
+                  </div>
+                  <div className="p-[18px]">
+                    <h3 className="font-['Space_Grotesk'] text-lg font-semibold">{vehicle.name || `${vehicle.brand} ${vehicle.model}`}</h3>
+                    <p className="mt-1 text-xs text-[#777]">{vehicle.brand} {vehicle.model} · {vehicle.transmission}</p>
+                    <strong className="mt-4 block font-['Space_Grotesk'] text-lg">₱{Number(vehicle.daily_rate).toLocaleString()}<i className="text-xs font-normal text-[#777]"> / day</i></strong>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="border border-white/[.12] px-2.5 py-1 text-[10px] text-[#999]">{vehicle.seats} seats</span>
+                      {vehicle.mileage_limit !== null && vehicle.mileage_limit !== undefined && <span className="border border-white/[.12] px-2.5 py-1 text-[10px] text-[#999]">{vehicle.mileage_limit.toLocaleString()} km</span>}
                     </div>
-                    <span className="text-xs font-semibold text-[#ff641f] opacity-80 transition group-hover:opacity-100">View details <span aria-hidden="true">→</span></span>
+                    <span className="mt-5 block text-xs font-bold text-[#ff641f]">View details <span aria-hidden="true">→</span></span>
                   </div>
                 </Link>
               );
             })}
-          </div>
-          {!vehiclesLoading && vehicles.length > 3 && <Link to="/vehicles" className="mx-auto mt-8 flex w-fit flex-col items-center gap-2 text-sm font-semibold text-[#ff641f] transition hover:text-[#ff9b73]"><span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#ff641f] text-xl">↓</span>See more vehicles</Link>}
-          {!vehiclesLoading && !vehicles.length && <p className="border border-white/[.07] p-6 text-sm text-[#999]">Our gallery is being refreshed. Check back soon for available vehicles.</p>}
+              </div>
+            </section>;
+          })}
+          {!vehiclesLoading && !vehicles.length && <p className="border border-black/10 p-6 text-sm text-[#777]">Our gallery is being refreshed. Check back soon for available vehicles.</p>}
         </section>
         <section
-          className="border-y border-white/[.06] bg-[#151515] py-20"
+          className="border-y border-white/[.06] bg-[#151515] py-20 text-white"
           id="how-it-works"
         >
           <div className="mx-auto w-[calc(100%-36px)] max-w-[1160px]">
@@ -324,7 +385,7 @@ export default function HomePage() {
             care about your journey.
           </p>
         </section>
-        {faqs.length > 0 && <section className="border-y border-white/[.06] bg-[#151515] py-20" id="faq">
+        {faqs.length > 0 && <section className="border-y border-white/[.06] bg-[#151515] py-20 text-white" id="faq">
           <div className="mx-auto w-[calc(100%-36px)] max-w-[900px]">
             <Eyebrow>QUESTIONS, ANSWERED</Eyebrow>
             <h2 className="mt-[17px] font-['Space_Grotesk'] text-[44px] font-semibold">Frequently asked <em className="not-italic text-[#ff641f]">questions.</em></h2>
@@ -335,7 +396,7 @@ export default function HomePage() {
             </div>
           </div>
         </section>}
-        <section className="border-y border-white/[.06] bg-[#151515] py-20" id="contact">
+        <section className="border-y border-white/[.06] bg-[#151515] py-20 text-white" id="contact">
           <div className="mx-auto w-[calc(100%-36px)] max-w-[1160px]">
             <div className="grid gap-10 lg:grid-cols-[.85fr_1.15fr] lg:items-end">
               <div>
@@ -358,19 +419,27 @@ export default function HomePage() {
                   <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Email</span>
                   <strong className="mt-3 block break-all font-['Space_Grotesk'] text-xl">licoancyril25@gmail.com</strong>
                 </a>
-                <div className="grid bg-[#151515] sm:col-span-2 sm:grid-cols-2">
-                  <div className="flex min-h-56 flex-col justify-center p-6">
-                    <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Visit us</span>
-                    <address className="mt-3 not-italic text-sm leading-6 text-[#d0cdca]">Blk 5, Lot 3A, Calle Gracia<br />Calamba, 4027 Laguna</address>
-                  </div>
-                  <iframe
-                    className="h-64 w-full border-0 sm:h-full"
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3867.970611358424!2d121.1692774!3d14.196499199999998!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd6300769b6edd%3A0x6ce13f5c55c978db!2sCL%20CarHub!5e0!3m2!1sen!2sph!4v1791431843565!5m2!1sen!2sph"
-                    title="CL CarHub location map"
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                  />
+                <div className="grid gap-px bg-white/[.08] sm:col-span-2 sm:grid-cols-2">
+                  {[
+                    ["CL CarHub - Cabuyao", "Cabuyao, Laguna"],
+                    ["CL CarHub - Calamba", "Calamba, Laguna"],
+                  ].map(([name, address]) => (
+                    <div className="bg-[#151515]" key={name}>
+                      <div className="p-6">
+                        <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Pickup garage</span>
+                        <strong className="mt-3 block font-['Space_Grotesk'] text-xl">{name}</strong>
+                        <address className="mt-2 not-italic text-sm leading-6 text-[#d0cdca]">{address}</address>
+                      </div>
+                      <iframe
+                        className="h-56 w-full border-0"
+                        src={`https://www.google.com/maps?q=${encodeURIComponent(name)}&output=embed`}
+                        title={`${name} map`}
+                        allowFullScreen
+                        loading="lazy"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                      />
+                    </div>
+                  ))}
                 </div>
                 <a className="bg-[#151515] p-6 transition hover:bg-[#1d1d1d]" href="https://www.facebook.com/p/CL-CarHub-61567994249496/" target="_blank" rel="noreferrer">
                   <span className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Facebook</span>
