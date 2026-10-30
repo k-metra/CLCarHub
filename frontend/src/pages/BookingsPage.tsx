@@ -25,7 +25,7 @@ import { ConfirmDialog, RowActions, useToast } from "../components/Ui";
 import { LocationPicker } from "../components/LocationPicker";
 import { discountedRental, discountPercent } from "../lib/discounts";
 import { addonPricingLabel } from "../lib/addons";
-import { citiesByProvince, philippineProvinces } from "../lib/philippineLocations";
+import { citiesByProvince, luzonProvinces } from "../lib/philippineLocations";
 
 type Customer = {
   id: number;
@@ -3485,7 +3485,7 @@ export default function BookingsPage() {
                       }}
                     >
                       <option value="">Select province</option>
-                      {philippineProvinces.map((province) => (
+                      {luzonProvinces.map((province) => (
                         <option key={province} value={province}>
                           {province}
                         </option>
