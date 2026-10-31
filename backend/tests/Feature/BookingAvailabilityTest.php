@@ -40,6 +40,34 @@ class BookingAvailabilityTest extends TestCase
         $this->assertCount(1, Booking::all());
     }
 
+    public function test_booking_update_rejects_an_overlapping_active_period(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $otherCustomer = Customer::create(['name' => 'Second Customer', 'phone' => '09170000001']);
+
+        $existing = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 08:00',
+            'return_at' => '2030-01-11 08:00',
+        ])->assertCreated();
+        $editable = $this->postJson('/api/bookings', [
+            'customer_id' => $otherCustomer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-12 08:00',
+            'return_at' => '2030-01-13 08:00',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/bookings/{$editable['id']}", [
+            'pickup_at' => '2030-01-10 05:00',
+            'return_at' => '2030-01-11 05:00',
+        ])->assertUnprocessable();
+        $unchanged = Booking::findOrFail($editable['id']);
+        $this->assertSame('2030-01-12 08:00', $unchanged->pickup_at->format('Y-m-d H:i'));
+        $this->assertSame('2030-01-13 08:00', $unchanged->return_at->format('Y-m-d H:i'));
+        $this->assertDatabaseHas('bookings', ['id' => $existing->json('id')]);
+    }
+
     public function test_vehicle_availability_returns_conflicting_intervals_without_customer_details(): void
     {
         [$vehicle, $customer] = $this->authenticate();
@@ -214,6 +242,57 @@ class BookingAvailabilityTest extends TestCase
             'booking_id' => $booking->id,
             'amount' => 500,
         ]);
+        $this->assertSame($staff->id, $booking->fresh()->assigned_to_user_id);
+    }
+
+    public function test_it_management_can_be_assigned_to_a_booking(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $itm = User::factory()->create(['role' => 'it_management', 'status' => 'active']);
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000003',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'assigned_to_user_id' => $itm->id,
+        ])->assertOk();
+
+        $this->assertSame($itm->id, $booking->fresh()->assigned_to_user_id);
+    }
+
+    public function test_staff_can_claim_an_unassigned_booking_once(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $staff = User::factory()->create(['role' => 'staff', 'status' => 'active']);
+        $otherStaff = User::factory()->create(['role' => 'staff', 'status' => 'active']);
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000004',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        Sanctum::actingAs($staff);
+        $this->postJson("/api/bookings/{$booking->id}/claim")
+            ->assertOk()
+            ->assertJsonPath('assigned_to_user_id', $staff->id);
+
+        Sanctum::actingAs($otherStaff);
+        $this->postJson("/api/bookings/{$booking->id}/claim")
+            ->assertStatus(409);
         $this->assertSame($staff->id, $booking->fresh()->assigned_to_user_id);
     }
 
