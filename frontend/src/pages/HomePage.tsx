@@ -89,6 +89,8 @@ const renderFaqAnswer = (value: string) => value.split("\n").map((line, index) =
 });
 
 function SearchPanel({
+  mobile = false,
+  onClose,
   activeField,
   datePickerOpenRequest,
   onOpenDates,
@@ -115,6 +117,8 @@ function SearchPanel({
   deliveryLocation,
   setDeliveryLocation,
 }: {
+  mobile?: boolean;
+  onClose: () => void;
   activeField: "from" | "to" | "dates" | "vehicleType" | null;
   datePickerOpenRequest: number;
   onOpenDates: () => void;
@@ -167,9 +171,19 @@ function SearchPanel({
     </div>
   </fieldset>;
   const datePicker = <DateRangeTimePicker openRequest={activeField === "dates" ? datePickerOpenRequest : 0} value={{ pickupDate, returnDate, pickupTime, returnTime }} onChange={value => { setPickupDate(value.pickupDate); setReturnDate(value.returnDate); setPickupTime(value.pickupTime); setReturnTime(value.returnTime); }} minDate={new Date().toISOString().slice(0, 10)} className="hidden" placeholder="Choose pickup and return dates" />;
-  if (activeField === "dates") return datePicker;
-  if (activeField === "vehicleType") return <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">{vehicleTypePicker}</div>;
-  return <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">
+  const backdrop = <button type="button" aria-label="Close search options" className="fixed inset-0 z-20 cursor-default" onClick={onClose} />;
+  if (mobile) return <>{backdrop}<div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">
+    <p className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Search options</p>
+    <button type="button" onClick={onOpenDates} className="mt-3 flex w-full items-center justify-between border border-white/10 bg-[#0b0b0b] px-3 py-3 text-left text-sm text-white hover:border-[#ff641f]">
+      <span><span className="block text-[10px] font-bold uppercase tracking-wider text-[#777]">Dates</span><span className="mt-1 block">{pickupDate && returnDate ? `${formatSearchDate(pickupDate)}, ${formatSearchTime(pickupTime)} – ${formatSearchDate(returnDate)}, ${formatSearchTime(returnTime)}` : "Choose pickup and return dates"}</span></span>
+      <span className="text-[#ff641f]" aria-hidden="true">▣</span>
+    </button>
+    <div className="mt-4">{vehicleTypePicker}</div>
+    {datePicker}
+  </div></>;
+  if (activeField === "dates") return <>{backdrop}{datePicker}</>;
+  if (activeField === "vehicleType") return <>{backdrop}<div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">{vehicleTypePicker}</div></>;
+  return <>{backdrop}<div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">
     <p className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Plan your rental</p>
     <button type="button" onClick={onOpenDates} className="mt-3 flex w-full items-center justify-between border border-white/10 bg-[#0b0b0b] px-3 py-3 text-left text-sm text-white hover:border-[#ff641f]">
       <span><span className="block text-[10px] font-bold uppercase tracking-wider text-[#777]">Dates</span><span className="mt-1 block">{pickupDate && returnDate ? `${formatSearchDate(pickupDate)}, ${formatSearchTime(pickupTime)} – ${formatSearchDate(returnDate)}, ${formatSearchTime(returnTime)}` : "Choose pickup and return dates"}</span></span>
@@ -212,7 +226,7 @@ function SearchPanel({
         <input className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white placeholder:text-[#666]" value={tripDetails} onChange={event => setTripDetails(event.target.value)} placeholder="Dates, destination, or anything else we should know" />
       </label>}
     </div>
-  </div>;
+  </div></>;
 }
 
 export default function HomePage() {
@@ -256,6 +270,7 @@ export default function HomePage() {
       setSearchError("Choose pickup and return dates to see available units.");
       setSearchOpen(true);
       setActiveSearchField("dates");
+      setDatePickerOpenRequest(current => current + 1);
       return;
     }
     setSearchLoading(true);
@@ -322,7 +337,7 @@ export default function HomePage() {
               </button>
               <button type="button" className="my-1 flex w-12 shrink-0 items-center justify-center bg-[#ff641f] text-sm font-bold text-white hover:bg-[#ff7b42] disabled:cursor-wait disabled:opacity-70" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))} disabled={searchLoading} aria-label={searchOpen ? "Search available vehicles" : "Open search options"}>{searchLoading ? "…" : "⌕"}</button>
             </div>
-            {searchOpen && <SearchPanel activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} onOpenDates={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); }} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+            {searchOpen && <SearchPanel onClose={() => { setSearchOpen(false); setActiveSearchField(null); }} activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} onOpenDates={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); }} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
           </div>
           <Link className="hidden text-sm font-semibold text-[#bbb] hover:text-[#ff641f] lg:block" to="/faq">FAQ</Link>
           <Link className="hidden rounded-full bg-[#242424] px-5 py-3 text-sm font-bold text-white hover:bg-[#ff641f] md:block" to="/host-partnership">Become a host</Link>
@@ -331,8 +346,18 @@ export default function HomePage() {
       </header>
       <main className="bg-[#0b0b0b] text-[#f4f3f0]">
         <div className="relative border-b border-white/[.08] bg-[#111] px-[18px] py-3 md:hidden">
-          <button type="button" className="flex h-12 w-full items-center gap-3 border border-white/[.15] bg-[#151515] px-4 text-left" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))}><span className="text-[#ff641f]">⌖</span><span className="flex-1 truncate text-sm text-[#bbb]">Find your next CL CarHub ride</span><span className="bg-[#ff641f] px-3 py-2 text-xs font-bold">{searchOpen ? "See available units" : "Plan"}</span></button>
-          {searchOpen && <SearchPanel activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} onOpenDates={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); }} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+          <div className="flex h-12 w-full items-stretch border border-white/[.15] bg-[#151515]">
+            <button type="button" className="min-w-0 flex-1 border-r border-white/[.1] px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); setSearchOpen(true); }} aria-label="Choose rental dates">
+              <span className="block text-[9px] font-bold uppercase tracking-wider text-[#777]">Dates</span>
+              <span className="block truncate text-xs text-[#d0cdca]">{pickupDate && returnDate ? `${formatSearchDate(pickupDate)} – ${formatSearchDate(returnDate)}` : "Add dates"}</span>
+            </button>
+            <button type="button" className="min-w-0 flex-1 border-r border-white/[.1] px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("vehicleType"); setSearchOpen(true); }} aria-label="Choose vehicle types">
+              <span className="block text-[9px] font-bold uppercase tracking-wider text-[#777]">Vehicle type</span>
+              <span className="block truncate text-xs text-[#d0cdca]">{selectedVehicleTypes.length === allVehicleTypes.length ? "All types" : `${selectedVehicleTypes.length} selected`}</span>
+            </button>
+            <button type="button" className="w-16 shrink-0 bg-[#ff641f] text-xs font-bold text-white hover:bg-[#ff7b42] disabled:cursor-wait disabled:opacity-70" onClick={() => void searchVehicles()} disabled={searchLoading} aria-label="Search available vehicles">{searchLoading ? "…" : "Search"}</button>
+          </div>
+          {searchOpen && <SearchPanel mobile onClose={() => { setSearchOpen(false); setActiveSearchField(null); }} activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} onOpenDates={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); }} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
         </div>
         <section
           className="mx-auto w-[calc(100%-36px)] max-w-[1240px] py-10 sm:py-14"
@@ -358,7 +383,7 @@ export default function HomePage() {
                 {categoryVehicles.map((vehicle) => {
               const image = imageUrl(vehicle);
               return (
-                <Link key={vehicle.id} to={`/vehicles/${vehicle.id}`} className="group w-56 min-w-56 snap-start overflow-hidden border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] sm:w-[300px] sm:min-w-[300px]">
+                <Link key={vehicle.id} to={`/vehicles/${vehicle.id}`} state={{ from: "/" }} className="group w-56 min-w-56 snap-start overflow-hidden border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] sm:w-[300px] sm:min-w-[300px]">
                   <div className="relative h-32 overflow-hidden bg-[#191919] sm:h-[220px]">
                     {image ? <img className="h-full w-full object-cover saturate-[.7] transition duration-500 group-hover:scale-105" src={image} alt={vehicle.name || `${vehicle.brand} ${vehicle.model}`} /> : <div className="flex h-full items-center justify-center text-sm text-[#777]">Vehicle photo coming soon</div>}
                     <span className="absolute bottom-2 left-2 bg-[#ff641f] px-2 py-1 text-[9px] font-bold text-white sm:bottom-3 sm:left-3 sm:px-3 sm:text-[10px]">{vehicleTypeLabels[vehicle.type]}</span>
