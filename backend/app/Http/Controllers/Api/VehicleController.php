@@ -161,11 +161,12 @@ class VehicleController extends Controller
         ];
     }
 
-    public function bookedDates(Vehicle $vehicle)
+    public function bookedDates(Request $request, Vehicle $vehicle)
     {
         return [
             'booked_dates' => $vehicle->bookings()
                 ->whereIn('status', \App\Models\Booking::ACTIVE_STATUSES)
+                ->when($request->integer('ignore_booking_id') > 0, fn ($query) => $query->where('bookings.id', '<>', $request->integer('ignore_booking_id')))
                 ->orderBy('pickup_at')
                 ->get(['pickup_at', 'return_at'])
                 ->map(fn ($booking) => [
