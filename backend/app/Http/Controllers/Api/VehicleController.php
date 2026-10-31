@@ -38,12 +38,18 @@ class VehicleController extends Controller
     {
         $data = $request->validate([
             'type' => ['required', Rule::in([...self::VEHICLE_TYPES, 'all'])],
+            'types' => ['nullable', 'array', 'min:1'],
+            'types.*' => [Rule::in(self::VEHICLE_TYPES)],
             'pickup_at' => ['required', 'date'],
             'return_at' => ['required', 'date', 'after:pickup_at'],
         ]);
 
         return Vehicle::with(['images', 'partner'])
-            ->when($data['type'] !== 'all', fn ($query) => $query->where('type', $data['type']))
+            ->when(
+                filled($data['types'] ?? null),
+                fn ($query) => $query->whereIn('type', $data['types']),
+                fn ($query) => $query->when($data['type'] !== 'all', fn ($query) => $query->where('type', $data['type'])),
+            )
             ->where('status', 'available')
             ->rentalEligible()
             ->whereDoesntHave('bookings', fn ($query) => $query
