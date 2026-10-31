@@ -232,6 +232,7 @@ function SearchPanel({
 export default function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [activeSearchField, setActiveSearchField] = useState<"from" | "to" | "dates" | "vehicleType" | null>(null);
   const [pickupMode, setPickupMode] = useState<"garage" | "delivery">("garage");
   const [garage, setGarage] = useState("Cabuyao");
@@ -322,7 +323,7 @@ export default function HomePage() {
         }}
       />
       <header className="relative z-10 w-full border-b border-white/[.08] bg-[#0b0b0b]">
-        <nav className="mx-auto flex min-h-[76px] w-[calc(100%-36px)] max-w-[1240px] items-center gap-5 py-3">
+        <nav className="relative mx-auto flex min-h-[76px] w-[calc(100%-36px)] max-w-[1240px] items-center gap-5 py-3">
           <Link className="shrink-0" to="/" aria-label="CLCarHub home">
             <img src="/clcarhublogo_upscaled.png" alt="CLCarHub" className="h-20 w-32 object-contain object-left" />
           </Link>
@@ -339,9 +340,17 @@ export default function HomePage() {
             </div>
             {searchOpen && <SearchPanel onClose={() => { setSearchOpen(false); setActiveSearchField(null); }} activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} onOpenDates={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); }} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
           </div>
-          <Link className="text-xs font-semibold text-[#bbb] hover:text-[#ff641f] md:hidden lg:block lg:text-sm" to="/faq">FAQ</Link>
+          <Link className="hidden text-sm font-semibold text-[#bbb] hover:text-[#ff641f] md:block" to="/faq">FAQ</Link>
           <Link className="hidden rounded-full bg-[#242424] px-5 py-3 text-sm font-bold text-white hover:bg-[#ff641f] md:block" to="/host-partnership">Become a host</Link>
-          <Link className="ml-auto rounded-full border border-white/20 px-3 py-2 text-xs font-bold text-white hover:border-[#ff641f] hover:bg-[#ff641f] md:ml-0 md:px-4 md:py-2.5 md:text-sm" to="/admin/login">Sign in</Link>
+          <div className="ml-auto flex items-center gap-2 md:hidden">
+            <Link className="rounded-full border border-white/20 px-3 py-2 text-xs font-bold text-white hover:border-[#ff641f] hover:bg-[#ff641f]" to="/admin/login">Sign in</Link>
+            <button type="button" className="rounded border border-white/20 px-2.5 py-2 text-lg leading-none text-white hover:border-[#ff641f] hover:bg-[#ff641f]" onClick={() => setMenuOpen(current => !current)} aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen}>☰</button>
+          </div>
+          <Link className="hidden rounded-full border border-white/20 px-4 py-2.5 text-sm font-bold text-white hover:border-[#ff641f] hover:bg-[#ff641f] md:block" to="/admin/login">Sign in</Link>
+          {menuOpen && <div className="absolute left-0 right-0 top-full z-20 flex flex-col gap-4 border border-white/[.1] bg-[#111] p-5 shadow-xl md:hidden">
+            <Link className="text-sm font-semibold text-[#bbb] hover:text-[#ff641f]" to="/faq" onClick={() => setMenuOpen(false)}>FAQ</Link>
+            <Link className="text-sm font-semibold text-[#bbb] hover:text-[#ff641f]" to="/host-partnership" onClick={() => setMenuOpen(false)}>Become a host</Link>
+          </div>}
         </nav>
       </header>
       <main className="bg-[#0b0b0b] text-[#f4f3f0]">
