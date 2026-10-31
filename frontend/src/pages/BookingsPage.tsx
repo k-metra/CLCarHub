@@ -668,7 +668,7 @@ export default function BookingsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [funds, setFunds] = useState<FundRecord[]>([]);
   const [staffAccounts, setStaffAccounts] = useState<
-    Array<{ id: number; name: string; phone?: string | null }>
+    Array<{ id: number; name: string; phone?: string | null; role?: string }>
   >([]);
   const [assignmentBooking, setAssignmentBooking] =
     useState<BookingRecord | null>(null);
@@ -1940,19 +1940,6 @@ export default function BookingsPage() {
                   <span><strong>Apply customer’s free 12-hour loyalty reward</strong><span className="mt-1 block text-[11px] text-[#888]">The booking must be exactly 12 hours and cannot include add-ons or delivery.</span></span>
                 </label>
               )}
-              {user &&
-                ["owner", "co_owner", "it_management", "staff"].includes(user.role) &&
-                !selectedBooking.assigned_to_user_id &&
-                !["complete", "rejected", "cancelled"].includes(selectedBooking.status) && (
-                  <button
-                    type="button"
-                    className="mt-4 border border-[#ff641f] px-4 py-2 text-sm font-bold text-[#d94f12] disabled:opacity-50"
-                    disabled={assignmentSaving}
-                    onClick={() => void claimBooking(selectedBooking)}
-                  >
-                    {assignmentSaving ? "Claiming..." : "Claim this booking"}
-                  </button>
-                )}
               <div className="rounded border border-orange-200 bg-orange-50 p-4 text-sm text-[#6b3418]">
                 <p className="font-semibold">Current status</p>
                 <p className="mt-1">
@@ -2534,6 +2521,19 @@ export default function BookingsPage() {
                     </span>
                   </label>
                 )}
+                {user &&
+                  ["owner", "co_owner", "it_management", "staff"].includes(user.role) &&
+                  !selectedBooking.assigned_to_user_id &&
+                  !["complete", "rejected", "cancelled"].includes(selectedBooking.status) && (
+                    <button
+                      type="button"
+                      className="mt-4 border border-[#ff641f] px-4 py-2 text-sm font-bold text-[#d94f12] disabled:opacity-50"
+                      disabled={assignmentSaving}
+                      onClick={() => void claimBooking(selectedBooking)}
+                    >
+                      {assignmentSaving ? "Claiming..." : "Claim this booking"}
+                    </button>
+                  )}
                 {selectedBooking.status === "complete" &&
                   !selectedBooking.security_deposit_returned_at &&
                   (selectedBooking.security_deposit_type === "asset"
@@ -4556,7 +4556,7 @@ function AssignStaffModal({
   onAssign,
 }: {
   booking: BookingRecord;
-  staffAccounts: Array<{ id: number; name: string; phone?: string | null }>;
+  staffAccounts: Array<{ id: number; name: string; phone?: string | null; role?: string }>;
   saving: boolean;
   onClose: () => void;
   onAssign: (staffId: number | null) => void;
