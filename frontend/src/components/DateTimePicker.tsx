@@ -63,6 +63,50 @@ const formatDuration = (minutes: number) => {
   return units.filter(unit => unit.value > 0).map(unit => `${unit.value} ${unit.label}${unit.value === 1 ? "" : "s"}`).join(" ");
 };
 
+function CalendarMonth({ month, onChangeMonth, value, minDate, bookedDates, onSelectDate }: {
+  month: Date;
+  onChangeMonth?: (month: Date) => void;
+  value: string;
+  minDate?: string;
+  bookedDates: BookedDateRange[];
+  onSelectDate: (date: Date) => void;
+}) {
+  const days = useMemo(() => {
+    const first = new Date(month.getFullYear(), month.getMonth(), 1);
+    const start = new Date(first);
+    start.setDate(1 - first.getDay());
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + index);
+      return day;
+    });
+  }, [month]);
+  const minimumDateValue = minDate ? datePart(minDate) : null;
+  const monthValue = `${month.getFullYear()}-${pad(month.getMonth() + 1)}`;
+  const minimumMonthValue = minimumDateValue?.slice(0, 7);
+  return <section>
+    <div className="flex items-center justify-between gap-2">
+      <button type="button" disabled={!onChangeMonth || Boolean(minimumMonthValue && monthValue <= minimumMonthValue)} className="calendar-nav flex h-10 w-10 shrink-0 items-center justify-center rounded text-lg hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month" onClick={() => onChangeMonth?.(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button>
+      <strong className="text-sm">{month.toLocaleDateString([], { month: "long", year: "numeric" })}</strong>
+      <button type="button" disabled={!onChangeMonth} className="calendar-nav flex h-10 w-10 shrink-0 items-center justify-center rounded text-lg hover:bg-black/5 disabled:opacity-30" aria-label="Next month" onClick={() => onChangeMonth?.(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button>
+    </div>
+    <div className="mt-3 grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wider text-[#888]">
+      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <span key={day} className="py-1">{day}</span>)}
+      {days.map(day => {
+        const dayValue = formatDate(day);
+        const active = datePart(value) === dayValue;
+        const inMonth = day.getMonth() === month.getMonth();
+        const beforeMinimum = Boolean(minimumDateValue && dayValue < minimumDateValue);
+        const booked = bookedDates.some(range => dayValue >= datePart(range.pickup_at) && dayValue <= datePart(range.return_at));
+        const unavailable = beforeMinimum || booked;
+        return <button type="button" disabled={unavailable} title={booked ? `Booked for ${displayDate(dayValue)}` : undefined} aria-label={`${displayDate(dayValue)}${booked ? " — booked" : ""}`} key={dayValue} onClick={() => onSelectDate(day)} className={`calendar-day min-h-10 rounded py-1 text-sm ${booked ? "cursor-not-allowed font-semibold text-red-700" : beforeMinimum ? "cursor-not-allowed text-[#ddd]" : active ? "bg-[#ff641f] font-bold text-white" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>
+          <span className="flex flex-col items-center justify-center gap-0.5"><span>{day.getDate()}</span>{booked && <span className="-rotate-6 rounded-sm border border-red-500 px-0.5 text-[7px] font-black leading-3 tracking-tight">BOOKED</span>}</span>
+        </button>;
+      })}
+    </div>
+  </section>;
+}
+
 function RangeCalendar({ month, onChangeMonth, pickupDate, returnDate, minDate, bookedDates, onSelectDate }: {
   month: Date;
   onChangeMonth: (month: Date) => void;
@@ -126,8 +170,8 @@ export function DateRangeTimePicker({ value, onChange, minDate, bookedDates = []
   const [draft, setDraft] = useState(value);
   const minimumDateValue = minDate ? datePart(minDate) : null;
   const display = value.pickupDate && value.returnDate
-    ? `${displayDate(value.pickupDate)} – ${displayDate(value.returnDate)}`
-    : value.pickupDate ? `${displayDate(value.pickupDate)} – Choose return date` : "";
+    ? `${displayDate(value.pickupDate)}, ${formatTime(value.pickupTime)} – ${displayDate(value.returnDate)}, ${formatTime(value.returnTime)}`
+    : value.pickupDate ? `${displayDate(value.pickupDate)}, ${formatTime(value.pickupTime)} – Choose return date` : "";
   const pickupDateValue = parseDate(value.pickupDate);
   const returnDateValue = parseDate(value.returnDate);
   const durationMinutes = pickupDateValue && returnDateValue && isValidTime(value.pickupTime) && isValidTime(value.returnTime)
@@ -254,21 +298,8 @@ export function DateTimePicker({
     if (mode === "datetime" && value.includes("T")) setTime(value.slice(11, 16));
   }, [selected, value, mode]);
 
-  const days = useMemo(() => {
-    const first = new Date(month.getFullYear(), month.getMonth(), 1);
-    const start = new Date(first);
-    start.setDate(1 - first.getDay());
-    return Array.from({ length: 42 }, (_, index) => {
-      const day = new Date(start);
-      day.setDate(start.getDate() + index);
-      return day;
-    });
-  }, [month]);
-
   const minimumDate = minDate ? parseDate(minDate) : null;
   const minimumDateValue = minimumDate ? formatDate(minimumDate) : null;
-  const monthValue = `${month.getFullYear()}-${pad(month.getMonth() + 1)}`;
-  const minimumMonthValue = minimumDateValue?.slice(0, 7);
   const years = Array.from({ length: 11 }, (_, index) => month.getFullYear() - 5 + index);
   const timeSlots = Array.from({ length: 96 }, (_, index) => `${pad(Math.floor(index / 4))}:${pad((index % 4) * 15)}`);
 
@@ -307,34 +338,16 @@ export function DateTimePicker({
         className={`${className} cursor-pointer bg-white`}
       />
       {open && !disabled && createPortal(
-        <div ref={popoverRef} style={{ top: anchor.top, left: anchor.left }} className="datetime-picker-popover theme-surface fixed z-[220] w-[22rem] rounded border border-black/10 bg-white p-3 shadow-2xl sm:p-4">
+        <div ref={popoverRef} style={{ top: anchor.top, left: anchor.left }} className="datetime-picker-popover theme-surface fixed inset-x-3 bottom-4 z-[220] max-h-[calc(100vh-2rem)] overflow-y-auto rounded border border-black/10 bg-white p-3 shadow-2xl overscroll-contain sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[90vh] sm:w-[min(94vw,48rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:p-4">
           <div className="flex items-center justify-between gap-2">
-            <button type="button" disabled={Boolean(minimumMonthValue && monthValue <= minimumMonthValue)} className="calendar-nav flex h-10 w-10 shrink-0 items-center justify-center rounded text-lg hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button>
             <div className="flex min-w-0 flex-1 gap-1 sm:gap-2">
-              <select className="min-w-0 flex-1 border border-black/10 px-1 py-2 text-sm font-semibold sm:px-2 sm:py-1" value={month.getMonth()} onChange={event => setMonth(new Date(month.getFullYear(), Number(event.target.value), 1))}>
-                {Array.from({ length: 12 }, (_, index) => <option value={index} key={index}>{new Date(2000, index, 1).toLocaleDateString([], { month: "long" })}</option>)}
-              </select>
-              <select className="w-[5.5rem] shrink-0 border border-black/10 px-1 py-2 text-sm font-semibold sm:px-2 sm:py-1" value={month.getFullYear()} onChange={event => setMonth(new Date(Number(event.target.value), month.getMonth(), 1))}>
-                {years.map(year => <option value={year} key={year}>{year}</option>)}
-              </select>
+              <select className="min-w-0 flex-1 border border-black/10 px-1 py-2 text-sm font-semibold sm:px-2 sm:py-1" value={month.getMonth()} onChange={event => setMonth(new Date(month.getFullYear(), Number(event.target.value), 1))}>{Array.from({ length: 12 }, (_, index) => <option value={index} key={index}>{new Date(2000, index, 1).toLocaleDateString([], { month: "long" })}</option>)}</select>
+              <select className="w-[5.5rem] shrink-0 border border-black/10 px-1 py-2 text-sm font-semibold sm:px-2 sm:py-1" value={month.getFullYear()} onChange={event => setMonth(new Date(Number(event.target.value), month.getMonth(), 1))}>{years.map(year => <option value={year} key={year}>{year}</option>)}</select>
             </div>
-            <button type="button" className="calendar-nav flex h-10 w-10 shrink-0 items-center justify-center rounded text-lg hover:bg-black/5" aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button>
           </div>
-          <div className="mt-3 grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wider text-[#888]">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <span key={day} className="py-1">{day}</span>)}
-            {days.map(day => {
-              const active = datePart(value) === formatDate(day);
-              const inMonth = day.getMonth() === month.getMonth();
-              const beforeMinimum = Boolean(minimumDateValue && formatDate(day) < minimumDateValue);
-              const booked = bookedDates.some(range => formatDate(day) >= datePart(range.pickup_at) && formatDate(day) <= datePart(range.return_at));
-              const unavailable = beforeMinimum || booked;
-              return <button type="button" disabled={unavailable} title={booked ? `Booked for ${displayDate(formatDate(day))}` : undefined} aria-label={`${displayDate(formatDate(day))}${booked ? " — booked" : ""}`} key={formatDate(day)} onClick={() => selectDate(day)} className={`calendar-day min-h-10 rounded py-1 text-sm ${booked ? "cursor-not-allowed font-semibold text-red-700" : beforeMinimum ? "cursor-not-allowed text-[#ddd]" : active ? "bg-[#ff641f] font-bold text-white" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>
-                <span className="flex flex-col items-center justify-center gap-0.5">
-                  <span>{day.getDate()}</span>
-                  {booked && <span className="-rotate-6 rounded-sm border border-red-500 px-0.5 text-[7px] font-black leading-3 tracking-tight">BOOKED</span>}
-                </span>
-              </button>;
-            })}
+          <div className="mt-3 grid gap-6 md:grid-cols-2">
+            <CalendarMonth month={month} onChangeMonth={next => setMonth(next)} value={value} minDate={minDate} bookedDates={bookedDates} onSelectDate={selectDate} />
+            <div className="hidden md:block"><CalendarMonth month={new Date(month.getFullYear(), month.getMonth() + 1, 1)} value={value} minDate={minDate} bookedDates={bookedDates} onSelectDate={selectDate} /></div>
           </div>
           {bookedDates.length > 0 && <p className="mt-2 text-[11px] text-red-700"><span className="mr-1 inline-block rounded-sm border border-red-500 px-0.5 text-[8px] font-black leading-3" aria-hidden="true">BOOKED</span>Booked dates cannot be selected.</p>}
           {mode === "datetime" && (
