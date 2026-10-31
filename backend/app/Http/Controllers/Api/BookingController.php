@@ -539,9 +539,27 @@ class BookingController extends Controller
         $settlementFundId = $data['settlement_fund_id'] ?? null;
         unset($data['payments']);
         unset($data['settlement_fund_id']);
-        $vehicle = Vehicle::findOrFail($data['vehicle_id'] ?? $booking->vehicle_id);
+        $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id'] ?? $booking->vehicle_id);
         abort_unless($vehicle->hasActivePartnerContract(), 422, 'This partner vehicle is not eligible for rental until its contract is approved.');
         $vehicleChanged = array_key_exists('vehicle_id', $data) && (int) $data['vehicle_id'] !== (int) $booking->vehicle_id;
+        $pickupAt = $data['pickup_at'] ?? $booking->pickup_at;
+        $returnAt = $data['return_at'] ?? $booking->return_at;
+        $effectiveStatus = $data['status'] ?? $booking->status;
+        $scheduleOrVehicleChanged = array_key_exists('pickup_at', $data)
+            || array_key_exists('return_at', $data)
+            || $vehicleChanged;
+        $becomingActive = ! in_array($booking->status, Booking::ACTIVE_STATUSES, true)
+            && in_array($effectiveStatus, Booking::ACTIVE_STATUSES, true);
+        if (
+            in_array($effectiveStatus, Booking::ACTIVE_STATUSES, true)
+            && ($scheduleOrVehicleChanged || $becomingActive)
+        ) {
+            abort_if(
+                $this->hasReservedVehicleConflict($vehicle, $pickupAt, $returnAt, $booking->id),
+                422,
+                'The vehicle is not available for the selected period.'
+            );
+        }
         $assignmentChanged = $assignmentProvided && $assignedToUserId !== $booking->assigned_to_user_id;
         if ($assignmentChanged && $assignedToUserId !== null) {
             $assignedStaff = User::findOrFail($assignedToUserId);
@@ -571,7 +589,6 @@ class BookingController extends Controller
         ) {
             $data['rental_rate'] = (float) $vehicle->outside_laguna_rate;
         }
-        $effectiveStatus = $data['status'] ?? $booking->status;
         if (
             in_array($effectiveStatus, Booking::ACTIVE_STATUSES, true)
             && (array_key_exists('pickup_at', $data) || array_key_exists('return_at', $data) || array_key_exists('vehicle_id', $data))
