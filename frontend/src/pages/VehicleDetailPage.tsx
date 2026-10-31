@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button, Skeleton } from "../components/Ui";
 import PublicFooter from "../components/PublicFooter";
 import Seo from "../components/Seo";
@@ -70,8 +70,13 @@ export default function VehicleDetailPage() {
   const signOut = useSignOut();
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const pickupAt = searchParams.get("pickup_at") ?? "";
   const returnAt = searchParams.get("return_at") ?? "";
+  const backPath = location.state && typeof location.state === "object" && "from" in location.state && typeof location.state.from === "string"
+    ? location.state.from
+    : "/vehicles";
+  const backLabel = backPath === "/" ? "Back to home" : "Back to our fleet";
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -95,7 +100,7 @@ export default function VehicleDetailPage() {
   }, [user, vehicleId]);
 
   if (error) {
-    return <div className="min-h-screen bg-[#0b0b0b] px-6 py-24 text-center text-[#f4f3f0]"><p className="text-[#ff641f]">{error}</p><Link className="mt-6 inline-block text-sm text-[#ff9b73]" to="/vehicles">← Back to our fleet</Link></div>;
+    return <div className="min-h-screen bg-[#0b0b0b] px-6 py-24 text-center text-[#f4f3f0]"><p className="text-[#ff641f]">{error}</p><Link className="mt-6 inline-block text-sm text-[#ff9b73]" to={backPath}>← {backLabel}</Link></div>;
   }
   if (!vehicle) return <VehicleDetailLoading customer={user?.role === "customer"} dark={theme === "dark"} />;
 
@@ -136,7 +141,7 @@ export default function VehicleDetailPage() {
       </nav>
     </header>
     {isCustomer && <main className="theme-surface min-h-screen px-4 pb-28 pt-5 sm:hidden">
-      <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-2 py-2 text-sm font-semibold text-[#ff641f]" aria-label="Go back to vehicle browsing">
+      <button type="button" onClick={() => navigate(backPath)} className="flex items-center gap-2 py-2 text-sm font-semibold text-[#ff641f]" aria-label="Go back to vehicle browsing">
         <span className="text-xl" aria-hidden="true">←</span> Back to browsing
       </button>
       <section className="mt-4 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
@@ -166,7 +171,7 @@ export default function VehicleDetailPage() {
       </div>
     </main>}
     <main className={`${isCustomer ? "hidden sm:block" : "block"} mx-auto w-[calc(100%-36px)] max-w-[1160px] pb-28 pt-12 sm:py-20`}>
-      <Link className="text-sm text-[#ff641f] hover:text-[#ff9b73]" to="/vehicles">← Back to our fleet</Link>
+      <Link className="text-sm text-[#ff641f] hover:text-[#ff9b73]" to={backPath}>← {backLabel}</Link>
       <div className="mt-8 grid gap-10 lg:grid-cols-[1.15fr_.85fr]">
         <section>
           <div className="flex min-h-[300px] items-center justify-center bg-[#191919] sm:min-h-[500px]">
