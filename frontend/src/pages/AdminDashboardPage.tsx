@@ -21,7 +21,7 @@ const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 });
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 type AvailabilityType = VehicleType | "all";
-type StaffAccount = { id: number; name: string; phone?: string | null };
+type StaffAccount = { id: number; name: string; phone?: string | null; role?: string };
 
 function imageUrl(booking: BookingRecord) {
   const value = booking.vehicle?.images?.[0]?.url;
@@ -62,7 +62,7 @@ export default function AdminDashboardPage() {
   useEffect(() => { void loadDashboard(); }, []);
   useEffect(() => {
     if (!canManageAccounts(user)) return;
-    api.get<{ data: StaffAccount[] }>("/accounts?role=staff&status=active")
+    api.get<{ data: StaffAccount[] }>("/accounts?status=active")
       .then(response => setStaffAccounts(response.data.data))
       .catch(e => showToast(e instanceof Error ? e.message : "Unable to load staff accounts.", "error"));
   }, [showToast, user]);
@@ -189,7 +189,7 @@ function AssignStaffModal({ booking, staffAccounts, saving, onClose, onAssign }:
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="assign-staff-title">
     <div className="theme-surface w-full max-w-md rounded p-6 shadow-2xl">
       <div className="flex items-start justify-between gap-4"><div><h2 id="assign-staff-title" className="text-xl font-semibold">Assign staff</h2><p className="mt-1 text-sm text-[#777]">{booking.reference} · {booking.customer?.name ?? "Customer"}</p></div><button type="button" onClick={onClose} className="text-2xl text-[#777] hover:text-[#ff641f]" aria-label="Close assign staff modal">×</button></div>
-      <label className="mt-6 block text-sm font-semibold">Staff member<select className="mt-2 w-full border border-black/10 bg-transparent px-3 py-3 font-normal" value={selectedStaffId} onChange={event => setSelectedStaffId(event.target.value)}><option value="">Unassigned</option>{staffAccounts.map(staff => <option value={staff.id} key={staff.id}>{staff.name}{staff.phone ? ` · ${staff.phone}` : ""}</option>)}</select></label>
+      <label className="mt-6 block text-sm font-semibold">Internal assignee<select className="mt-2 w-full border border-black/10 bg-transparent px-3 py-3 font-normal" value={selectedStaffId} onChange={event => setSelectedStaffId(event.target.value)}><option value="">Unassigned</option>{staffAccounts.map(staff => <option value={staff.id} key={staff.id}>{staff.name}{staff.role ? ` · ${staff.role === "it_management" ? "ITM" : staff.role.replace("_", " ")}` : ""}{staff.phone ? ` · ${staff.phone}` : ""}</option>)}</select></label>
       <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2.5 text-sm">Cancel</button><button type="button" disabled={saving} onClick={() => onAssign(selectedStaffId ? Number(selectedStaffId) : null)} className="bg-[#ff641f] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{saving ? "Saving..." : "Save assignment"}</button></div>
     </div>
   </div>;
