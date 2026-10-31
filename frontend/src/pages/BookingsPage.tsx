@@ -799,8 +799,8 @@ export default function BookingsPage() {
       api.get<{ funds: FundRecord[] }>("/funds"),
       api.get<FleetSettings>("/fleet-settings"),
       api.get<AddonRecord[]>("/addons?available_only=1"),
-      api.get<{ data: Array<{ id: number; name: string; phone?: string | null }> }>(
-        "/accounts?role=staff",
+      api.get<{ data: Array<{ id: number; name: string; phone?: string | null; role?: string }> }>(
+        "/accounts?status=active",
       ),
     ])
       .then(
@@ -1517,6 +1517,25 @@ export default function BookingsPage() {
       setAssignmentSaving(false);
     }
   };
+  const claimBooking = async (booking: BookingRecord) => {
+    setAssignmentSaving(true);
+    try {
+      const result = await api.post<BookingRecord>(`/bookings/${booking.id}/claim`);
+      setSelectedBooking({
+        ...result.data,
+        returnPhotos: returnPhotos(result.data),
+      });
+      await loadBookings();
+      showToast("Booking claimed successfully.", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Unable to claim booking.",
+        "error",
+      );
+    } finally {
+      setAssignmentSaving(false);
+    }
+  };
   const selectedVehicle = vehicles.find(
     (vehicle) => String(vehicle.id) === form.vehicle_id,
   );
@@ -1921,6 +1940,19 @@ export default function BookingsPage() {
                   <span><strong>Apply customer’s free 12-hour loyalty reward</strong><span className="mt-1 block text-[11px] text-[#888]">The booking must be exactly 12 hours and cannot include add-ons or delivery.</span></span>
                 </label>
               )}
+              {user &&
+                ["owner", "co_owner", "it_management", "staff"].includes(user.role) &&
+                !selectedBooking.assigned_to_user_id &&
+                !["complete", "rejected", "cancelled"].includes(selectedBooking.status) && (
+                  <button
+                    type="button"
+                    className="mt-4 border border-[#ff641f] px-4 py-2 text-sm font-bold text-[#d94f12] disabled:opacity-50"
+                    disabled={assignmentSaving}
+                    onClick={() => void claimBooking(selectedBooking)}
+                  >
+                    {assignmentSaving ? "Claiming..." : "Claim this booking"}
+                  </button>
+                )}
               <div className="rounded border border-orange-200 bg-orange-50 p-4 text-sm text-[#6b3418]">
                 <p className="font-semibold">Current status</p>
                 <p className="mt-1">
@@ -2479,7 +2511,7 @@ export default function BookingsPage() {
                 </p>
                 {user && ["owner", "co_owner", "it_management"].includes(user.role) && (
                   <label className="mt-4 block max-w-sm text-xs text-[#777]">
-                    Assigned staff
+                    Assigned internal
                     <select
                       className="mt-1 w-full border border-black/10 bg-white px-3 py-2 text-sm"
                       value={selectedBooking.assigned_to_user_id ?? ""}
@@ -2491,6 +2523,7 @@ export default function BookingsPage() {
                       {staffAccounts.map((staff) => (
                         <option value={staff.id} key={staff.id}>
                           {staff.name}
+                          {staff.role ? ` · ${staff.role === "it_management" ? "ITM" : staff.role.replace("_", " ")}` : ""}
                           {staff.phone ? ` · ${staff.phone}` : " · no phone"}
                         </option>
                       ))}
@@ -4404,6 +4437,17 @@ export default function BookingsPage() {
                                 label: "View Details",
                                 onClick: () => openDetails(booking),
                               },
+                              ...(user &&
+                              ["owner", "co_owner", "it_management", "staff"].includes(user.role) &&
+                              !booking.assigned_to_user_id &&
+                              !isTerminal
+                                ? [
+                                    {
+                                      label: "Claim booking",
+                                      onClick: () => void claimBooking(booking),
+                                    },
+                                  ]
+                                : []),
                               ...(user &&
                               ["owner", "co_owner", "it_management"].includes(
                                 user.role,
