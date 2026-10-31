@@ -73,10 +73,11 @@ export default function VehicleDetailPage() {
   const location = useLocation();
   const pickupAt = searchParams.get("pickup_at") ?? "";
   const returnAt = searchParams.get("return_at") ?? "";
-  const backPath = location.state && typeof location.state === "object" && "from" in location.state && typeof location.state.from === "string"
+  const requestedBackPath = location.state && typeof location.state === "object" && "from" in location.state && typeof location.state.from === "string"
     ? location.state.from
     : "/vehicles";
-  const backLabel = backPath === "/" ? "Back to home" : "Back to our fleet";
+  const backPath = user?.role === "customer" ? "/account" : requestedBackPath;
+  const backLabel = user?.role === "customer" ? "Back to browsing" : backPath === "/" ? "Back to home" : "Back to our fleet";
 
   useEffect(() => {
     if (!vehicleId) return;
