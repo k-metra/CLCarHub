@@ -339,9 +339,9 @@ export default function HomePage() {
             </div>
             {searchOpen && <SearchPanel onClose={() => { setSearchOpen(false); setActiveSearchField(null); }} activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} onOpenDates={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); }} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
           </div>
-          <Link className="hidden text-sm font-semibold text-[#bbb] hover:text-[#ff641f] lg:block" to="/faq">FAQ</Link>
+          <Link className="text-xs font-semibold text-[#bbb] hover:text-[#ff641f] md:hidden lg:block lg:text-sm" to="/faq">FAQ</Link>
           <Link className="hidden rounded-full bg-[#242424] px-5 py-3 text-sm font-bold text-white hover:bg-[#ff641f] md:block" to="/host-partnership">Become a host</Link>
-          <Link className="rounded-full border border-white/20 px-4 py-2.5 text-sm font-bold text-white hover:border-[#ff641f] hover:bg-[#ff641f]" to="/admin/login">Sign in</Link>
+          <Link className="ml-auto rounded-full border border-white/20 px-3 py-2 text-xs font-bold text-white hover:border-[#ff641f] hover:bg-[#ff641f] md:ml-0 md:px-4 md:py-2.5 md:text-sm" to="/admin/login">Sign in</Link>
         </nav>
       </header>
       <main className="bg-[#0b0b0b] text-[#f4f3f0]">
