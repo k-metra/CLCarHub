@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import api from "../lib/api";
 import { AdminShell } from "../components/AdminShell";
-import { DateTimePicker } from "../components/DateTimePicker";
+import { DateRangeTimePicker, type DateRangeTimeValue } from "../components/DateTimePicker";
 import { Skeleton, useToast } from "../components/Ui";
 import { canManageAccounts, displayName, useAuth } from "../lib/AuthContext";
 import { vehicleTypeLabels, vehicleTypes, type BookingRecord, type VehicleRecord, type VehicleType } from "../types";
@@ -42,7 +42,13 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [availabilityType, setAvailabilityType] = useState<AvailabilityType>("sedan");
-  const [availabilityDate, setAvailabilityDate] = useState(() => new Date().toISOString().slice(0, 16));
+  const [availabilityRange, setAvailabilityRange] = useState<DateRangeTimeValue>(() => {
+    const pickup = new Date();
+    const returned = new Date(pickup.getTime() + 24 * 60 * 60 * 1000);
+    const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const localTime = (date: Date) => `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    return { pickupDate: localDate(pickup), returnDate: localDate(returned), pickupTime: localTime(pickup), returnTime: localTime(returned) };
+  });
   const [availableVehicles, setAvailableVehicles] = useState<VehicleRecord[]>([]);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
@@ -87,8 +93,18 @@ export default function AdminDashboardPage() {
   const checkAvailability = async () => {
     setAvailabilityError("");
     setAvailabilityLoading(true);
-    const pickup = new Date(availabilityDate);
-    const returnAt = new Date(pickup.getTime() + 24 * 60 * 60 * 1000);
+    if (!availabilityRange.pickupDate || !availabilityRange.returnDate) {
+      setAvailabilityError("Choose both pickup and return dates.");
+      setAvailabilityLoading(false);
+      return;
+    }
+    const pickup = new Date(`${availabilityRange.pickupDate}T${availabilityRange.pickupTime}:00`);
+    const returnAt = new Date(`${availabilityRange.returnDate}T${availabilityRange.returnTime}:00`);
+    if (!Number.isFinite(pickup.getTime()) || !Number.isFinite(returnAt.getTime()) || returnAt <= pickup) {
+      setAvailabilityError("Return must be after pickup.");
+      setAvailabilityLoading(false);
+      return;
+    }
     try {
       const response = await api.get<VehicleRecord[]>("/vehicles/availability", {
         params: {
@@ -125,7 +141,7 @@ export default function AdminDashboardPage() {
         <h3 className="font-semibold">Vehicle availability</h3>
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
           <label className="flex-1 text-xs font-semibold text-[#555]">Vehicle type<select value={availabilityType} onChange={event => setAvailabilityType(event.target.value as AvailabilityType)} className="mt-2 w-full border border-black/10 bg-white px-3 py-3 text-sm"><option value="all">All</option>{vehicleTypes.map(vehicleType => <option key={vehicleType} value={vehicleType}>{vehicleTypeLabels[vehicleType]}</option>)}</select></label>
-          <label className="flex-1 text-xs font-semibold text-[#555]">Date & time<DateTimePicker mode="datetime" value={availabilityDate} onChange={setAvailabilityDate} className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" /></label>
+          <label className="flex-1 text-xs font-semibold text-[#555]">Pickup and return<DateRangeTimePicker value={availabilityRange} onChange={setAvailabilityRange} className="mt-2 w-full border border-black/10 px-3 py-3 text-sm" placeholder="Choose pickup and return" /></label>
           <button type="button" onClick={checkAvailability} disabled={availabilityLoading} className="bg-[#ff641f] px-5 py-3 text-center text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{availabilityLoading ? "Checking..." : "Check availability"}</button>
         </div>
         {availabilityError && <p className="mt-3 text-sm text-red-600">{availabilityError}</p>}
@@ -163,7 +179,7 @@ export default function AdminDashboardPage() {
         <Card><h3 className="font-semibold">Top vehicles by total revenue</h3><div className="mt-5 space-y-4">{loading ? <>{[1, 2, 3, 4].map(item => <Skeleton className="h-8 w-full" key={item} />)}</> : data?.top_vehicles.length ? data.top_vehicles.map(vehicle => <div className="min-w-0" key={vehicle.id}><div className="mb-1 flex min-w-0 items-start justify-between gap-3 text-sm"><span className="min-w-0 break-words">{vehicle.name || `${vehicle.brand} ${vehicle.model}`} ({vehicle.year})</span><strong className="shrink-0">{money.format(vehicle.revenue)}</strong></div><div className="h-2 bg-black/5"><div className="h-2 bg-[#ff641f]" style={{ width: `${Math.max(4, vehicle.revenue / Math.max(1, data.top_vehicles[0].revenue) * 100)}%` }} /></div></div>) : <p className="py-8 text-sm text-[#777]">No completed revenue records yet.</p>}</div></Card>
       </div>
     </div>
-    {availabilityOpen && <AvailabilityModal vehicles={availableVehicles} type={availabilityType} date={availabilityDate} onClose={() => setAvailabilityOpen(false)} showToast={showToast} />}
+    {availabilityOpen && <AvailabilityModal vehicles={availableVehicles} type={availabilityType} date={`${availabilityRange.pickupDate}T${availabilityRange.pickupTime}`} returnDate={`${availabilityRange.returnDate}T${availabilityRange.returnTime}`} onClose={() => setAvailabilityOpen(false)} showToast={showToast} />}
     {assignmentBooking && <AssignStaffModal booking={assignmentBooking} staffAccounts={staffAccounts} saving={assignmentSaving} onClose={() => setAssignmentBooking(null)} onAssign={staffId => void assignBooking(assignmentBooking, staffId)} />}
   </AdminShell>;
 }
@@ -179,8 +195,9 @@ function AssignStaffModal({ booking, staffAccounts, saving, onClose, onAssign }:
   </div>;
 }
 
-function AvailabilityModal({ vehicles, type, date, onClose, showToast }: { vehicles: VehicleRecord[]; type: AvailabilityType; date: string; onClose: () => void; showToast: (message: string, tone?: "success" | "error" | "info") => void }) {
+function AvailabilityModal({ vehicles, type, date, returnDate, onClose, showToast }: { vehicles: VehicleRecord[]; type: AvailabilityType; date: string; returnDate: string; onClose: () => void; showToast: (message: string, tone?: "success" | "error" | "info") => void }) {
   const dateLabel = new Date(date).toLocaleString([], { dateStyle: "long", timeStyle: "short" });
+  const returnLabel = new Date(returnDate).toLocaleString([], { dateStyle: "long", timeStyle: "short" });
   const categoryLabel = type === "all" ? "All categories" : vehicleTypeLabels[type];
   const vehicleList = vehicles.map(vehicle => {
     const title = vehicle.name || `${vehicle.brand} ${vehicle.model}`;
@@ -194,7 +211,7 @@ function AvailabilityModal({ vehicles, type, date, onClose, showToast }: { vehic
   });
   const clipboardText = [
     "🚘 CL CarHub Vehicle Availability",
-    `📅 Date: ${dateLabel}`,
+    `📅 Schedule: ${dateLabel} – ${returnLabel}`,
     `🏷️ Category: ${categoryLabel}`,
     `✅ ${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"} available`,
     "",
@@ -212,7 +229,7 @@ function AvailabilityModal({ vehicles, type, date, onClose, showToast }: { vehic
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="availability-title">
     <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded bg-[#1f2a3a] text-white shadow-2xl">
       <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-        <div><h2 id="availability-title" className="font-['Space_Grotesk'] text-xl font-semibold">Available {type === "all" ? "vehicles" : vehicleTypeLabels[type]}{vehicles.length ? "" : "s"}</h2><p className="mt-1 text-sm text-slate-300">on {dateLabel}</p></div>
+        <div><h2 id="availability-title" className="font-['Space_Grotesk'] text-xl font-semibold">Available {type === "all" ? "vehicles" : vehicleTypeLabels[type]}{vehicles.length ? "" : "s"}</h2><p className="mt-1 text-sm text-slate-300">{dateLabel} – {returnLabel}</p></div>
         <button type="button" onClick={onClose} className="text-2xl text-slate-300 hover:text-white" aria-label="Close availability results">×</button>
       </div>
       <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
