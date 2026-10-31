@@ -244,7 +244,8 @@ class BookingController extends Controller
                     'cancelled' => $query->where('status', Booking::CANCELLED),
                     default => null,
                 };
-            });
+            })
+            ->when($request->vehicle_id, fn ($query, $vehicleId) => $query->where('vehicle_id', $vehicleId));
 
         $sort = $request->input('sort', 'priority');
         if (in_array($sort, ['latest', 'oldest'], true)) {
