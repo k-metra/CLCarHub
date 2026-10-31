@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Eyebrow } from "../components/Ui";
 import PublicFooter from "../components/PublicFooter";
 import Seo from "../components/Seo";
 import FaqAccordion from "../components/FaqAccordion";
+import { DateRangeTimePicker } from "../components/DateTimePicker";
 import { LocationPicker, type LocationValue } from "../components/LocationPicker";
 import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import api from "../lib/api";
@@ -41,6 +42,31 @@ const fleetCategories = [
   { label: "MPVs & vans", types: ["mpv", "van"] },
   { label: "Motorcycles & big bikes", types: ["motorcycle"] },
 ] as const;
+const formatSearchDate = (value: string) => {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString([], { month: "short", day: "numeric" });
+};
+const formatSearchTime = (value: string) => {
+  const [hours, minutes] = value.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
+  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+};
+const formatSearchDuration = (minutes: number) => {
+  const units = [
+    { value: Math.floor(minutes / (30 * 1440)), label: "month" },
+    { value: Math.floor(minutes % (30 * 1440) / 1440), label: "day" },
+    { value: Math.floor(minutes % 1440 / 60), label: "hour" },
+    { value: minutes % 60, label: "minute" },
+  ];
+  return units.filter(unit => unit.value > 0).map(unit => `${unit.value} ${unit.label}${unit.value === 1 ? "" : "s"}`).join(" ");
+};
+const searchDuration = (pickupDate: string, returnDate: string, pickupTime: string, returnTime: string) => {
+  const pickup = new Date(`${pickupDate}T${pickupTime}:00`);
+  const returned = new Date(`${returnDate}T${returnTime}:00`);
+  const minutes = (returned.getTime() - pickup.getTime()) / 60000;
+  if (!Number.isFinite(minutes) || minutes <= 0) return "";
+  return formatSearchDuration(minutes);
+};
 const renderFaqInline = (value: string): ReactNode[] => {
   const parts: ReactNode[] = [];
   const pattern = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*)/g;
@@ -64,6 +90,7 @@ const renderFaqAnswer = (value: string) => value.split("\n").map((line, index) =
 
 function SearchPanel({
   activeField,
+  datePickerOpenRequest,
   pickupMode,
   setPickupMode,
   garage,
@@ -78,10 +105,15 @@ function SearchPanel({
   setPickupDate,
   returnDate,
   setReturnDate,
+  pickupTime,
+  setPickupTime,
+  returnTime,
+  setReturnTime,
   deliveryLocation,
   setDeliveryLocation,
 }: {
   activeField: "from" | "to" | "dates" | null;
+  datePickerOpenRequest: number;
   pickupMode: "garage" | "delivery";
   setPickupMode: (value: "garage" | "delivery") => void;
   garage: string;
@@ -96,6 +128,10 @@ function SearchPanel({
   setPickupDate: (value: string) => void;
   returnDate: string;
   setReturnDate: (value: string) => void;
+  pickupTime: string;
+  setPickupTime: (value: string) => void;
+  returnTime: string;
+  setReturnTime: (value: string) => void;
   deliveryLocation: LocationValue;
   setDeliveryLocation: (value: LocationValue) => void;
 }) {
@@ -103,6 +139,8 @@ function SearchPanel({
   const showTo = activeField === null || activeField === "to";
   const showDates = activeField === null || activeField === "dates";
   const showTripDetails = activeField === null;
+  const datePicker = <DateRangeTimePicker openRequest={datePickerOpenRequest} value={{ pickupDate, returnDate, pickupTime, returnTime }} onChange={value => { setPickupDate(value.pickupDate); setReturnDate(value.returnDate); setPickupTime(value.pickupTime); setReturnTime(value.returnTime); }} minDate={new Date().toISOString().slice(0, 10)} className="hidden" placeholder="Choose pickup and return dates" />;
+  if (activeField === "dates") return datePicker;
   return <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">
     <p className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Plan your rental</p>
     <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -136,14 +174,7 @@ function SearchPanel({
           </select>
         </label>
       </>}
-      {showDates && <>
-        <label className="text-xs text-[#aaa]">Pickup date
-          <input type="date" className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white" value={pickupDate} onChange={event => setPickupDate(event.target.value)} />
-        </label>
-        <label className="text-xs text-[#aaa]">Return date
-          <input type="date" className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white" value={returnDate} min={pickupDate || undefined} onChange={event => setReturnDate(event.target.value)} />
-        </label>
-      </>}
+      {showDates && <div className="sm:col-span-2">{datePicker}</div>}
       {showTripDetails && <label className="text-xs text-[#aaa] sm:col-span-2">Trip details <span className="text-[#777]">(optional)</span>
         <input className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white placeholder:text-[#666]" value={tripDetails} onChange={event => setTripDetails(event.target.value)} placeholder="Dates, destination, or anything else we should know" />
       </label>}
@@ -152,6 +183,7 @@ function SearchPanel({
 }
 
 export default function HomePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeSearchField, setActiveSearchField] = useState<"from" | "to" | "dates" | null>(null);
@@ -160,8 +192,11 @@ export default function HomePage() {
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
   const [tripDetails, setTripDetails] = useState("");
-  const [pickupDate, setPickupDate] = useState("");
-  const [returnDate, setReturnDate] = useState("");
+  const [pickupDate, setPickupDate] = useState(() => searchParams.get("pickup_date") ?? "");
+  const [returnDate, setReturnDate] = useState(() => searchParams.get("return_date") ?? "");
+  const [pickupTime, setPickupTime] = useState(() => searchParams.get("pickup_time") ?? "09:00");
+  const [returnTime, setReturnTime] = useState(() => searchParams.get("return_time") ?? "09:00");
+  const [datePickerOpenRequest, setDatePickerOpenRequest] = useState(0);
   const [deliveryLocation, setDeliveryLocation] = useState<LocationValue>({ address: "", latitude: null, longitude: null });
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -171,6 +206,16 @@ export default function HomePage() {
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const { user, loading } = useAuth();
   const signOut = useSignOut();
+  useEffect(() => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      if (pickupDate) next.set("pickup_date", pickupDate); else next.delete("pickup_date");
+      if (returnDate) next.set("return_date", returnDate); else next.delete("return_date");
+      if (pickupTime) next.set("pickup_time", pickupTime); else next.delete("pickup_time");
+      if (returnTime) next.set("return_time", returnTime); else next.delete("return_time");
+      return next;
+    }, { replace: true });
+  }, [pickupDate, returnDate, pickupTime, returnTime, setSearchParams]);
   const searchVehicles = async () => {
     if (!pickupDate || !returnDate) {
       setSearchError("Choose pickup and return dates to see available units.");
@@ -184,8 +229,8 @@ export default function HomePage() {
       const response = await api.get<VehicleRecord[]>("/vehicles/availability", {
         params: {
           type: "all",
-          pickup_at: new Date(`${pickupDate}T09:00:00`).toISOString(),
-          return_at: new Date(`${returnDate}T09:00:00`).toISOString(),
+          pickup_at: new Date(`${pickupDate}T${pickupTime}:00`).toISOString(),
+          return_at: new Date(`${returnDate}T${returnTime}:00`).toISOString(),
         },
       });
       setVehicles(response.data);
@@ -232,21 +277,13 @@ export default function HomePage() {
           </Link>
           <div className="relative hidden min-w-0 flex-1 md:block">
             <div className="flex min-h-12 w-full items-stretch border border-white/[.15] bg-[#151515] px-1 shadow-[0_8px_24px_#0005]">
-              <button type="button" className="flex min-w-0 flex-1 items-center gap-2 px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("from"); setSearchOpen(true); }} aria-label="Choose pickup location">
-                <span className="text-lg text-[#ff641f]" aria-hidden="true">⌖</span>
-                <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">From</span><span className="block truncate text-xs text-[#d0cdca]">{pickupMode === "garage" ? `${garage} garage` : "Delivery location"}</span></span>
-              </button>
-              <button type="button" className="flex min-w-0 flex-1 items-center gap-2 border-l border-white/10 px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("to"); setSearchOpen(true); }} aria-label="Choose destination">
-                <span className="text-lg text-[#ff641f]" aria-hidden="true">⚑</span>
-                <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">To</span><span className="block truncate text-xs text-[#d0cdca]">{province && city ? `${city}, ${province}` : "Destination"}</span></span>
-              </button>
-              <button type="button" className="flex min-w-0 flex-1 items-center gap-2 border-l border-white/10 px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("dates"); setSearchOpen(true); }} aria-label="Choose rental dates">
+              <button type="button" className="flex min-w-0 flex-1 items-center gap-2 px-3 text-left hover:bg-white/[.04]" onClick={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); setSearchOpen(true); }} aria-label="Choose rental dates">
                 <span className="text-lg text-[#ff641f]" aria-hidden="true">▣</span>
-                <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">Dates</span><span className="block truncate text-xs text-[#d0cdca]">{pickupDate && returnDate ? `${pickupDate} - ${returnDate}` : "Add dates"}</span></span>
+                <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">Dates</span>{pickupDate && returnDate ? <span className="block truncate text-xs text-[#d0cdca]">{formatSearchDate(pickupDate)}, {formatSearchTime(pickupTime)} <span className="text-[#777]">—</span> {formatSearchDate(returnDate)}, {formatSearchTime(returnTime)} <strong className="ml-1 text-[#ff9b73]">· {searchDuration(pickupDate, returnDate, pickupTime, returnTime)}</strong></span> : <span className="block truncate text-xs text-[#d0cdca]">Add dates</span>}</span>
               </button>
               <button type="button" className="my-1 flex w-12 shrink-0 items-center justify-center bg-[#ff641f] text-sm font-bold text-white hover:bg-[#ff7b42] disabled:cursor-wait disabled:opacity-70" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))} disabled={searchLoading} aria-label={searchOpen ? "Search available vehicles" : "Open search options"}>{searchLoading ? "…" : "⌕"}</button>
             </div>
-            {searchOpen && <SearchPanel activeField={activeSearchField} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+            {searchOpen && <SearchPanel activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
           </div>
           <Link className="hidden text-sm font-semibold text-[#bbb] hover:text-[#ff641f] lg:block" to="/faq">FAQ</Link>
           <Link className="hidden rounded-full bg-[#242424] px-5 py-3 text-sm font-bold text-white hover:bg-[#ff641f] md:block" to="/host-partnership">Become a host</Link>
@@ -294,7 +331,7 @@ export default function HomePage() {
       <main className="bg-[#0b0b0b] text-[#f4f3f0]">
         <div className="relative border-b border-white/[.08] bg-[#111] px-[18px] py-3 md:hidden">
           <button type="button" className="flex h-12 w-full items-center gap-3 border border-white/[.15] bg-[#151515] px-4 text-left" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))}><span className="text-[#ff641f]">⌖</span><span className="flex-1 truncate text-sm text-[#bbb]">Find your next CL CarHub ride</span><span className="bg-[#ff641f] px-3 py-2 text-xs font-bold">{searchOpen ? "Search" : "Plan"}</span></button>
-          {searchOpen && <SearchPanel activeField={null} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+          {searchOpen && <SearchPanel activeField={null} datePickerOpenRequest={datePickerOpenRequest} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
         </div>
         <section
           className="mx-auto w-[calc(100%-36px)] max-w-[1240px] py-10 sm:py-14"
