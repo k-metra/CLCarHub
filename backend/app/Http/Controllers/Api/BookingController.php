@@ -271,6 +271,23 @@ class BookingController extends Controller
             ->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
     }
 
+    public function claim(Request $request, Booking $booking)
+    {
+        $user = $request->user();
+        abort_unless($user && in_array($user->role, ['owner', 'co_owner', 'it_management', 'staff'], true), 403, 'Only staff and above can claim bookings.');
+        abort_if(in_array($booking->status, [Booking::COMPLETE, Booking::REJECTED, Booking::CANCELLED], true), 422, 'Completed, rejected, or cancelled bookings cannot be claimed.');
+
+        $booking = DB::transaction(function () use ($booking, $user) {
+            $lockedBooking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+            abort_if($lockedBooking->assigned_to_user_id !== null, 409, 'This booking has already been claimed or assigned.');
+            $lockedBooking->update(['assigned_to_user_id' => $user->id]);
+
+            return $lockedBooking;
+        });
+
+        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos', 'assignedTo']);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
@@ -563,7 +580,7 @@ class BookingController extends Controller
         $assignmentChanged = $assignmentProvided && $assignedToUserId !== $booking->assigned_to_user_id;
         if ($assignmentChanged && $assignedToUserId !== null) {
             $assignedStaff = User::findOrFail($assignedToUserId);
-            abort_unless($assignedStaff->role === 'staff' && $assignedStaff->status === 'active', 422, 'Bookings can only be assigned to active staff accounts.');
+            abort_unless(in_array($assignedStaff->role, ['owner', 'co_owner', 'it_management', 'staff'], true) && $assignedStaff->status === 'active', 422, 'Bookings can only be assigned to active internal accounts.');
             abort_unless($request->user()->canManageAccounts(), 403, 'Only ITM and above can assign bookings.');
         } elseif ($assignmentChanged) {
             abort_unless($request->user()->canManageAccounts(), 403, 'Only ITM and above can remove booking assignments.');
