@@ -29,6 +29,7 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const FleetSettingsPage = lazy(() => import("./pages/FleetSettingsPage"));
 const FleetGalleryPage = lazy(() => import("./pages/FleetGalleryPage"));
 const VehicleDetailPage = lazy(() => import("./pages/VehicleDetailPage"));
+const AdminVehicleDetailPage = lazy(() => import("./pages/AdminVehicleDetailPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
 const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
 const RentalOperationsPage = lazy(() => import("./pages/RentalOperationsPage"));
@@ -105,6 +106,7 @@ export default function App() {
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin/vehicles" element={<VehiclesPage />} />
+          <Route path="/admin/vehicles/:vehicleId" element={<AdminVehicleDetailPage />} />
           <Route path="/admin/add-ons" element={<AddOnsPage />} />
           <Route path="/admin/fleet-settings" element={<FleetSettingsPage />} />
           <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
