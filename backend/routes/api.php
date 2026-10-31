@@ -118,6 +118,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/bookings/{booking}/settle', [BookingController::class, 'settle']);
     Route::post('/bookings/security-deposits/return-all', [BookingController::class, 'returnAllSecurityDeposits']);
     Route::post('/bookings/{booking}/security-deposit/return', [BookingController::class, 'returnSecurityDeposit']);
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->post('/bookings/{booking}/claim', [BookingController::class, 'claim']);
     Route::apiResource('bookings', BookingController::class);
     Route::post('/bookings/{booking}/return-photos', [BookingController::class, 'storeReturnPhotos']);
     Route::delete('/bookings/{booking}/return-photos/{photo}', [BookingController::class, 'destroyReturnPhoto']);
