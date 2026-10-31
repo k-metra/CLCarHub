@@ -358,20 +358,20 @@ export default function HomePage() {
                 {categoryVehicles.map((vehicle) => {
               const image = imageUrl(vehicle);
               return (
-                <Link key={vehicle.id} to={`/vehicles/${vehicle.id}`} className="group w-[280px] min-w-[280px] snap-start overflow-hidden border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] sm:w-[300px] sm:min-w-[300px]">
-                  <div className="relative h-[220px] overflow-hidden bg-[#191919]">
+                <Link key={vehicle.id} to={`/vehicles/${vehicle.id}`} className="group w-56 min-w-56 snap-start overflow-hidden border border-white/[.07] bg-[#151515] text-left transition hover:-translate-y-1 hover:border-[#ff641f] hover:shadow-[0_14px_30px_#0008] focus:outline-none focus:ring-2 focus:ring-[#ff641f] sm:w-[300px] sm:min-w-[300px]">
+                  <div className="relative h-32 overflow-hidden bg-[#191919] sm:h-[220px]">
                     {image ? <img className="h-full w-full object-cover saturate-[.7] transition duration-500 group-hover:scale-105" src={image} alt={vehicle.name || `${vehicle.brand} ${vehicle.model}`} /> : <div className="flex h-full items-center justify-center text-sm text-[#777]">Vehicle photo coming soon</div>}
-                    <span className="absolute bottom-3 left-3 bg-[#ff641f] px-3 py-1 text-[10px] font-bold text-white">{vehicleTypeLabels[vehicle.type]}</span>
+                    <span className="absolute bottom-2 left-2 bg-[#ff641f] px-2 py-1 text-[9px] font-bold text-white sm:bottom-3 sm:left-3 sm:px-3 sm:text-[10px]">{vehicleTypeLabels[vehicle.type]}</span>
                   </div>
-                  <div className="p-[18px]">
-                    <h3 className="font-['Space_Grotesk'] text-lg font-semibold">{vehicle.name || `${vehicle.brand} ${vehicle.model}`}</h3>
+                  <div className="p-4 sm:p-[18px]">
+                    <h3 className="font-['Space_Grotesk'] text-base font-semibold sm:text-lg">{vehicle.name || `${vehicle.brand} ${vehicle.model}`}</h3>
                     <p className="mt-1 text-xs text-[#777]">{vehicle.brand} {vehicle.model} · {vehicle.transmission}</p>
-                    <strong className="mt-4 block font-['Space_Grotesk'] text-lg">₱{Number(vehicle.daily_rate).toLocaleString()}<i className="text-xs font-normal text-[#777]"> / day</i></strong>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <span className="border border-white/[.12] px-2.5 py-1 text-[10px] text-[#999]">{vehicle.seats} seats</span>
-                      {vehicle.mileage_limit !== null && vehicle.mileage_limit !== undefined && <span className="border border-white/[.12] px-2.5 py-1 text-[10px] text-[#999]">{vehicle.mileage_limit.toLocaleString()} km</span>}
+                    <strong className="mt-3 block font-['Space_Grotesk'] text-base sm:mt-4 sm:text-lg">₱{Number(vehicle.daily_rate).toLocaleString()}<i className="text-xs font-normal text-[#777]"> / day</i></strong>
+                    <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-2">
+                      <span className="border border-white/[.12] px-2 py-1 text-[10px] text-[#999]">{vehicle.seats} seats</span>
+                      {vehicle.mileage_limit !== null && vehicle.mileage_limit !== undefined && <span className="border border-white/[.12] px-2 py-1 text-[10px] text-[#999]">{vehicle.mileage_limit.toLocaleString()} km</span>}
                     </div>
-                    <span className="mt-5 block text-xs font-bold text-[#ff641f]">View details <span aria-hidden="true">→</span></span>
+                    <span className="mt-4 block text-xs font-bold text-[#ff641f] sm:mt-5">View details <span aria-hidden="true">→</span></span>
                   </div>
                 </Link>
               );
