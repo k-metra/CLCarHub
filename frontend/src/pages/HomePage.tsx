@@ -91,6 +91,7 @@ const renderFaqAnswer = (value: string) => value.split("\n").map((line, index) =
 function SearchPanel({
   activeField,
   datePickerOpenRequest,
+  onOpenDates,
   selectedVehicleTypes,
   setSelectedVehicleTypes,
   pickupMode,
@@ -116,6 +117,7 @@ function SearchPanel({
 }: {
   activeField: "from" | "to" | "dates" | "vehicleType" | null;
   datePickerOpenRequest: number;
+  onOpenDates: () => void;
   selectedVehicleTypes: VehicleType[];
   setSelectedVehicleTypes: (value: VehicleType[]) => void;
   pickupMode: "garage" | "delivery";
@@ -169,6 +171,10 @@ function SearchPanel({
   if (activeField === "vehicleType") return <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">{vehicleTypePicker}</div>;
   return <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">
     <p className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Plan your rental</p>
+    <button type="button" onClick={onOpenDates} className="mt-3 flex w-full items-center justify-between border border-white/10 bg-[#0b0b0b] px-3 py-3 text-left text-sm text-white hover:border-[#ff641f]">
+      <span><span className="block text-[10px] font-bold uppercase tracking-wider text-[#777]">Dates</span><span className="mt-1 block">{pickupDate && returnDate ? `${formatSearchDate(pickupDate)}, ${formatSearchTime(pickupTime)} – ${formatSearchDate(returnDate)}, ${formatSearchTime(returnTime)}` : "Choose pickup and return dates"}</span></span>
+      <span className="text-[#ff641f]" aria-hidden="true">▣</span>
+    </button>
     <div className="mt-3 grid gap-3 sm:grid-cols-2">
       {showTripDetails && <div className="sm:col-span-2">{vehicleTypePicker}</div>}
       {showFrom && <>
@@ -316,7 +322,7 @@ export default function HomePage() {
               </button>
               <button type="button" className="my-1 flex w-12 shrink-0 items-center justify-center bg-[#ff641f] text-sm font-bold text-white hover:bg-[#ff7b42] disabled:cursor-wait disabled:opacity-70" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))} disabled={searchLoading} aria-label={searchOpen ? "Search available vehicles" : "Open search options"}>{searchLoading ? "…" : "⌕"}</button>
             </div>
-            {searchOpen && <SearchPanel activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+            {searchOpen && <SearchPanel activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} onOpenDates={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); }} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
           </div>
           <Link className="hidden text-sm font-semibold text-[#bbb] hover:text-[#ff641f] lg:block" to="/faq">FAQ</Link>
           <Link className="hidden rounded-full bg-[#242424] px-5 py-3 text-sm font-bold text-white hover:bg-[#ff641f] md:block" to="/host-partnership">Become a host</Link>
@@ -325,8 +331,8 @@ export default function HomePage() {
       </header>
       <main className="bg-[#0b0b0b] text-[#f4f3f0]">
         <div className="relative border-b border-white/[.08] bg-[#111] px-[18px] py-3 md:hidden">
-          <button type="button" className="flex h-12 w-full items-center gap-3 border border-white/[.15] bg-[#151515] px-4 text-left" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))}><span className="text-[#ff641f]">⌖</span><span className="flex-1 truncate text-sm text-[#bbb]">Find your next CL CarHub ride</span><span className="bg-[#ff641f] px-3 py-2 text-xs font-bold">{searchOpen ? "Search" : "Plan"}</span></button>
-          {searchOpen && <SearchPanel activeField={null} datePickerOpenRequest={datePickerOpenRequest} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+          <button type="button" className="flex h-12 w-full items-center gap-3 border border-white/[.15] bg-[#151515] px-4 text-left" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))}><span className="text-[#ff641f]">⌖</span><span className="flex-1 truncate text-sm text-[#bbb]">Find your next CL CarHub ride</span><span className="bg-[#ff641f] px-3 py-2 text-xs font-bold">{searchOpen ? "See available units" : "Plan"}</span></button>
+          {searchOpen && <SearchPanel activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} onOpenDates={() => { setActiveSearchField("dates"); setDatePickerOpenRequest(current => current + 1); }} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
         </div>
         <section
           className="mx-auto w-[calc(100%-36px)] max-w-[1240px] py-10 sm:py-14"
