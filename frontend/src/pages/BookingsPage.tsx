@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell";
-import { DateRangeTimePicker, DateTimePicker } from "../components/DateTimePicker";
+import { DateRangeTimePicker, DateTimePicker, type BookedDateRange } from "../components/DateTimePicker";
 import api from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import type {
@@ -670,6 +670,7 @@ export default function BookingsPage() {
   const [staffAccounts, setStaffAccounts] = useState<
     Array<{ id: number; name: string; phone?: string | null; role?: string }>
   >([]);
+  const [bookedDates, setBookedDates] = useState<BookedDateRange[]>([]);
   const [assignmentBooking, setAssignmentBooking] =
     useState<BookingRecord | null>(null);
   const [assignmentSaving, setAssignmentSaving] = useState(false);
@@ -1542,6 +1543,31 @@ export default function BookingsPage() {
   const editingBooking = editing
     ? bookings.find((booking) => booking.id === editing)
     : null;
+  useEffect(() => {
+    if (!showForm || !selectedVehicle) {
+      setBookedDates([]);
+      return;
+    }
+
+    const params = editingBooking
+      ? { ignore_booking_id: editingBooking.id }
+      : undefined;
+    api
+      .get<{ booked_dates: BookedDateRange[] }>(
+        `/vehicles/${selectedVehicle.id}/booked-dates`,
+        { params },
+      )
+      .then((response) => setBookedDates(response.data.booked_dates))
+      .catch((error) => {
+        setBookedDates([]);
+        showToast(
+          error instanceof Error
+            ? error.message
+            : "Unable to load booked dates.",
+          "error",
+        );
+      });
+  }, [editingBooking, selectedVehicle, showForm, showToast]);
   const rentalDays =
     form.pickup_at && form.return_at
       ? calendarDays(form.pickup_at, form.return_at)
@@ -3421,6 +3447,7 @@ export default function BookingsPage() {
                     </legend>
                     <DateRangeTimePicker
                       value={dateTimeRangeValue(form.pickup_at, form.return_at)}
+                      bookedDates={bookedDates}
                       onChange={(value) => {
                         setField(
                           "pickup_at",
