@@ -145,7 +145,7 @@ function RangeCalendar({ month, onChangeMonth, pickupDate, returnDate, minDate, 
         const pickup = value === pickupDate;
         const returned = value === returnDate;
         const inRange = pickupDate && returnDate && value > pickupDate && value < returnDate;
-        return <button type="button" key={value} disabled={disabled} onClick={() => onSelectDate(day)} className={`relative mx-auto flex h-9 w-9 items-center justify-center rounded-full text-sm ${disabled ? "cursor-not-allowed text-[#555]" : pickup || returned ? "bg-[#ff641f] font-bold text-white" : inRange ? "rounded-none bg-[#3a2419] text-[#ffb18e]" : day.getMonth() === month.getMonth() ? "text-[#f4f3f0] hover:bg-[#2a211d]" : "text-[#666]"}`} aria-label={displayDate(value)}>{day.getDate()}</button>;
+        return <button type="button" key={value} disabled={disabled} title={booked ? `Booked for ${displayDate(value)}` : undefined} onClick={() => onSelectDate(day)} className={`relative mx-auto flex min-h-9 w-9 items-center justify-center rounded-full text-sm ${disabled ? "cursor-not-allowed text-[#555]" : pickup || returned ? "bg-[#ff641f] font-bold text-white" : inRange ? "rounded-none bg-[#3a2419] text-[#ffb18e]" : day.getMonth() === month.getMonth() ? "text-[#f4f3f0] hover:bg-[#2a211d]" : "text-[#666]"}`} aria-label={`${displayDate(value)}${booked ? " — booked" : ""}`}><span className="flex flex-col items-center justify-center gap-0.5"><span>{day.getDate()}</span>{booked && <span className="rounded-sm border border-red-400 px-0.5 text-[6px] font-black leading-3 tracking-tight text-red-400">BOOKED</span>}</span></button>;
       })}
     </div>
   </section>;
