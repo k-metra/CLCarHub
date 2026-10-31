@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AdminShell } from "../components/AdminShell";
-import { DateTimePicker } from "../components/DateTimePicker";
+import { DateRangeTimePicker, DateTimePicker } from "../components/DateTimePicker";
 import api from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import type {
@@ -134,6 +134,12 @@ function HostContractTab({ booking, onSaved }: { booking: BookingRecord; onSaved
 type QuickAddCategory = "license" | "secondary_id" | "ltms";
 const peso = String.fromCodePoint(0x20b1);
 const maxReturnMediaBytes = 1024 * 1024 * 1024;
+const dateTimeRangeValue = (pickupAt: string, returnAt: string) => ({
+  pickupDate: pickupAt.slice(0, 10),
+  returnDate: returnAt.slice(0, 10),
+  pickupTime: pickupAt.slice(11, 16) || "09:00",
+  returnTime: returnAt.slice(11, 16) || "09:00",
+});
 const addonImageUrl = (value?: string | null) =>
   value
     ? value.startsWith("http")
@@ -1540,8 +1546,17 @@ export default function BookingsPage() {
     selectedVehicle?.hour_extension_rate ??
       fleetSettings.default_hour_extension_rate,
   );
+  const outsideLaguna =
+    Boolean(form.destination_province) &&
+    form.destination_province.toLowerCase() !== "laguna";
+  const usesOutsideLagunaRate =
+    outsideLaguna &&
+    !form.rental_rate &&
+    selectedVehicle?.outside_laguna_rate != null;
   const dailyRate = form.rental_rate
     ? Number(form.rental_rate)
+    : usesOutsideLagunaRate
+      ? Number(selectedVehicle?.outside_laguna_rate)
     : Number(selectedVehicle?.daily_rate ?? 0);
   const twelveHourRate =
     selectedVehicle?.twelve_hour_rate == null
@@ -3367,41 +3382,38 @@ export default function BookingsPage() {
                       </button>
                     </div>
                   )}
-                  <label className="text-xs text-[#777]">
-                    Start date & time
-                    <DateTimePicker
-                      required
-                      mode="datetime"
-                      value={form.pickup_at}
-                      onChange={(value) => setField("pickup_at", value)}
+                  <fieldset className="md:col-span-2">
+                    <legend className="text-xs text-[#777]">
+                      Pickup and return date & time
+                    </legend>
+                    <DateRangeTimePicker
+                      value={dateTimeRangeValue(form.pickup_at, form.return_at)}
+                      onChange={(value) => {
+                        setField(
+                          "pickup_at",
+                          value.pickupDate
+                            ? `${value.pickupDate}T${value.pickupTime}`
+                            : "",
+                        );
+                        setField(
+                          "return_at",
+                          value.returnDate
+                            ? `${value.returnDate}T${value.returnTime}`
+                            : "",
+                        );
+                      }}
                       className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
+                      placeholder="Choose pickup and return dates"
                     />
                     {["ongoing", "for_completion"].includes(
                       editingBooking?.status ?? "",
                     ) && (
                       <span className="mt-1 block text-[11px] text-[#888]">
-                        Adjust this time if the customer arrived late or the
-                        actual handover time changed.
+                        Adjust these times if the customer arrived late, the
+                        actual handover changed, or the rental was extended.
                       </span>
                     )}
-                  </label>
-                  <label className="text-xs text-[#777]">
-                    End date & time
-                    <DateTimePicker
-                      required
-                      mode="datetime"
-                      value={form.return_at}
-                      onChange={(value) => setField("return_at", value)}
-                      className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
-                    />
-                    {["ongoing", "for_completion"].includes(
-                      editingBooking?.status ?? "",
-                    ) && (
-                      <span className="mt-1 block text-[11px] text-[#888]">
-                        Adjust this time for an extension or early return.
-                      </span>
-                    )}
-                  </label>
+                  </fieldset>
                   {Number(selectedVehicle?.security_deposit_fee ?? 0) > 0 && (
                     <fieldset className="md:col-span-2 border border-black/10 p-4">
                       <legend className="px-1 text-xs text-[#777]">
@@ -3481,6 +3493,7 @@ export default function BookingsPage() {
                           ...current,
                           destination_province: event.target.value,
                           destination_city: "",
+                          rental_rate: "",
                         }));
                       }}
                     >
@@ -4076,7 +4089,7 @@ export default function BookingsPage() {
                         Rental fees (
                         {durationMinutes > 0 && durationMinutes <= 12 * 60
                           ? `${peso}${twelveHourRate.toLocaleString()} 12-hour rate`
-                          : `${peso}${dailyRate.toLocaleString()} regular; ${peso}${discountedDailyRate.toLocaleString()} effective × ${rentalDays} day${rentalDays === 1 ? "" : "s"}`}
+                          : `${peso}${dailyRate.toLocaleString()} ${usesOutsideLagunaRate ? "outside Laguna" : "regular"}; ${peso}${discountedDailyRate.toLocaleString()} effective × ${rentalDays} day${rentalDays === 1 ? "" : "s"}`}
                         )
                       </span>
                       <span>
