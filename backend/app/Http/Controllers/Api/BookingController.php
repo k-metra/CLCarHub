@@ -281,7 +281,11 @@ class BookingController extends Controller
             abort_unless($vehicle->hasActivePartnerContract(), 422, 'This partner vehicle is not eligible for rental until its contract is approved.');
             abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
             $outsideLaguna = filled($data['destination_province'] ?? null) && ! $this->isLaguna($data['destination_province']);
-            if (($data['rental_rate'] ?? null) === null && $outsideLaguna && $vehicle->outside_laguna_rate !== null) {
+            if (
+                $outsideLaguna
+                && $vehicle->outside_laguna_rate !== null
+                && (($data['rental_rate'] ?? null) === null || (float) $data['rental_rate'] === (float) $vehicle->daily_rate)
+            ) {
                 $data['rental_rate'] = (float) $vehicle->outside_laguna_rate;
             }
             $data['destination_zone'] = $outsideLaguna ? 'outside_laguna' : 'laguna';
@@ -559,10 +563,12 @@ class BookingController extends Controller
                 ? $destinationCity.', '.$destinationProvince
                 : null;
         }
-        if (($data['rental_rate'] ?? null) === null) {
-            $data['rental_rate'] = $outsideLaguna && $vehicle->outside_laguna_rate !== null
-                ? (float) $vehicle->outside_laguna_rate
-                : null;
+        if (
+            $outsideLaguna
+            && $vehicle->outside_laguna_rate !== null
+            && (($data['rental_rate'] ?? null) === null || (float) $data['rental_rate'] === (float) $vehicle->daily_rate)
+        ) {
+            $data['rental_rate'] = (float) $vehicle->outside_laguna_rate;
         }
         $effectiveStatus = $data['status'] ?? $booking->status;
         if (
