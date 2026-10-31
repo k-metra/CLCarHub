@@ -6,7 +6,7 @@ import {
   type FormEvent,
 } from "react";
 import { useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import L from "../lib/leaflet";
 import { AdminShell } from "../components/AdminShell";
 import api from "../lib/api";
@@ -857,10 +857,10 @@ export default function VehiclesPage() {
                               aria-hidden="true"
                             />
                           )}
-                          <span className="font-semibold">
+                          <Link to={`/admin/vehicles/${vehicle.id}`} className="font-semibold hover:text-[#ff641f]">
                             {vehicle.name ||
                               `${vehicle.brand} ${vehicle.model}`}
-                          </span>
+                          </Link>
                         </div>
                       </td>
                       <td className="py-4 text-[#777]">
