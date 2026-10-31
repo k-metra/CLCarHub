@@ -6,10 +6,9 @@ import Seo from "../components/Seo";
 import FaqAccordion from "../components/FaqAccordion";
 import { DateRangeTimePicker } from "../components/DateTimePicker";
 import { LocationPicker, type LocationValue } from "../components/LocationPicker";
-import { accountPath, displayName, useAuth, useSignOut } from "../lib/AuthContext";
 import api from "../lib/api";
 import { citiesByProvince, luzonProvinces } from "../lib/philippineLocations";
-import { vehicleTypeLabels, type FaqItem, type VehicleImage, type VehicleRecord } from "../types";
+import { vehicleTypes, vehicleTypeLabels, type FaqItem, type VehicleImage, type VehicleRecord, type VehicleType } from "../types";
 
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
 const imageUrl = (vehicle: VehicleRecord) => {
@@ -42,6 +41,7 @@ const fleetCategories = [
   { label: "MPVs & vans", types: ["mpv", "van"] },
   { label: "Motorcycles & big bikes", types: ["motorcycle"] },
 ] as const;
+const allVehicleTypes = [...vehicleTypes] as VehicleType[];
 const formatSearchDate = (value: string) => {
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString([], { month: "short", day: "numeric" });
@@ -91,6 +91,8 @@ const renderFaqAnswer = (value: string) => value.split("\n").map((line, index) =
 function SearchPanel({
   activeField,
   datePickerOpenRequest,
+  selectedVehicleTypes,
+  setSelectedVehicleTypes,
   pickupMode,
   setPickupMode,
   garage,
@@ -112,8 +114,10 @@ function SearchPanel({
   deliveryLocation,
   setDeliveryLocation,
 }: {
-  activeField: "from" | "to" | "dates" | null;
+  activeField: "from" | "to" | "dates" | "vehicleType" | null;
   datePickerOpenRequest: number;
+  selectedVehicleTypes: VehicleType[];
+  setSelectedVehicleTypes: (value: VehicleType[]) => void;
   pickupMode: "garage" | "delivery";
   setPickupMode: (value: "garage" | "delivery") => void;
   garage: string;
@@ -139,11 +143,34 @@ function SearchPanel({
   const showTo = activeField === null || activeField === "to";
   const showDates = activeField === null || activeField === "dates";
   const showTripDetails = activeField === null;
-  const datePicker = <DateRangeTimePicker openRequest={datePickerOpenRequest} value={{ pickupDate, returnDate, pickupTime, returnTime }} onChange={value => { setPickupDate(value.pickupDate); setReturnDate(value.returnDate); setPickupTime(value.pickupTime); setReturnTime(value.returnTime); }} minDate={new Date().toISOString().slice(0, 10)} className="hidden" placeholder="Choose pickup and return dates" />;
+  const vehicleTypePicker = <fieldset>
+    <legend className="text-xs text-[#aaa]">Vehicle type</legend>
+    <div className="mt-1 border border-white/10 bg-[#0b0b0b] p-3">
+      <div className="mb-2 flex flex-wrap gap-2 text-[11px]">
+        <button type="button" className="border border-[#ff641f] px-2 py-1 text-[#ff9b73] hover:bg-[#ff641f] hover:text-white" onClick={() => setSelectedVehicleTypes(allVehicleTypes)}>Select all</button>
+        <button type="button" className="border border-white/20 px-2 py-1 text-[#aaa] hover:border-[#ff641f] hover:text-white" onClick={() => setSelectedVehicleTypes(allVehicleTypes.slice(0, 1))}>Deselect all</button>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {allVehicleTypes.map(type => {
+          const checked = selectedVehicleTypes.includes(type);
+          return <label className="flex items-center gap-2 text-xs text-[#d0cdca]" key={type}>
+            <input type="checkbox" checked={checked} onChange={() => {
+              if (checked && selectedVehicleTypes.length === 1) return;
+              setSelectedVehicleTypes(checked ? selectedVehicleTypes.filter(item => item !== type) : [...selectedVehicleTypes, type]);
+            }} className="accent-[#ff641f]" />
+            {vehicleTypeLabels[type]}
+          </label>;
+        })}
+      </div>
+    </div>
+  </fieldset>;
+  const datePicker = <DateRangeTimePicker openRequest={activeField === "dates" ? datePickerOpenRequest : 0} value={{ pickupDate, returnDate, pickupTime, returnTime }} onChange={value => { setPickupDate(value.pickupDate); setReturnDate(value.returnDate); setPickupTime(value.pickupTime); setReturnTime(value.returnTime); }} minDate={new Date().toISOString().slice(0, 10)} className="hidden" placeholder="Choose pickup and return dates" />;
   if (activeField === "dates") return datePicker;
+  if (activeField === "vehicleType") return <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">{vehicleTypePicker}</div>;
   return <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 border border-white/[.12] bg-[#151515] p-4 text-left shadow-2xl">
     <p className="text-[10px] font-bold uppercase tracking-[2px] text-[#ff641f]">Plan your rental</p>
     <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      {showTripDetails && <div className="sm:col-span-2">{vehicleTypePicker}</div>}
       {showFrom && <>
         <label className="text-xs text-[#aaa]">Pickup
           <select className="mt-1 w-full border border-white/10 bg-[#0b0b0b] px-3 py-2.5 text-sm text-white" value={pickupMode} onChange={event => setPickupMode(event.target.value as "garage" | "delivery")}>
@@ -184,9 +211,8 @@ function SearchPanel({
 
 export default function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [activeSearchField, setActiveSearchField] = useState<"from" | "to" | "dates" | null>(null);
+  const [activeSearchField, setActiveSearchField] = useState<"from" | "to" | "dates" | "vehicleType" | null>(null);
   const [pickupMode, setPickupMode] = useState<"garage" | "delivery">("garage");
   const [garage, setGarage] = useState("Cabuyao");
   const [province, setProvince] = useState("");
@@ -196,6 +222,10 @@ export default function HomePage() {
   const [returnDate, setReturnDate] = useState(() => searchParams.get("return_date") ?? "");
   const [pickupTime, setPickupTime] = useState(() => searchParams.get("pickup_time") ?? "09:00");
   const [returnTime, setReturnTime] = useState(() => searchParams.get("return_time") ?? "09:00");
+  const [selectedVehicleTypes, setSelectedVehicleTypes] = useState<VehicleType[]>(() => {
+    const values = searchParams.get("vehicle_types")?.split(",") as VehicleType[] | undefined;
+    return values?.length && values.every(value => allVehicleTypes.includes(value)) ? values : allVehicleTypes;
+  });
   const [datePickerOpenRequest, setDatePickerOpenRequest] = useState(0);
   const [deliveryLocation, setDeliveryLocation] = useState<LocationValue>({ address: "", latitude: null, longitude: null });
   const [searchLoading, setSearchLoading] = useState(false);
@@ -204,8 +234,6 @@ export default function HomePage() {
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(true);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
-  const { user, loading } = useAuth();
-  const signOut = useSignOut();
   useEffect(() => {
     setSearchParams(current => {
       const next = new URLSearchParams(current);
@@ -213,9 +241,10 @@ export default function HomePage() {
       if (returnDate) next.set("return_date", returnDate); else next.delete("return_date");
       if (pickupTime) next.set("pickup_time", pickupTime); else next.delete("pickup_time");
       if (returnTime) next.set("return_time", returnTime); else next.delete("return_time");
+      next.set("vehicle_types", selectedVehicleTypes.join(","));
       return next;
     }, { replace: true });
-  }, [pickupDate, returnDate, pickupTime, returnTime, setSearchParams]);
+  }, [pickupDate, returnDate, pickupTime, returnTime, selectedVehicleTypes, setSearchParams]);
   const searchVehicles = async () => {
     if (!pickupDate || !returnDate) {
       setSearchError("Choose pickup and return dates to see available units.");
@@ -229,6 +258,7 @@ export default function HomePage() {
       const response = await api.get<VehicleRecord[]>("/vehicles/availability", {
         params: {
           type: "all",
+          types: selectedVehicleTypes,
           pickup_at: new Date(`${pickupDate}T${pickupTime}:00`).toISOString(),
           return_at: new Date(`${returnDate}T${returnTime}:00`).toISOString(),
         },
@@ -281,57 +311,22 @@ export default function HomePage() {
                 <span className="text-lg text-[#ff641f]" aria-hidden="true">▣</span>
                 <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">Dates</span>{pickupDate && returnDate ? <span className="block truncate text-xs text-[#d0cdca]">{formatSearchDate(pickupDate)}, {formatSearchTime(pickupTime)} <span className="text-[#777]">—</span> {formatSearchDate(returnDate)}, {formatSearchTime(returnTime)} <strong className="ml-1 text-[#ff9b73]">· {searchDuration(pickupDate, returnDate, pickupTime, returnTime)}</strong></span> : <span className="block truncate text-xs text-[#d0cdca]">Add dates</span>}</span>
               </button>
+              <button type="button" className="hidden min-w-[8rem] items-center border-l border-white/[.1] px-3 text-left hover:bg-white/[.04] sm:flex" onClick={() => { setActiveSearchField("vehicleType"); setSearchOpen(true); }} aria-label="Choose vehicle types">
+                <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[1.4px] text-[#777]">Vehicle type</span><span className="block truncate text-xs text-[#d0cdca]">{selectedVehicleTypes.length === allVehicleTypes.length ? "All types" : `${selectedVehicleTypes.length} selected`}</span></span>
+              </button>
               <button type="button" className="my-1 flex w-12 shrink-0 items-center justify-center bg-[#ff641f] text-sm font-bold text-white hover:bg-[#ff7b42] disabled:cursor-wait disabled:opacity-70" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))} disabled={searchLoading} aria-label={searchOpen ? "Search available vehicles" : "Open search options"}>{searchLoading ? "…" : "⌕"}</button>
             </div>
-            {searchOpen && <SearchPanel activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+            {searchOpen && <SearchPanel activeField={activeSearchField} datePickerOpenRequest={datePickerOpenRequest} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
           </div>
           <Link className="hidden text-sm font-semibold text-[#bbb] hover:text-[#ff641f] lg:block" to="/faq">FAQ</Link>
           <Link className="hidden rounded-full bg-[#242424] px-5 py-3 text-sm font-bold text-white hover:bg-[#ff641f] md:block" to="/host-partnership">Become a host</Link>
-          <button type="button" className="hidden h-11 w-11 items-center justify-center rounded-full border border-white/20 text-lg text-[#bbb] hover:border-[#ff641f] hover:text-white md:flex" onClick={() => setMenuOpen(current => !current)} aria-label="Open account menu" aria-expanded={menuOpen}>☰</button>
-          <button
-            className="flex flex-col gap-[5px] md:hidden"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <span className="h-px w-[23px] bg-white" />
-            <span className="h-px w-[23px] bg-white" />
-            <span className="h-px w-[23px] bg-white" />
-          </button>
-          <div
-            className={`${menuOpen ? "flex" : "hidden"} absolute left-0 right-0 top-[70px] flex-col gap-5 border-y border-white/[.08] bg-[#0b0b0b] p-[25px_30px] shadow-2xl md:left-auto md:right-[18px] md:top-[68px] md:w-64 md:border md:border-white/[.12] md:p-5`}
-          >
-            {!loading &&
-              (user ? (
-                <>
-                  <Link
-                    className="w-fit rounded-[30px] border border-white/[.17] px-[17px] py-[11px] text-[13px]"
-                    to={accountPath(user)}
-                  >
-                    {displayName(user)}
-                  </Link>
-                  <button
-                    className="w-fit text-left text-[13px] text-[#bbb] hover:text-white"
-                    onClick={signOut}
-                  >
-                    Sign out ↗
-                  </button>
-                </>
-              ) : (
-                <Link
-                  className="w-fit rounded-[30px] border border-white/[.17] px-[17px] py-[11px] text-[13px]"
-                  to="/admin/login"
-                >
-                  Sign in ↗
-                </Link>
-              ))}
-            <Link className="text-[13px] text-[#bbb] hover:text-[#ff641f] md:hidden" to="/faq">FAQ</Link>
-            <Link className="text-[13px] text-[#bbb] hover:text-[#ff641f] md:hidden" to="/host-partnership">Become a host</Link>
-          </div>
+          <Link className="rounded-full border border-white/20 px-4 py-2.5 text-sm font-bold text-white hover:border-[#ff641f] hover:bg-[#ff641f]" to="/admin/login">Sign in</Link>
         </nav>
       </header>
       <main className="bg-[#0b0b0b] text-[#f4f3f0]">
         <div className="relative border-b border-white/[.08] bg-[#111] px-[18px] py-3 md:hidden">
           <button type="button" className="flex h-12 w-full items-center gap-3 border border-white/[.15] bg-[#151515] px-4 text-left" onClick={() => searchOpen ? void searchVehicles() : (setActiveSearchField(null), setSearchOpen(true))}><span className="text-[#ff641f]">⌖</span><span className="flex-1 truncate text-sm text-[#bbb]">Find your next CL CarHub ride</span><span className="bg-[#ff641f] px-3 py-2 text-xs font-bold">{searchOpen ? "Search" : "Plan"}</span></button>
-          {searchOpen && <SearchPanel activeField={null} datePickerOpenRequest={datePickerOpenRequest} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
+          {searchOpen && <SearchPanel activeField={null} datePickerOpenRequest={datePickerOpenRequest} selectedVehicleTypes={selectedVehicleTypes} setSelectedVehicleTypes={setSelectedVehicleTypes} pickupMode={pickupMode} setPickupMode={setPickupMode} garage={garage} setGarage={setGarage} province={province} setProvince={setProvince} city={city} setCity={setCity} tripDetails={tripDetails} setTripDetails={setTripDetails} pickupDate={pickupDate} setPickupDate={setPickupDate} returnDate={returnDate} setReturnDate={setReturnDate} pickupTime={pickupTime} setPickupTime={setPickupTime} returnTime={returnTime} setReturnTime={setReturnTime} deliveryLocation={deliveryLocation} setDeliveryLocation={setDeliveryLocation} />}
         </div>
         <section
           className="mx-auto w-[calc(100%-36px)] max-w-[1240px] py-10 sm:py-14"
