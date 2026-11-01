@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Booking;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PartnerAssignmentSmsService
@@ -69,9 +68,9 @@ class PartnerAssignmentSmsService
         $booking->loadMissing('vehicle.partner');
         $partner = $booking->vehicle?->partner;
         $phone = $this->normalizePhone($partner?->contact_number);
-        $url = config('services.sms_gateway.url');
+        $sms = app(IprogSmsService::class);
 
-        if (! $partner || $partner->vehicles_stored_at_garage || ! $phone || ! $url) {
+        if (! $partner || $partner->vehicles_stored_at_garage || ! $phone || ! $sms->configured()) {
             Log::info("Partner {$notificationType} SMS skipped.", [
                 'booking_id' => $booking->id,
                 'partner_id' => $partner?->id,
@@ -79,19 +78,13 @@ class PartnerAssignmentSmsService
                     ? 'Vehicle is CL CarHub-owned.'
                     : ($partner->vehicles_stored_at_garage
                         ? 'Partner vehicles are stored at the CL CarHub garage.'
-                        : (! $url ? 'SMS gateway is not configured.' : 'Partner has no valid mobile number.')),
+                        : (! $sms->configured() ? 'iProgSMS is not configured.' : 'Partner has no valid mobile number.')),
             ]);
             return;
         }
 
         try {
-            Http::timeout((int) config('services.sms_gateway.timeout', 10))
-                ->withHeaders(['x-api-key' => config('services.sms_gateway.token')])
-                ->post($url, [
-                    'recipients' => [$phone],
-                    'message' => $message,
-                ])
-                ->throw();
+            $sms->send([$phone], $message);
         } catch (\Throwable $exception) {
             Log::warning("Partner {$notificationType} SMS delivery failed.", [
                 'booking_id' => $booking->id,
