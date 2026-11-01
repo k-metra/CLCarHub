@@ -23,6 +23,8 @@ class FleetSetting extends Model
             'default_delivery_rate_per_km' => 'decimal:2',
             'garage_location_latitude' => 'decimal:7',
             'garage_location_longitude' => 'decimal:7',
+            'cabuyao_garage_location_latitude' => 'decimal:7',
+            'cabuyao_garage_location_longitude' => 'decimal:7',
         ];
     }
 }
