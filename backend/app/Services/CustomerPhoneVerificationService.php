@@ -9,6 +9,8 @@ use RuntimeException;
 
 class CustomerPhoneVerificationService
 {
+    private const CODE_TTL_MINUTES = 30;
+
     public function normalizePhone(?string $phone): ?string
     {
         if (! $phone) {
@@ -39,7 +41,7 @@ class CustomerPhoneVerificationService
         }
 
         $code = (string) random_int(100000, 999999);
-        $message = "CL CarHub: Your phone verification code is {$code}. It expires in 10 minutes. Do not share this code.";
+        $message = "CL CarHub: Your phone verification code is {$code}. It expires in 30 minutes. Do not share this code.";
 
         $sms->send([$phone], $message);
 
@@ -47,7 +49,7 @@ class CustomerPhoneVerificationService
             'phone' => $phone,
             'phone_verified_at' => null,
             'phone_verification_code_hash' => Hash::make($code),
-            'phone_verification_expires_at' => now()->addMinutes(10),
+            'phone_verification_expires_at' => now()->addMinutes(self::CODE_TTL_MINUTES),
             'phone_verification_sent_at' => now(),
             'phone_verification_attempts' => 0,
         ]);
@@ -59,7 +61,21 @@ class CustomerPhoneVerificationService
 
     public function verifyCode(Customer $customer, string $code): void
     {
-        if (! $customer->phone_verification_code_hash || ! $customer->phone_verification_expires_at || $customer->phone_verification_expires_at->isPast()) {
+        if (! $customer->phone_verification_code_hash || ! $customer->phone_verification_expires_at) {
+            Log::warning('Customer phone verification state is missing.', [
+                'customer_id' => $customer->id,
+                'has_code_hash' => (bool) $customer->phone_verification_code_hash,
+                'expires_at' => $customer->getRawOriginal('phone_verification_expires_at'),
+            ]);
+            throw new RuntimeException('No active verification code was found. Request a new code.');
+        }
+        if ($customer->phone_verification_expires_at->isPast()) {
+            Log::warning('Customer phone verification code expired.', [
+                'customer_id' => $customer->id,
+                'now' => now()->toIso8601String(),
+                'expires_at' => $customer->phone_verification_expires_at->toIso8601String(),
+                'raw_expires_at' => $customer->getRawOriginal('phone_verification_expires_at'),
+            ]);
             throw new RuntimeException('This verification code has expired. Request a new code.');
         }
         if ($customer->phone_verification_attempts >= 5) {
