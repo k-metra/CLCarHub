@@ -73,10 +73,10 @@ return [
         'public_key' => env('WEB_PUSH_PUBLIC_KEY'),
         'private_key' => env('WEB_PUSH_PRIVATE_KEY'),
     ],
-    'sms_gateway' => [
-        'url' => env('SMS_GATEWAY_URL'),
-        'token' => env('SMS_GATEWAY_TOKEN'),
-        'timeout' => env('SMS_GATEWAY_TIMEOUT', 10),
+    'iprogsms' => [
+        'url' => env('IPROGSMS_URL', 'https://www.iprogsms.com/api/v1/sms_messages'),
+        'api_token' => env('IPROGSMS_API_TOKEN'),
+        'timeout' => env('IPROGSMS_TIMEOUT', 10),
     ],
 
 ];
