@@ -295,6 +295,9 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
+        $data['pickup_garage'] = ($data['payment_method'] ?? null) === 'cash_on_pickup'
+            ? ($data['pickup_garage'] ?? 'cabuyao')
+            : null;
         $payments = $data['payments'] ?? [];
         unset($data['payments']);
 
@@ -551,6 +554,9 @@ class BookingController extends Controller
             }
         }
         unset($data['status_reason']);
+        $data['pickup_garage'] = ($data['payment_method'] ?? $booking->payment_method) === 'cash_on_pickup'
+            ? ($data['pickup_garage'] ?? $booking->pickup_garage ?? 'cabuyao')
+            : null;
         $payments = $data['payments'] ?? null;
         $assignmentProvided = array_key_exists('assigned_to_user_id', $data);
         $assignedToUserId = $assignmentProvided
