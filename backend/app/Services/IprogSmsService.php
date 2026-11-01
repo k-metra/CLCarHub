@@ -68,7 +68,7 @@ class IprogSmsService
             ->timeout((int) config('services.iprogsms.timeout', 10))
             ->post($url, [
                 'api_token' => $token,
-                'phone_numbers' => $phoneNumbers,
+                'phone_number' => $phoneNumbers,
                 'message' => $message,
             ])
             ->throw();
