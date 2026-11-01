@@ -1706,8 +1706,11 @@ export default function BookingsPage() {
   const formBalance = Math.max(0, formTotal - formPaid);
 
   useEffect(() => {
-    const originLat = fleetSettings.garage_location_latitude;
-    const originLon = fleetSettings.garage_location_longitude;
+    const origin = selectedVehicle?.garage_location === "cabuyao"
+      ? [fleetSettings.cabuyao_garage_location_latitude, fleetSettings.cabuyao_garage_location_longitude]
+      : [fleetSettings.garage_location_latitude, fleetSettings.garage_location_longitude];
+    const originLat = origin[0];
+    const originLon = origin[1];
     const deliveryLat = Number(form.delivery_latitude);
     const deliveryLon = Number(form.delivery_longitude);
     const returnLat = Number(form.return_latitude);
