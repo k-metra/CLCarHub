@@ -28,6 +28,10 @@ const defaults: FleetSettings = {
   garage_location_address: null,
   garage_location_latitude: null,
   garage_location_longitude: null,
+  cabuyao_garage_location_name: null,
+  cabuyao_garage_location_address: null,
+  cabuyao_garage_location_latitude: null,
+  cabuyao_garage_location_longitude: null,
   terms_and_conditions: null,
   privacy_policy: null,
   discount_structures: [],
@@ -76,6 +80,10 @@ const normalizeSettings = (value: Partial<FleetSettings>): FleetSettings => ({
   garage_location_address: value.garage_location_address ?? defaults.garage_location_address,
   garage_location_latitude: value.garage_location_latitude == null ? null : Number(value.garage_location_latitude),
   garage_location_longitude: value.garage_location_longitude == null ? null : Number(value.garage_location_longitude),
+  cabuyao_garage_location_name: value.cabuyao_garage_location_name ?? defaults.cabuyao_garage_location_name,
+  cabuyao_garage_location_address: value.cabuyao_garage_location_address ?? defaults.cabuyao_garage_location_address,
+  cabuyao_garage_location_latitude: value.cabuyao_garage_location_latitude == null ? null : Number(value.cabuyao_garage_location_latitude),
+  cabuyao_garage_location_longitude: value.cabuyao_garage_location_longitude == null ? null : Number(value.cabuyao_garage_location_longitude),
   terms_and_conditions: value.terms_and_conditions ?? defaults.terms_and_conditions,
   privacy_policy: value.privacy_policy ?? defaults.privacy_policy,
   discount_structures: value.discount_structures ?? defaults.discount_structures,
@@ -154,6 +162,7 @@ export default function FleetSettingsPage() {
   const [locating, setLocating] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [mapCenter, setMapCenter] = useState(defaultMapCenter);
+  const [activeGarage, setActiveGarage] = useState<"calamba" | "cabuyao">("calamba");
   const [expandedStructures, setExpandedStructures] = useState<Set<number>>(() => new Set());
   const [bookingSmsNumber, setBookingSmsNumber] = useState("");
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
@@ -192,13 +201,34 @@ export default function FleetSettingsPage() {
     api.get<DiscountCode[]>("/discount-codes").then(response => setDiscountCodes(response.data)).catch(error => showToast(error instanceof Error ? error.message : "Unable to load discount codes", "error"));
   }, [showToast]);
 
+  const garageFields: Record<"name" | "address" | "latitude" | "longitude", keyof FleetSettings> = activeGarage === "calamba"
+    ? { name: "garage_location_name", address: "garage_location_address", latitude: "garage_location_latitude", longitude: "garage_location_longitude" }
+    : { name: "cabuyao_garage_location_name", address: "cabuyao_garage_location_address", latitude: "cabuyao_garage_location_latitude", longitude: "cabuyao_garage_location_longitude" };
+  const garageLocation = activeGarage === "calamba"
+    ? {
+      name: settings.garage_location_name,
+      address: settings.garage_location_address,
+      latitude: settings.garage_location_latitude,
+      longitude: settings.garage_location_longitude,
+    }
+    : {
+      name: settings.cabuyao_garage_location_name,
+      address: settings.cabuyao_garage_location_address,
+      latitude: settings.cabuyao_garage_location_latitude,
+      longitude: settings.cabuyao_garage_location_longitude,
+    };
+  useEffect(() => {
+    if (garageLocation.latitude !== null && garageLocation.longitude !== null) {
+      setMapCenter([garageLocation.latitude, garageLocation.longitude]);
+    }
+  }, [garageLocation.latitude, garageLocation.longitude]);
   const pinLocation = (latitude: number, longitude: number, name: string | null, address: string | null) => {
     setSettings(current => ({
       ...current,
-      garage_location_name: name,
-      garage_location_address: address,
-      garage_location_latitude: latitude,
-      garage_location_longitude: longitude,
+      [garageFields.name]: name,
+      [garageFields.address]: address,
+      [garageFields.latitude]: latitude,
+      [garageFields.longitude]: longitude,
     }));
     setMapCenter([latitude, longitude]);
     setSearchResults([]);
@@ -594,10 +624,17 @@ export default function FleetSettingsPage() {
         </section>
         <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-8">
           <p className="text-xs uppercase tracking-widest text-[#ff641f]">Delivery origin</p>
-          <h2 className="mt-2 text-2xl font-semibold">Garage location</h2>
+          <h2 className="mt-2 text-2xl font-semibold">Garage locations</h2>
           <p className="mt-2 text-sm text-[#777]">
-            Search for the garage, choose a result, or click the map to pin the exact location. This will be used as the starting point for future delivery bookings.
+            Configure the Cabuyao and Calamba pickup garages. The Calamba garage remains the starting point for delivery distance calculations.
           </p>
+          <div className="mt-5 flex gap-2">
+            {(["calamba", "cabuyao"] as const).map(garage => (
+              <button type="button" key={garage} className={`border px-4 py-2 text-sm font-semibold ${activeGarage === garage ? "border-[#ff641f] bg-[#fff7f3] text-[#d94f12]" : "border-black/10 text-[#777]"}`} onClick={() => setActiveGarage(garage)}>
+                {garage === "calamba" ? "Calamba Garage" : "Cabuyao Garage"}
+              </button>
+            ))}
+          </div>
           <form className="mt-6" onSubmit={findLocation}>
             <label className="block text-sm font-semibold" htmlFor="garage-location-search">Search for a location</label>
             <div className="mt-2 flex gap-2">
@@ -638,19 +675,19 @@ export default function FleetSettingsPage() {
           <div className="garage-map mt-4 overflow-hidden border border-black/10">
             <GarageMap
               center={mapCenter}
-              position={settings.garage_location_latitude !== null && settings.garage_location_longitude !== null
-                ? [settings.garage_location_latitude, settings.garage_location_longitude]
+              position={garageLocation.latitude !== null && garageLocation.longitude !== null
+                ? [garageLocation.latitude, garageLocation.longitude]
                 : null}
               onPin={handleMapClick}
             />
           </div>
-          {settings.garage_location_latitude !== null && settings.garage_location_longitude !== null ? (
+          {garageLocation.latitude !== null && garageLocation.longitude !== null ? (
             <div className="mt-4 flex items-start justify-between gap-4 border border-black/10 bg-[#f8f7f5] p-4 text-sm">
               <div>
-                <p className="font-semibold">{settings.garage_location_name ?? "Pinned garage location"}</p>
-                <p className="mt-1 text-[#777]">{settings.garage_location_address ?? "Selected directly on the map"}</p>
+                <p className="font-semibold">{garageLocation.name ?? `Pinned ${activeGarage} garage location`}</p>
+                <p className="mt-1 text-[#777]">{garageLocation.address ?? "Selected directly on the map"}</p>
                 <p className="mt-1 text-xs text-[#777]">
-                  {settings.garage_location_latitude.toFixed(7)}, {settings.garage_location_longitude.toFixed(7)}
+                  {garageLocation.latitude.toFixed(7)}, {garageLocation.longitude.toFixed(7)}
                 </p>
               </div>
               <button
@@ -658,10 +695,10 @@ export default function FleetSettingsPage() {
                 className="shrink-0 text-xs font-semibold text-red-600"
                 onClick={() => setSettings(current => ({
                   ...current,
-                  garage_location_name: null,
-                  garage_location_address: null,
-                  garage_location_latitude: null,
-                  garage_location_longitude: null,
+                  [garageFields.name]: null,
+                  [garageFields.address]: null,
+                  [garageFields.latitude]: null,
+                  [garageFields.longitude]: null,
                 }))}
               >
                 Clear
