@@ -385,11 +385,14 @@ export default function CustomerAccountPage() {
   const bookingTotal = rentalAmount + addonTotal + deliveryFee + returnPickupFee + Number(selectedVehicle?.security_deposit_fee ?? 0) + (fleetSettings.reservation_fee_deductible ? 0 : reservationFee);
 
   useEffect(() => {
-    if (form.payment_method !== "cash_on_delivery" || !deliveryPosition || fleetSettings.garage_location_latitude === null || fleetSettings.garage_location_longitude === null) {
+    const origin = selectedVehicle?.garage_location === "cabuyao"
+      ? [fleetSettings.cabuyao_garage_location_latitude, fleetSettings.cabuyao_garage_location_longitude]
+      : [fleetSettings.garage_location_latitude, fleetSettings.garage_location_longitude];
+    if (form.payment_method !== "cash_on_delivery" || !deliveryPosition || origin[0] === null || origin[1] === null) {
       return;
     }
     let cancelled = false;
-    const [originLat, originLon] = [fleetSettings.garage_location_latitude, fleetSettings.garage_location_longitude];
+    const [originLat, originLon] = origin;
     const [destinationLat, destinationLon] = deliveryPosition;
     fetch(`https://router.project-osrm.org/route/v1/driving/${originLon},${originLat};${destinationLon},${destinationLat}?overview=false`)
       .then(response => response.json() as Promise<{ code?: string; routes?: Array<{ distance?: number }> }>)
@@ -398,7 +401,15 @@ export default function CustomerAccountPage() {
       })
       .catch(() => { if (!cancelled) setDeliveryDistance(null); })
     return () => { cancelled = true; };
-  }, [deliveryPosition, fleetSettings.garage_location_latitude, fleetSettings.garage_location_longitude, form.payment_method]);
+  }, [
+    deliveryPosition,
+    fleetSettings.cabuyao_garage_location_latitude,
+    fleetSettings.cabuyao_garage_location_longitude,
+    fleetSettings.garage_location_latitude,
+    fleetSettings.garage_location_longitude,
+    form.payment_method,
+    selectedVehicle?.garage_location,
+  ]);
 
   const setField = (key: keyof typeof emptyForm, value: string) => setForm(current => ({ ...current, [key]: value }));
   const pinDeliveryLocation = (latitude: number, longitude: number, name: string, address: string | null) => {
