@@ -42,7 +42,7 @@ class CustomerBookingSmsService
         );
 
         try {
-            $sms->send($recipients, $message);
+            $sms->sendBulk($recipients, $message);
         } catch (\Throwable $exception) {
             Log::warning('Customer booking SMS delivery failed.', [
                 'booking_id' => $booking->id,
