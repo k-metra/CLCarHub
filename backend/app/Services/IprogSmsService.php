@@ -41,6 +41,39 @@ class IprogSmsService
         }
     }
 
+    /**
+     * @param  array<int, string>  $recipients
+     */
+    public function sendBulk(array $recipients, string $message): void
+    {
+        $url = config('services.iprogsms.bulk_url')
+            ?: rtrim((string) config('services.iprogsms.url'), '/').'/send_bulk';
+        $token = config('services.iprogsms.api_token');
+        if (! $url || ! $token) {
+            throw new RuntimeException('iProgSMS is not configured.');
+        }
+
+        $phoneNumbers = collect($recipients)
+            ->map(fn (string $recipient): ?string => $this->normalizePhone($recipient))
+            ->filter()
+            ->unique()
+            ->values()
+            ->implode(',');
+
+        if ($phoneNumbers === '') {
+            throw new RuntimeException('iProgSMS requires valid Philippine mobile numbers.');
+        }
+
+        Http::asForm()
+            ->timeout((int) config('services.iprogsms.timeout', 10))
+            ->post($url, [
+                'api_token' => $token,
+                'phone_numbers' => $phoneNumbers,
+                'message' => $message,
+            ])
+            ->throw();
+    }
+
     private function normalizePhone(string $phone): ?string
     {
         $digits = preg_replace('/\D+/', '', $phone);
