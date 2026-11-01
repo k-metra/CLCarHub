@@ -271,14 +271,10 @@ class OAuthController extends Controller
         abort_unless(is_array($pending), 422, 'This Facebook sign-in has expired. Please start again.');
         $phone = app(\App\Services\CustomerPhoneVerificationService::class)->normalizePhone($data['phone']);
         abort_unless($phone, 422, 'Enter a valid Philippine mobile number.');
-        $url = config('services.sms_gateway.url');
-        $smsToken = config('services.sms_gateway.token');
-        abort_unless($url && $smsToken, 502, 'SMS verification is not configured.');
+        $sms = app(\App\Services\IprogSmsService::class);
+        abort_unless($sms->configured(), 502, 'SMS verification is not configured.');
         $code = (string) random_int(100000, 999999);
-        Http::timeout((int) config('services.sms_gateway.timeout', 10))
-            ->withHeaders(['x-api-key' => $smsToken])
-            ->post($url, ['recipients' => [$phone], 'message' => "CL CarHub: Your Facebook sign-in code is {$code}. It expires in 10 minutes. Do not share this code."])
-            ->throw();
+        $sms->send([$phone], "CL CarHub: Your Facebook sign-in code is {$code}. It expires in 10 minutes. Do not share this code.");
         Cache::put($key, [
             ...$pending,
             'phone' => $phone,
