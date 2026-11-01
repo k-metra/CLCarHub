@@ -382,8 +382,8 @@ class BookingAvailabilityTest extends TestCase
             'status' => 'approved',
             'approved_at' => now(),
         ]);
-        config()->set('services.sms_gateway.url', 'https://sms.example.test/send');
-        config()->set('services.sms_gateway.token', 'test-token');
+        config()->set('services.iprogsms.url', 'https://sms.example.test/send');
+        config()->set('services.iprogsms.api_token', 'test-token');
         Http::fake();
 
         $booking = $this->postJson('/api/bookings', [
@@ -430,8 +430,8 @@ class BookingAvailabilityTest extends TestCase
             'status' => 'approved',
             'approved_at' => now(),
         ]);
-        config()->set('services.sms_gateway.url', 'https://sms.example.test/send');
-        config()->set('services.sms_gateway.token', 'test-token');
+        config()->set('services.iprogsms.url', 'https://sms.example.test/send');
+        config()->set('services.iprogsms.api_token', 'test-token');
         Http::fake();
 
         $booking = $this->postJson('/api/bookings', [
