@@ -15,7 +15,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Notifications\VerifyEmailNotification;
 
-#[Fillable(['name', 'first_name', 'middle_name', 'last_name', 'date_of_birth', 'username', 'email', 'phone', 'password', 'role', 'status', 'last_login_ip', 'email_verified_at'])]
+#[Fillable(['name', 'first_name', 'middle_name', 'last_name', 'date_of_birth', 'username', 'email', 'phone', 'phone_verified_at', 'phone_verification_code_hash', 'phone_verification_expires_at', 'phone_verification_sent_at', 'phone_verification_attempts', 'password', 'role', 'status', 'last_login_ip', 'email_verified_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
