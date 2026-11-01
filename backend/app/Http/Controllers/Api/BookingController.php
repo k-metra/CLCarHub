@@ -333,7 +333,10 @@ class BookingController extends Controller
                 ? (float) ($data['deposit'] ?? $securityDeposit)
                 : 0;
             $fees = collect(['fuel_charge', 'rfid_charge', 'damage_fees', 'car_wash_fees'])->sum(fn ($fee) => (float) ($data[$fee] ?? 0));
-            $extensionFees = array_key_exists('extension_fees', $data) ? (float) $data['extension_fees'] : $rentalBreakdown['extension'];
+            $durationMinutes = Carbon::parse($data['pickup_at'])->diffInMinutes(Carbon::parse($data['return_at']));
+            $extensionFees = $durationMinutes <= 24 * 60
+                ? 0
+                : (array_key_exists('extension_fees', $data) ? (float) $data['extension_fees'] : $rentalBreakdown['extension']);
             $delivery = $this->deliveryBreakdown($data, $vehicle, $fleetSettings);
             $data['additional_charges'] = (float) ($data['additional_charges'] ?? 0) + $addonBreakdown['total'];
             $total = $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) $data['additional_charges'], $fees, $extensionFees, (float) $delivery['delivery_fee'] + (float) $delivery['return_pickup_fee'], $fleetSettings) - (float) ($data['discount'] ?? 0);
@@ -665,7 +668,8 @@ class BookingController extends Controller
         $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->actual_return_at ?? $booking->return_at, $vehicle, $booking->rental_rate, $booking->discount_percent_override);
         $booking->rental_amount = $rentalBreakdown['rental'];
         $booking->rental_discount = $rentalBreakdown['discount'];
-        if (! array_key_exists('extension_fees', $data)) {
+        $bookingMinutes = $booking->pickup_at->diffInMinutes($booking->actual_return_at ?? $booking->return_at);
+        if ($bookingMinutes <= 24 * 60 || ! array_key_exists('extension_fees', $data)) {
             $booking->extension_fees = $rentalBreakdown['extension'];
         }
         $booking->deposit = ($booking->security_deposit_type ?? 'cash') === 'cash'
@@ -1074,6 +1078,11 @@ class BookingController extends Controller
             $discountPercent = $discountPercentOverride === null ? 0 : (float) $discountPercentOverride;
             $discount = round($halfDayRate * ($discountPercent / 100), 2);
             return ['rental' => max(0, $halfDayRate - $discount), 'discount' => $discount, 'discount_percent' => $discountPercent, 'extension' => 0];
+        }
+        if ($minutes <= 24 * 60) {
+            $discountPercent = $discountPercentOverride === null ? 0 : (float) $discountPercentOverride;
+            $discount = round($dailyRate * ($discountPercent / 100), 2);
+            return ['rental' => max(0, $dailyRate - $discount), 'discount' => $discount, 'discount_percent' => $discountPercent, 'extension' => 0];
         }
         $days = intdiv($minutes, 24 * 60);
         $settings = FleetSetting::findOrFail(1);
