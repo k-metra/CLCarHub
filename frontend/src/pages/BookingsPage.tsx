@@ -189,7 +189,6 @@ type BookingForm = {
   return_distance_km: string;
   return_pickup_fee: string;
   payment_method: string;
-  pickup_garage: "cabuyao" | "calamba" | "";
   notes: string;
   fuel_charge: string;
   rfid_charge: string;
@@ -237,7 +236,6 @@ const emptyForm: BookingForm = {
   return_distance_km: "",
   return_pickup_fee: "",
   payment_method: "cash_on_pickup",
-  pickup_garage: "cabuyao",
   notes: "",
   fuel_charge: "",
   rfid_charge: "",
@@ -1151,7 +1149,6 @@ export default function BookingsPage() {
       return_distance_km: booking.return_distance_km ?? "",
       return_pickup_fee: booking.return_pickup_fee ?? "",
       payment_method: booking.payment_method ?? "cash_on_pickup",
-      pickup_garage: booking.pickup_garage === "calamba" ? "calamba" : "cabuyao",
       notes: booking.notes ?? "",
       fuel_charge: booking.fuel_charge ?? "",
       rfid_charge: booking.rfid_charge ?? "",
@@ -3780,20 +3777,13 @@ export default function BookingsPage() {
                   {form.payment_method === "cash_on_pickup" && (
                     <div className="md:col-span-2 border border-[#ff641f]/30 bg-[#fff7f3] p-4">
                       <p className="text-xs leading-5 text-[#6f5145]">
-                        Share the garage location with the customer:
-                        {" "}
-                        {pickupGarages.map((garage, index) => (
-                          <span key={garage.value}>
-                            {index > 0 && " · "}
-                            <a className="font-semibold text-[#d94f12] underline" href={garage.mapsUrl} target="_blank" rel="noreferrer">{garage.label}</a>
-                          </span>
-                        ))}
+                        Pickup is at the vehicle&apos;s assigned garage. Select a vehicle to see its pickup garage.
                       </p>
-                      <label className="mt-3 block text-sm font-semibold">Pickup garage
-                        <select className="mt-2 w-full border border-black/10 bg-white px-3 py-2.5 font-normal" value={form.pickup_garage} onChange={(event) => setForm((current) => ({ ...current, pickup_garage: event.target.value as BookingForm["pickup_garage"] }))}>
-                          {pickupGarages.map((garage) => <option value={garage.value} key={garage.value}>{garage.label}</option>)}
-                        </select>
-                      </label>
+                      {selectedVehicle && (
+                        <p className="mt-3 text-sm font-semibold">
+                          {pickupGarages.find((garage) => garage.value === (selectedVehicle.garage_location || "calamba"))?.label || "Calamba Garage"}
+                        </p>
+                      )}
                     </div>
                   )}
                   {form.payment_method === "cash_on_delivery" && (
