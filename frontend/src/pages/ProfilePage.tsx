@@ -9,8 +9,8 @@ import type { CustomerAttachment } from "../types";
 import { ThemeToggle, useTheme } from "../lib/ThemeContext";
 import { CustomerMobileNav } from "../components/CustomerMobileNav";
 
-type Profile = { id: number; name: string; first_name?: string | null; middle_name?: string | null; last_name?: string | null; date_of_birth?: string | null; username?: string | null; email: string; role: string; email_verified_at?: string | null };
-type CustomerProfile = Profile & { phone?: string | null; social_profile_url?: string | null; attachments?: CustomerAttachment[] };
+type Profile = { id: number; name: string; first_name?: string | null; middle_name?: string | null; last_name?: string | null; date_of_birth?: string | null; username?: string | null; email: string; phone?: string | null; role: string; email_verified_at?: string | null; phone_verified_at?: string | null };
+type CustomerProfile = Profile & { phone?: string | null; phone_verified_at?: string | null; social_profile_url?: string | null; attachments?: CustomerAttachment[] };
 type SocialAccount = { id: number; provider: "google" | "facebook"; provider_email?: string | null; created_at: string };
 type Category = "license" | "secondary_id" | "ltms" | "selfie_license";
 
@@ -33,12 +33,20 @@ export default function ProfilePage() {
   const [socialLoading, setSocialLoading] = useState(false);
   const [socialProfileUrl, setSocialProfileUrl] = useState("");
   const [socialProfileSaving, setSocialProfileSaving] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneSent, setPhoneSent] = useState(false);
+  const [phoneLoading, setPhoneLoading] = useState(false);
+  const [phoneVerifiedAt, setPhoneVerifiedAt] = useState<string | null>(null);
+  const canVerifyPhone = ["customer", "owner", "co_owner", "it_management", "staff"].includes(user?.role ?? "");
 
   useEffect(() => {
     if (!user) return;
     void Promise.all([api.get<Profile>("/auth/profile"), user.role === "customer" ? api.get<CustomerProfile>("/customer/profile") : Promise.resolve(null), user.role === "customer" ? Promise.resolve(null) : api.get<SocialAccount[]>("/auth/oauth/accounts")])
       .then(([profileResponse, customerResponse, socialResponse]) => {
         setProfile(profileResponse.data);
+        setPhone(profileResponse.data.phone ?? customerResponse?.data?.phone ?? "");
+        setPhoneVerifiedAt(profileResponse.data.phone_verified_at ?? customerResponse?.data?.phone_verified_at ?? null);
         setForm({ first_name: profileResponse.data.first_name ?? "", middle_name: profileResponse.data.middle_name ?? "", last_name: profileResponse.data.last_name ?? "", date_of_birth: profileResponse.data.date_of_birth?.slice(0, 10) ?? "", username: profileResponse.data.username ?? "" });
         setCustomer(customerResponse?.data ?? null);
         setSocialProfileUrl(customerResponse?.data?.social_profile_url ?? "");
@@ -93,6 +101,39 @@ export default function ProfilePage() {
       setSocialProfileSaving(false);
     }
   };
+  const sendPhoneCode = async () => {
+    setPhoneLoading(true);
+    try {
+      const endpoint = user.role === "customer" ? "/customer/onboarding/phone/send" : "/auth/phone/send";
+      const result = await api.post<{ phone: string }>(endpoint, { phone });
+      setPhone(result.data.phone);
+      setPhoneSent(true);
+      setPhoneCode("");
+      setPhoneVerifiedAt(null);
+      showToast("Verification code sent.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to send the verification code", "error");
+    } finally {
+      setPhoneLoading(false);
+    }
+  };
+  const verifyPhoneCode = async () => {
+    setPhoneLoading(true);
+    try {
+      const endpoint = user.role === "customer" ? "/customer/onboarding/phone/verify" : "/auth/phone/verify";
+      const result = await api.post<{ phone_verified_at: string }>(endpoint, { code: phoneCode });
+      setPhoneSent(false);
+      setPhoneCode("");
+      setPhoneVerifiedAt(result.data.phone_verified_at);
+      if (user.role === "customer") setCustomer(current => current ? { ...current, phone, phone_verified_at: result.data.phone_verified_at } : current);
+      else updateUser({ phone, phone_verified_at: result.data.phone_verified_at });
+      showToast("Phone number verified.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to verify your phone number", "error");
+    } finally {
+      setPhoneLoading(false);
+    }
+  };
   const linkSocialAccount = async (provider: "google" | "facebook") => {
     setSocialLoading(true);
     try {
@@ -132,7 +173,8 @@ export default function ProfilePage() {
   const input = "mt-2 w-full border border-black/10 px-3 py-3";
   const loadingContent = <div className="mx-auto max-w-4xl" role="status" aria-live="polite"><div className="mb-8"><Skeleton className="h-3 w-20" /><Skeleton className="mt-3 h-9 w-64" /><Skeleton className="mt-3 h-4 w-80 max-w-full" /></div><section className="border border-black/10 bg-white p-5 sm:p-8"><Skeleton className="h-7 w-48" /><div className="mt-5 grid gap-5 sm:grid-cols-2">{[1, 2, 3, 4, 5, 6].map(field => <div key={field}><Skeleton className="h-4 w-24" /><Skeleton className="mt-2 h-12 w-full" /></div>)}</div><Skeleton className="mt-6 h-11 w-32" /></section><section className="mt-6 border border-black/10 bg-white p-5 sm:p-8"><Skeleton className="h-7 w-44" /><Skeleton className="mt-3 h-4 w-72 max-w-full" /><div className="mt-5 grid gap-5 sm:grid-cols-3">{[1, 2, 3].map(field => <div key={field}><Skeleton className="h-4 w-32" /><Skeleton className="mt-2 h-12 w-full" /></div>)}</div></section></div>;
   const content = <div className="mx-auto max-w-4xl"><div className="mb-8"><p className="text-xs uppercase tracking-widest text-[#ff641f]">Account</p><h1 className="mt-2 font-['Space_Grotesk'] text-3xl font-semibold">Profile settings</h1><p className="mt-2 text-sm text-[#777]">Manage your personal information and account security.</p></div>
-    <form onSubmit={saveProfile} className="border border-black/10 bg-white p-5 sm:p-8"><h2 className="text-xl font-semibold">Personal information</h2><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm">First name<input required className={input} value={form.first_name} onChange={event => setForm(current => ({ ...current, first_name: event.target.value }))} /></label><label className="text-sm">Middle name <span className="text-[#999]">(optional)</span><input className={input} value={form.middle_name} onChange={event => setForm(current => ({ ...current, middle_name: event.target.value }))} /></label><label className="text-sm">Last name<input required className={input} value={form.last_name} onChange={event => setForm(current => ({ ...current, last_name: event.target.value }))} /></label><label className="text-sm">Date of birth    <DateTimePicker value={form.date_of_birth} onChange={value => setForm(current => ({ ...current, date_of_birth: value }))} className={input} /></label><label className="text-sm">Username<input required className={input} value={form.username} onChange={event => setForm(current => ({ ...current, username: event.target.value }))} /></label><label className="text-sm">Email address<input disabled className={`${input} bg-black/5`} value={profile?.email ?? user.email} /></label>{user.role === "customer" && <label className="text-sm">Phone number<input disabled className={`${input} bg-black/5`} value={customer?.phone ?? "Not added"} /></label>}</div><button disabled={saving} className="mt-6 bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Save profile</button></form>
+    <form onSubmit={saveProfile} className="border border-black/10 bg-white p-5 sm:p-8"><h2 className="text-xl font-semibold">Personal information</h2><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm">First name<input required className={input} value={form.first_name} onChange={event => setForm(current => ({ ...current, first_name: event.target.value }))} /></label><label className="text-sm">Middle name <span className="text-[#999]">(optional)</span><input className={input} value={form.middle_name} onChange={event => setForm(current => ({ ...current, middle_name: event.target.value }))} /></label><label className="text-sm">Last name<input required className={input} value={form.last_name} onChange={event => setForm(current => ({ ...current, last_name: event.target.value }))} /></label><label className="text-sm">Date of birth    <DateTimePicker value={form.date_of_birth} onChange={value => setForm(current => ({ ...current, date_of_birth: value }))} className={input} /></label><label className="text-sm">Username<input required className={input} value={form.username} onChange={event => setForm(current => ({ ...current, username: event.target.value }))} /></label><label className="text-sm">Email address<input disabled className={`${input} bg-black/5`} value={profile?.email ?? user.email} /></label></div><button disabled={saving} className="mt-6 bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Save profile</button></form>
+    {canVerifyPhone && <section className="mt-6 border border-black/10 bg-white p-5 sm:p-8"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">Phone number</h2><p className="mt-1 text-sm text-[#777]">Provide a Philippine mobile number and verify it by SMS.</p></div>{phoneVerifiedAt && <span className="text-xs font-semibold text-emerald-700">Phone verified</span>}</div><div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end"><label className="flex-1 text-sm">Mobile number<input className={input} value={phone} onChange={event => { setPhone(event.target.value); setPhoneSent(false); setPhoneVerifiedAt(null); }} placeholder="09XX XXX XXXX" /></label><button type="button" disabled={phoneLoading || !phone.trim()} onClick={() => void sendPhoneCode()} className="border border-[#ff641f] px-5 py-3 text-sm font-bold text-[#ff641f] disabled:opacity-50">{phoneLoading ? "Sending..." : phoneVerifiedAt ? "Change number" : "Send code"}</button></div>{phoneSent && <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"><label className="flex-1 text-sm">Verification code<input inputMode="numeric" maxLength={6} className={input} value={phoneCode} onChange={event => setPhoneCode(event.target.value)} placeholder="6-digit code" /></label><button type="button" disabled={phoneLoading || phoneCode.length !== 6} onClick={() => void verifyPhoneCode()} className="bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{phoneLoading ? "Verifying..." : "Verify phone"}</button></div>}</section>}
     <form onSubmit={changePassword} className="mt-6 border border-black/10 bg-white p-5 sm:p-8"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">Change password</h2><p className="mt-1 text-sm text-[#777]">Email verification is required before changing your password.</p></div>{profile?.email_verified_at ? <span className="text-xs font-semibold text-emerald-700">Email verified</span> : <button type="button" className="text-xs font-semibold text-[#ff641f]" onClick={async () => { try { await api.post("/auth/email-verification"); showToast("Verification email sent.", "success"); } catch (error) { showToast(error instanceof Error ? error.message : "Unable to send verification email", "error"); } }}>Send verification email</button>}</div><div className="mt-5 grid gap-4 sm:grid-cols-3"><label className="text-sm">Current password<input required type="password" className={input} value={password.current_password} onChange={event => setPassword(current => ({ ...current, current_password: event.target.value }))} /></label><label className="text-sm">New password<input required type="password" className={input} value={password.password} onChange={event => setPassword(current => ({ ...current, password: event.target.value }))} /></label><label className="text-sm">Confirm new password<input required type="password" className={input} value={password.password_confirmation} onChange={event => setPassword(current => ({ ...current, password_confirmation: event.target.value }))} /></label></div><button disabled={saving || !profile?.email_verified_at} className="mt-6 border border-black/10 px-5 py-3 text-sm font-bold disabled:opacity-50">Change password</button></form>
     {user.role === "customer" && <form onSubmit={saveSocialProfile} className="mt-6 border border-black/10 bg-white p-5 sm:p-8"><h2 className="text-xl font-semibold">Background-check social profile</h2><p className="mt-1 text-sm leading-6 text-[#777]">Add an active Facebook, Instagram, TikTok, or other social profile. This is optional during onboarding but required before requesting a booking unless you signed in with Facebook.</p><label className="mt-5 block text-sm">Social profile link<input type="url" className={input} placeholder="https://instagram.com/your-profile" value={socialProfileUrl} onChange={event => setSocialProfileUrl(event.target.value)} /></label><button disabled={socialProfileSaving} className="mt-5 bg-[#ff641f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{socialProfileSaving ? "Saving..." : "Save social profile"}</button></form>}
     {user.role !== "customer" && <section className="mt-6 border border-black/10 bg-white p-5 sm:p-8"><h2 className="text-xl font-semibold">Social sign-in</h2><p className="mt-1 text-sm text-[#777]">Link a verified social account to use it when signing in to your staff account.</p><div className="mt-5 space-y-3">{(["google", "facebook"] as const).map(provider => { const linked = socialAccounts.find(account => account.provider === provider); const label = provider === "google" ? "Google" : "Facebook"; return <div key={provider} className="flex flex-wrap items-center justify-between gap-3 border border-black/10 p-4"><div><p className="font-semibold">{label}</p><p className="text-xs text-[#777]">{linked ? `Linked${linked.provider_email ? ` as ${linked.provider_email}` : ""}` : "Not linked"}</p></div>{linked ? <button type="button" onClick={() => void unlinkSocialAccount(linked)} className="text-sm font-semibold text-[#ff641f]">Unlink</button> : <button type="button" disabled={socialLoading} onClick={() => void linkSocialAccount(provider)} className="bg-[#ff641f] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{socialLoading ? "Connecting..." : `Link ${label}`}</button>}</div>; })}</div></section>}
