@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Customer;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -34,19 +33,15 @@ class CustomerPhoneVerificationService
 
     public function sendCode(Customer $customer, string $phone): string
     {
-        $url = config('services.sms_gateway.url');
-        $token = config('services.sms_gateway.token');
-        if (! $url || ! $token) {
+        $sms = app(IprogSmsService::class);
+        if (! $sms->configured()) {
             throw new RuntimeException('SMS verification is not configured.');
         }
 
         $code = (string) random_int(100000, 999999);
         $message = "CL CarHub: Your phone verification code is {$code}. It expires in 10 minutes. Do not share this code.";
 
-        Http::timeout((int) config('services.sms_gateway.timeout', 10))
-            ->withHeaders(['x-api-key' => $token])
-            ->post($url, ['recipients' => [$phone], 'message' => $message])
-            ->throw();
+        $sms->send([$phone], $message);
 
         $customer->update([
             'phone' => $phone,
