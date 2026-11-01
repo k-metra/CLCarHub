@@ -295,10 +295,11 @@ function calendarDays(start: string, end: string): number {
 }
 
 function bookingExtensionHours(start: string, end: string): number {
-  return Math.ceil(
-    ((new Date(end).getTime() - new Date(start).getTime()) % 86400000) /
-      3600000,
-  );
+  const durationHours =
+    (new Date(end).getTime() - new Date(start).getTime()) / 3600000;
+  return durationHours <= 24
+    ? 0
+    : Math.ceil((durationHours % 24 + 24) % 24);
 }
 
 function bookingDateTime(value: string): string {
