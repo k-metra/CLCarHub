@@ -26,6 +26,7 @@ class ContractController extends Controller
             'booking_id' => ['required', 'exists:bookings,id', 'unique:contracts,booking_id'],
             'status' => ['required', 'in:draft,generated,signed,completed,cancelled'],
             'special_terms' => ['nullable', 'string'],
+            'signature_data' => ['nullable', 'string', 'max:700000', 'regex:/^data:image\/png;base64,[A-Za-z0-9+\/]+=*$/'],
             'options' => ['nullable', 'array'],
             'options.strict_destination' => ['sometimes', 'boolean'],
             'options.release_of_liability' => ['sometimes', 'boolean'],
@@ -47,12 +48,16 @@ class ContractController extends Controller
         $data = $request->validate([
             'status' => ['sometimes', 'in:draft,generated,signed,completed,cancelled'],
             'special_terms' => ['nullable', 'string'],
+            'signature_data' => ['nullable', 'string', 'max:700000', 'regex:/^data:image\/png;base64,[A-Za-z0-9+\/]+=*$/'],
             'options' => ['nullable', 'array'],
             'options.strict_destination' => ['sometimes', 'boolean'],
             'options.release_of_liability' => ['sometimes', 'boolean'],
             'options.no_smoking' => ['sometimes', 'boolean'],
             'options.carwash_payment' => ['sometimes', 'numeric', 'min:0'],
         ]);
+        if (($data['status'] ?? null) === 'signed' && empty($data['signature_data']) && empty($contract->signature_data)) {
+            abort(422, 'A signature is required before marking the contract as signed.');
+        }
         if (($data['status'] ?? null) === 'signed' && ! $contract->signed_at) {
             $data['signed_at'] = now();
         }
