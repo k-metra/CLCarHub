@@ -435,6 +435,24 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('total_amount', '2000.00');
     }
 
+    public function test_customer_booking_does_not_add_extension_fees_before_twenty_four_hours(): void
+    {
+        $user = User::factory()->create(['role' => 'customer']);
+        $user->customer()->create(['name' => 'Customer', 'phone' => '09170000000', 'social_profile_url' => 'https://instagram.com/customer']);
+        $vehicle = Vehicle::create(['brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'CUS-788', 'daily_rate' => 2000, 'status' => 'available']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/customer/booking-requests', [
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-05-12 05:00',
+            'return_at' => '2030-05-12 20:00',
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated()
+            ->assertJsonPath('rental_amount', '2000.00')
+            ->assertJsonPath('extension_fees', '0.00')
+            ->assertJsonPath('total_amount', '2000.00');
+    }
+
     public function test_customer_booking_applies_the_late_return_grace_period_before_billing_extension(): void
     {
         $user = User::factory()->create(['role' => 'customer']);
@@ -584,5 +602,28 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('delivery_rate_per_km', '25.00')
             ->assertJsonPath('delivery_fee', '250.00')
             ->assertJsonPath('total_amount', '3250.00');
+    }
+
+    public function test_admin_booking_ignores_extension_fees_for_a_booking_up_to_twenty_four_hours(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $customer = Customer::create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'ADM-792',
+            'daily_rate' => 3200, 'status' => 'available',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-11-02 05:00',
+            'return_at' => '2030-11-02 20:00',
+            'extension_fees' => 3200,
+            'payment_method' => 'cash_on_pickup',
+        ])->assertCreated()
+            ->assertJsonPath('rental_amount', '3200.00')
+            ->assertJsonPath('extension_fees', '0.00')
+            ->assertJsonPath('total_amount', '3200.00');
     }
 }
