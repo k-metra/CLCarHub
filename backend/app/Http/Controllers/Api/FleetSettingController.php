@@ -33,6 +33,10 @@ class FleetSettingController extends Controller
             'garage_location_address' => null,
             'garage_location_latitude' => null,
             'garage_location_longitude' => null,
+            'cabuyao_garage_location_name' => null,
+            'cabuyao_garage_location_address' => null,
+            'cabuyao_garage_location_latitude' => null,
+            'cabuyao_garage_location_longitude' => null,
         ]);
     }
 
@@ -62,6 +66,10 @@ class FleetSettingController extends Controller
             'garage_location_address' => ['nullable', 'string', 'max:1000'],
             'garage_location_latitude' => ['nullable', 'numeric', 'between:-90,90', 'required_with:garage_location_longitude'],
             'garage_location_longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_with:garage_location_latitude'],
+            'cabuyao_garage_location_name' => ['nullable', 'string', 'max:255'],
+            'cabuyao_garage_location_address' => ['nullable', 'string', 'max:1000'],
+            'cabuyao_garage_location_latitude' => ['nullable', 'numeric', 'between:-90,90', 'required_with:cabuyao_garage_location_longitude'],
+            'cabuyao_garage_location_longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_with:cabuyao_garage_location_latitude'],
             'terms_and_conditions' => ['nullable', 'string', 'max:1000000'],
             'privacy_policy' => ['nullable', 'string', 'max:1000000'],
         ]);
