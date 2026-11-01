@@ -31,7 +31,13 @@ class ContractController extends Controller
             'options.strict_destination' => ['sometimes', 'boolean'],
             'options.release_of_liability' => ['sometimes', 'boolean'],
             'options.no_smoking' => ['sometimes', 'boolean'],
-            'options.carwash_payment' => ['sometimes', 'numeric', 'min:0'],
+            'options.carwash_payment' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'options.easytrip_before' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.easytrip_after' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.autosweep_before' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.autosweep_after' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.fuel_before' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.fuel_after' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
         $contract = Contract::create([...$data, 'created_by' => $request->user()?->id]);
 
@@ -53,7 +59,13 @@ class ContractController extends Controller
             'options.strict_destination' => ['sometimes', 'boolean'],
             'options.release_of_liability' => ['sometimes', 'boolean'],
             'options.no_smoking' => ['sometimes', 'boolean'],
-            'options.carwash_payment' => ['sometimes', 'numeric', 'min:0'],
+            'options.carwash_payment' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'options.easytrip_before' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.easytrip_after' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.autosweep_before' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.autosweep_after' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.fuel_before' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'options.fuel_after' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
         if (($data['status'] ?? null) === 'signed' && empty($data['signature_data']) && empty($contract->signature_data)) {
             abort(422, 'A signature is required before marking the contract as signed.');
