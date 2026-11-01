@@ -75,6 +75,7 @@ return [
     ],
     'iprogsms' => [
         'url' => env('IPROGSMS_URL', 'https://www.iprogsms.com/api/v1/sms_messages'),
+        'bulk_url' => env('IPROGSMS_BULK_URL'),
         'api_token' => env('IPROGSMS_API_TOKEN'),
         'timeout' => env('IPROGSMS_TIMEOUT', 10),
     ],
