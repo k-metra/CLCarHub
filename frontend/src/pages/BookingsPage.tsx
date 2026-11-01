@@ -1590,13 +1590,16 @@ export default function BookingsPage() {
             60000,
         )
       : 0;
-  const extensionHours = Math.ceil(
-    Math.max(
-      0,
-      (durationMinutes % (24 * 60)) -
-        fleetSettings.late_return_grace_period_minutes,
-    ) / 60,
-  );
+  const extensionHours =
+    durationMinutes > 24 * 60
+      ? Math.ceil(
+          Math.max(
+            0,
+            (durationMinutes % (24 * 60)) -
+              fleetSettings.late_return_grace_period_minutes,
+          ) / 60,
+        )
+      : 0;
   const hourlyRate = Number(
     selectedVehicle?.hour_extension_rate ??
       fleetSettings.default_hour_extension_rate,
@@ -1636,7 +1639,7 @@ export default function BookingsPage() {
     effectiveDiscountPercent,
   ) - undiscountedRentalBase;
   const extensionAmount =
-    durationMinutes > 12 * 60
+    durationMinutes > 24 * 60
     ? durationMinutes % (24 * 60) === 12 * 60
       ? discountedRental(twelveHourRate, effectiveDiscountPercent)
       : extensionHours === 0
