@@ -2804,11 +2804,11 @@ export default function BookingsPage() {
                       <p className="mt-1 font-semibold">
                         {selectedBooking.destination_city || "—"}
                       </p>
-                      {selectedBooking.payment_method === "cash_on_pickup" && (
+                      {selectedBooking.payment_method !== "cash_on_delivery" && (
                         <>
                           <p className="mt-4 text-sm text-[#777]">Pickup garage</p>
                           <p className="mt-1 font-semibold">
-                            {pickupGarages.find((garage) => garage.value === selectedBooking.pickup_garage)?.label || "—"}
+                            {pickupGarages.find((garage) => garage.value === selectedBooking.pickup_garage)?.label || "Garage not specified"}
                           </p>
                         </>
                       )}
