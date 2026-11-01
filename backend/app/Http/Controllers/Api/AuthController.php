@@ -104,7 +104,37 @@ class AuthController extends Controller
 
     public function profile(Request $request)
     {
-        return $request->user()->only(['id', 'name', 'first_name', 'middle_name', 'last_name', 'date_of_birth', 'username', 'email', 'role', 'email_verified_at']);
+        return $request->user()->only(['id', 'name', 'first_name', 'middle_name', 'last_name', 'date_of_birth', 'username', 'email', 'phone', 'role', 'email_verified_at', 'phone_verified_at']);
+    }
+
+    public function sendPhoneVerification(Request $request, \App\Services\UserPhoneVerificationService $verification)
+    {
+        $user = $request->user();
+        $data = $request->validate(['phone' => ['required', 'string', 'max:40']]);
+        $phone = $verification->normalizePhone($data['phone']);
+        abort_unless($phone, 422, 'Enter a valid Philippine mobile number.');
+        abort_if($user->phone_verification_sent_at?->gt(now()->subSeconds(60)), 429, 'Please wait before requesting another verification code.');
+
+        try {
+            $verification->sendCode($user, $phone);
+        } catch (\Illuminate\Http\Client\HttpClientException|\RuntimeException $exception) {
+            report($exception);
+            abort(502, 'Unable to send the verification code. Please try again.');
+        }
+
+        return ['phone' => $phone, 'message' => 'Verification code sent.'];
+    }
+
+    public function verifyPhone(Request $request, \App\Services\UserPhoneVerificationService $verification)
+    {
+        $data = $request->validate(['code' => ['required', 'digits:6']]);
+        try {
+            $verification->verifyCode($request->user(), $data['code']);
+        } catch (\RuntimeException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        return ['phone_verified_at' => $request->user()->fresh()->phone_verified_at, 'message' => 'Phone number verified.'];
     }
 
     public function updateProfile(Request $request)
