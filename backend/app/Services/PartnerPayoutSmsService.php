@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\PartnerPayout;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PartnerPayoutSmsService
@@ -13,13 +12,13 @@ class PartnerPayoutSmsService
         $payout->loadMissing(['partner', 'payoutMethod']);
         $partner = $payout->partner;
         $phone = app(PartnerAssignmentSmsService::class)->normalizePhone($partner?->contact_number);
-        $url = config('services.sms_gateway.url');
+        $sms = app(IprogSmsService::class);
 
-        if ($payout->payout_sms_sent_at || ! $partner || ! $phone || ! $url) {
+        if ($payout->payout_sms_sent_at || ! $partner || ! $phone || ! $sms->configured()) {
             Log::info('Partner payout SMS skipped.', [
                 'payout_id' => $payout->id,
                 'partner_id' => $partner?->id,
-                'reason' => $payout->payout_sms_sent_at ? 'Notification already sent.' : (! $partner ? 'Partner unavailable.' : (! $url ? 'SMS gateway is not configured.' : 'Partner has no valid mobile number.')),
+                'reason' => $payout->payout_sms_sent_at ? 'Notification already sent.' : (! $partner ? 'Partner unavailable.' : (! $sms->configured() ? 'iProgSMS is not configured.' : 'Partner has no valid mobile number.')),
             ]);
             return;
         }
@@ -36,13 +35,7 @@ class PartnerPayoutSmsService
         );
 
         try {
-            Http::timeout((int) config('services.sms_gateway.timeout', 10))
-                ->withHeaders(['x-api-key' => config('services.sms_gateway.token')])
-                ->post($url, [
-                    'recipients' => [$phone],
-                    'message' => $message,
-                ])
-                ->throw();
+            $sms->send([$phone], $message);
 
             $payout->update(['payout_sms_sent_at' => now()]);
         } catch (\Throwable $exception) {
