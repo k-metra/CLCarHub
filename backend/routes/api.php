@@ -43,6 +43,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/user', [AuthController::class, 'user']);
     Route::get('/auth/profile', [AuthController::class, 'profile']);
     Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->post('/auth/phone/send', [AuthController::class, 'sendPhoneVerification'])->middleware('throttle:3,1');
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->post('/auth/phone/verify', [AuthController::class, 'verifyPhone'])->middleware('throttle:10,1');
     Route::post('/auth/password', [AuthController::class, 'changePassword']);
     Route::get('/auth/oauth/accounts', [\App\Http\Controllers\Api\OAuthController::class, 'linkedAccounts']);
     Route::post('/auth/oauth/link/{provider}', [\App\Http\Controllers\Api\OAuthController::class, 'prepareLink']);
