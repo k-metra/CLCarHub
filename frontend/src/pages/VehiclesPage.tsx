@@ -66,6 +66,7 @@ type VehicleForm = {
   hour_extension_rate: string;
   security_deposit_fee: string;
   delivery_rate_per_km: string;
+  garage_location: "cabuyao" | "calamba";
   status: string;
   partner_id: string;
   aika_enabled: boolean;
@@ -112,6 +113,7 @@ const emptyForm: VehicleForm = {
   hour_extension_rate: "",
   security_deposit_fee: "",
   delivery_rate_per_km: "",
+  garage_location: "calamba",
   status: "available",
   partner_id: "",
   aika_enabled: false,
@@ -303,6 +305,7 @@ export default function VehiclesPage() {
       hour_extension_rate: vehicle.hour_extension_rate ?? "",
       security_deposit_fee: vehicle.security_deposit_fee ?? "",
       delivery_rate_per_km: vehicle.delivery_rate_per_km ?? "",
+      garage_location: vehicle.garage_location === "cabuyao" ? "cabuyao" : "calamba",
       status: vehicle.status,
       partner_id: vehicle.partner_id?.toString() ?? "",
       aika_enabled: Boolean(vehicle.aika_device_id),
@@ -634,6 +637,17 @@ export default function VehiclesPage() {
                         {formatPartnerName(partner)}
                       </option>
                     ))}
+                  </select>
+                </label>
+                <label className="text-xs text-[#777]">
+                  Garage location
+                  <select
+                    className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm text-[#151515]"
+                    value={form.garage_location}
+                    onChange={(e) => updateField("garage_location", e.target.value)}
+                  >
+                    <option value="calamba">Calamba Garage</option>
+                    <option value="cabuyao">Cabuyao Garage</option>
                   </select>
                 </label>
                 {fields.map(([key, label, type]) => (
