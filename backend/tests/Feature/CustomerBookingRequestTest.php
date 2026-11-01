@@ -34,8 +34,8 @@ class CustomerBookingRequestTest extends TestCase
     public function test_customer_booking_sms_includes_customer_name_and_pickup_schedule(): void
     {
         Http::fake();
-        config()->set('services.sms_gateway.url', 'https://sms.example.test/send');
-        config()->set('services.sms_gateway.token', 'test-token');
+        config()->set('services.iprogsms.url', 'https://sms.example.test/send');
+        config()->set('services.iprogsms.api_token', 'test-token');
         FleetSetting::query()->firstOrFail()->update(['booking_sms_numbers' => ['+639939928496']]);
 
         $customer = Customer::create(['name' => 'Maria Santos', 'phone' => '09170000000']);
@@ -64,6 +64,8 @@ class CustomerBookingRequestTest extends TestCase
         Http::assertSent(fn ($request): bool =>
             str_contains($request['message'], 'Maria Santos')
             && str_contains($request['message'], 'Jan 10, 2030 10:00 AM')
+            && $request['api_token'] === 'test-token'
+            && $request->header('Content-Type')[0] === 'application/x-www-form-urlencoded'
         );
     }
 
