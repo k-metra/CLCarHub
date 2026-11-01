@@ -1002,8 +1002,17 @@ class BookingController extends Controller
 
     private function deliveryBreakdown(array $data, Vehicle $vehicle, FleetSetting $settings): array
     {
-        $originLat = $settings->garage_location_latitude;
-        $originLon = $settings->garage_location_longitude;
+        $garage = $vehicle->garage_location === 'cabuyao'
+            ? [
+                'latitude' => $settings->cabuyao_garage_location_latitude,
+                'longitude' => $settings->cabuyao_garage_location_longitude,
+            ]
+            : [
+                'latitude' => $settings->garage_location_latitude,
+                'longitude' => $settings->garage_location_longitude,
+            ];
+        $originLat = $garage['latitude'];
+        $originLon = $garage['longitude'];
         $hasDelivery = $this->hasCoordinates($data, 'delivery_latitude', 'delivery_longitude');
         $hasReturnPickup = $this->hasCoordinates($data, 'return_latitude', 'return_longitude');
         if (! $hasDelivery && ! $hasReturnPickup) {
