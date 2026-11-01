@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Booking;
 use App\Models\FleetSetting;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class CustomerBookingSmsService
@@ -12,7 +11,7 @@ class CustomerBookingSmsService
     public function send(Booking $booking): void
     {
         $settings = FleetSetting::first();
-        $url = config('services.sms_gateway.url');
+        $sms = app(IprogSmsService::class);
         $recipients = collect($settings?->booking_sms_numbers ?? [])
             ->map(fn (string $number): ?string => $this->normalizePhone($number))
             ->filter()
@@ -20,10 +19,10 @@ class CustomerBookingSmsService
             ->values()
             ->all();
 
-        if (! $url || $recipients === []) {
+        if (! $sms->configured() || $recipients === []) {
             Log::info('Customer booking SMS skipped.', [
                 'booking_id' => $booking->id,
-                'reason' => ! $url ? 'SMS gateway is not configured.' : 'No booking SMS recipients configured.',
+                'reason' => ! $sms->configured() ? 'iProgSMS is not configured.' : 'No booking SMS recipients configured.',
             ]);
             return;
         }
@@ -43,10 +42,7 @@ class CustomerBookingSmsService
         );
 
         try {
-            Http::timeout((int) config('services.sms_gateway.timeout', 10))
-                ->withHeaders(['x-api-key' => config('services.sms_gateway.token')])
-                ->post($url, ['recipients' => $recipients, 'message' => $message])
-                ->throw();
+            $sms->send($recipients, $message);
         } catch (\Throwable $exception) {
             Log::warning('Customer booking SMS delivery failed.', [
                 'booking_id' => $booking->id,
