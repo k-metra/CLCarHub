@@ -3566,10 +3566,9 @@ export default function BookingsPage() {
                     </fieldset>
                   )}
                   <label className="text-xs text-[#777]">
-                    Destination
+                    Destination (optional)
                     <input
                       className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
-                      required
                       value={form.destination}
                       onChange={(e) => setField("destination", e.target.value)}
                     />
