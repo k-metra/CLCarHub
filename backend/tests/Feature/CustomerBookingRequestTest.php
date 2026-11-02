@@ -675,7 +675,8 @@ class CustomerBookingRequestTest extends TestCase
             'return_autosweep' => '150',
             'return_fuel_bars' => 3,
         ])->assertOk()
-            ->assertJsonPath('fuel_charge', '1000.00');
+            ->assertJsonPath('fuel_charge', '1000.00')
+            ->assertJsonPath('rfid_charge', '70.00');
 
         $this->assertSame('100', $contract->fresh()->options['easytrip_before']);
         $this->assertSame('150', $contract->fresh()->options['autosweep_after']);
