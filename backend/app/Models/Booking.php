@@ -12,13 +12,15 @@ class Booking extends Model
 {
     public const PENDING = 'pending';
     public const UPCOMING = 'upcoming';
+    public const FOR_HANDOVER = 'for_handover';
+    public const FOR_DELIVERY = 'for_delivery';
     public const ONGOING = 'ongoing';
     public const FOR_COMPLETION = 'for_completion';
     public const COMPLETE = 'complete';
     public const REJECTED = 'rejected';
     public const CANCELLED = 'cancelled';
 
-    public const ACTIVE_STATUSES = [self::PENDING, self::UPCOMING, self::ONGOING, self::FOR_COMPLETION];
+    public const ACTIVE_STATUSES = [self::PENDING, self::UPCOMING, self::FOR_HANDOVER, self::FOR_DELIVERY, self::ONGOING, self::FOR_COMPLETION];
 
     protected $guarded = ['id'];
 
@@ -26,7 +28,7 @@ class Booking extends Model
 
     protected function casts(): array
     {
-        return ['loyalty_reward' => 'boolean', 'discount_code_amount' => 'decimal:2', 'pickup_at' => 'datetime', 'return_at' => 'datetime', 'actual_return_at' => 'datetime', 'security_deposit_returned_at' => 'datetime', 'addons' => 'array', 'rental_amount' => 'decimal:2', 'rental_discount' => 'decimal:2', 'rental_rate' => 'decimal:2', 'additional_charges' => 'decimal:2', 'discount' => 'decimal:2', 'discount_percent_override' => 'decimal:2', 'deposit' => 'decimal:2', 'total_amount' => 'decimal:2', 'fuel_charge' => 'decimal:2', 'rfid_charge' => 'decimal:2', 'damage_fees' => 'decimal:2', 'car_wash_fees' => 'decimal:2', 'extension_fees' => 'decimal:2', 'delivery_distance_km' => 'decimal:2', 'delivery_rate_per_km' => 'decimal:2', 'delivery_rate_override' => 'decimal:2', 'delivery_fee' => 'decimal:2', 'custom_delivery_fee' => 'decimal:2', 'delivery_latitude' => 'decimal:7', 'delivery_longitude' => 'decimal:7', 'return_latitude' => 'decimal:7', 'return_longitude' => 'decimal:7', 'return_distance_km' => 'decimal:2', 'return_pickup_fee' => 'decimal:2'];
+        return ['loyalty_reward' => 'boolean', 'discount_code_amount' => 'decimal:2', 'pickup_at' => 'datetime', 'return_at' => 'datetime', 'actual_return_at' => 'datetime', 'security_deposit_returned_at' => 'datetime', 'addons' => 'array', 'rental_amount' => 'decimal:2', 'rental_discount' => 'decimal:2', 'rental_rate' => 'decimal:2', 'additional_charges' => 'decimal:2', 'discount' => 'decimal:2', 'discount_percent_override' => 'decimal:2', 'deposit' => 'decimal:2', 'total_amount' => 'decimal:2', 'fuel_charge' => 'decimal:2', 'rfid_charge' => 'decimal:2', 'damage_fees' => 'decimal:2', 'car_wash_fees' => 'decimal:2', 'extension_fees' => 'decimal:2', 'handover_fuel_bars' => 'integer', 'return_fuel_bars' => 'integer', 'delivery_distance_km' => 'decimal:2', 'delivery_rate_per_km' => 'decimal:2', 'delivery_rate_override' => 'decimal:2', 'delivery_fee' => 'decimal:2', 'custom_delivery_fee' => 'decimal:2', 'delivery_latitude' => 'decimal:7', 'delivery_longitude' => 'decimal:7', 'return_latitude' => 'decimal:7', 'return_longitude' => 'decimal:7', 'return_distance_km' => 'decimal:2', 'return_pickup_fee' => 'decimal:2'];
     }
 
     public function customer(): BelongsTo
@@ -113,7 +115,7 @@ class Booking extends Model
         $now = now();
 
         self::query()
-            ->whereIn('status', [self::UPCOMING, self::ONGOING])
+            ->whereIn('status', [self::UPCOMING, self::FOR_HANDOVER, self::FOR_DELIVERY, self::ONGOING])
             ->where('return_at', '<=', $now)
             ->each(function (self $booking): void {
                 $booking->transitionAutomatically(self::FOR_COMPLETION);
@@ -124,9 +126,16 @@ class Booking extends Model
             ->where('pickup_at', '<=', $now)
             ->where('return_at', '>', $now)
             ->each(function (self $booking): void {
-                $booking->transitionAutomatically(self::ONGOING);
+                $booking->transitionAutomatically(
+                    $booking->isDeliveryBooking() ? self::FOR_DELIVERY : self::FOR_HANDOVER,
+                );
             });
 
+    }
+
+    public function isDeliveryBooking(): bool
+    {
+        return filled($this->delivery_address) || $this->payment_method === 'cash_on_delivery';
     }
 
     private function transitionAutomatically(string $status): void
