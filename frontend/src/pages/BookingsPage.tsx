@@ -336,7 +336,7 @@ function latestReturnNote(booking: BookingRecord): string {
     [...(booking.statusHistory ?? booking.status_history ?? [])]
       .filter(
         (history) =>
-          ["for_handover", "for_delivery", "for_completion", "complete"].includes(history.to_status) &&
+          ["for_handover", "for_delivery", "ongoing", "for_completion", "complete"].includes(history.to_status) &&
           history.reason &&
           !history.reason.startsWith("Automatically updated"),
       )
@@ -773,6 +773,8 @@ export default function BookingsPage() {
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(
     null,
   );
+  const [focusedInspectionMedia, setFocusedInspectionMedia] = useState<BookingReturnPhoto | null>(null);
+  const [inspectionMediaZoom, setInspectionMediaZoom] = useState(1);
   const [showActions, setShowActions] = useState(false);
   const [detailTab, setDetailTab] = useState<
     "details" | "payments" | "customer" | "host-contract"
@@ -800,6 +802,15 @@ export default function BookingsPage() {
   const [bookingSaving, setBookingSaving] = useState(false);
   const [useLoyaltyReward, setUseLoyaltyReward] = useState(false);
   const [invoiceGenerating, setInvoiceGenerating] = useState(false);
+
+  useEffect(() => {
+    if (!focusedInspectionMedia) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFocusedInspectionMedia(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focusedInspectionMedia]);
 
   const loadBookings = useCallback(async () => {
     setLoading(true);
@@ -926,7 +937,7 @@ export default function BookingsPage() {
   const openReturnProcessing = useCallback((booking: BookingRecord) => {
     const note = latestReturnNote(booking);
     setReturnProcessing({
-      booking,
+      booking: { ...booking, returnPhotos: returnPhotos(booking) },
       stage: "return",
       form: {
         actual_return_at: booking.actual_return_at
@@ -951,12 +962,13 @@ export default function BookingsPage() {
     });
   }, []);
   const openHandoverProcessing = useCallback((booking: BookingRecord) => {
+    const note = latestReturnNote(booking);
     setReturnProcessing({
-      booking,
+      booking: { ...booking, returnPhotos: returnPhotos(booking) },
       stage: "handover",
       form: {
         actual_return_at: dateTimeLocalValue(booking.pickup_at),
-        status_reason: "",
+        status_reason: note.startsWith("Automatically updated") ? "" : note,
         handover_easytrip: booking.handover_easytrip ?? "",
         handover_autosweep: booking.handover_autosweep ?? "",
         handover_fuel_bars: booking.handover_fuel_bars == null ? "" : String(booking.handover_fuel_bars),
@@ -1045,9 +1057,9 @@ export default function BookingsPage() {
   const saveReturnProcessing = async (complete: boolean) => {
     if (!returnProcessing || returnProcessingSaving) return;
     const { booking, form: returnForm } = returnProcessing;
-    if (!returnForm.actual_return_at || !returnForm.status_reason.trim()) {
+    if (!returnForm.actual_return_at) {
       showToast(
-        `Enter the ${returnProcessing.stage === "handover" ? "handover" : "return"} time and inspection notes before saving.`,
+        `Enter the ${returnProcessing.stage === "handover" ? "handover" : "return"} time before saving.`,
         "error",
       );
       return;
@@ -2375,9 +2387,8 @@ export default function BookingsPage() {
               )}
             </section>
             <label className="mt-5 block text-xs text-[#777]">
-              Inspection notes
+              Inspection notes (optional)
               <textarea
-                required
                 className="mt-2 min-h-28 w-full border border-black/10 px-3 py-2 text-sm"
                 value={returnProcessing.form.status_reason}
                 onChange={(event) =>
@@ -2960,11 +2971,22 @@ export default function BookingsPage() {
                 <div className="mt-5 border-t border-black/10 pt-5">
                   <p className="text-xs text-[#888]">Handover media</p>
                   <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {inspectionPhotos(selectedBooking, "handover").map((photo) =>
-                      photo.media_type === "video"
-                        ? <video key={photo.id} src={photo.url} controls className="aspect-square w-full rounded object-cover" />
-                        : <img key={photo.id} src={photo.url} alt={photo.label || "Handover inspection"} className="aspect-square w-full rounded object-cover" />,
-                    )}
+                    {inspectionPhotos(selectedBooking, "handover").map((photo) => (
+                      <button
+                        type="button"
+                        key={photo.id}
+                        className="group overflow-hidden rounded text-left"
+                        onClick={() => {
+                          setFocusedInspectionMedia(photo);
+                          setInspectionMediaZoom(1);
+                        }}
+                        aria-label={`View ${photo.label || "handover inspection media"} fullscreen`}
+                      >
+                        {photo.media_type === "video"
+                          ? <video src={photo.url} muted className="aspect-square w-full object-cover transition group-hover:scale-105" />
+                          : <img src={photo.url} alt={photo.label || "Handover inspection"} className="aspect-square w-full object-cover transition group-hover:scale-105" />}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -3345,11 +3367,14 @@ export default function BookingsPage() {
                         </div>
                         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                           {inspectionPhotos(selectedBooking, "return").map((photo) => (
-                            <a
-                              className="group overflow-hidden rounded border border-black/10 bg-white"
-                              href={photo.url}
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              className="group overflow-hidden rounded border border-black/10 bg-white text-left"
+                              onClick={() => {
+                                setFocusedInspectionMedia(photo);
+                                setInspectionMediaZoom(1);
+                              }}
+                              aria-label={`View ${photo.label || "return inspection media"} fullscreen`}
                               key={photo.id}
                             >
                               {photo.media_type === "video" ? (
@@ -3364,7 +3389,7 @@ export default function BookingsPage() {
                               <span className="block truncate px-2 py-2 text-xs">
                                 {photo.label || "Unlabelled"}
                               </span>
-                            </a>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -4879,6 +4904,51 @@ export default function BookingsPage() {
           </div>
         </div>
       </AdminShell>
+      {focusedInspectionMedia && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Inspection media viewer"
+          onClick={() => setFocusedInspectionMedia(null)}
+        >
+          <div
+            className="relative flex max-h-full max-w-full items-center justify-center"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="absolute right-2 top-2 z-10 rounded-full bg-black/70 px-3 py-1 text-2xl leading-none text-white hover:bg-black"
+              onClick={() => setFocusedInspectionMedia(null)}
+              aria-label="Close media viewer"
+            >
+              ×
+            </button>
+            <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1 rounded bg-black/70 p-1 text-white">
+              <button type="button" className="px-3 py-1 text-lg hover:bg-white/20" onClick={() => setInspectionMediaZoom((zoom) => Math.max(1, zoom - 0.25))} aria-label="Zoom out">−</button>
+              <span className="min-w-14 text-center text-sm">{Math.round(inspectionMediaZoom * 100)}%</span>
+              <button type="button" className="px-3 py-1 text-lg hover:bg-white/20" onClick={() => setInspectionMediaZoom((zoom) => Math.min(3, zoom + 0.25))} aria-label="Zoom in">+</button>
+              <button type="button" className="px-2 py-1 text-xs hover:bg-white/20" onClick={() => setInspectionMediaZoom(1)}>Reset</button>
+            </div>
+            {focusedInspectionMedia.media_type === "video" ? (
+              <video
+                src={focusedInspectionMedia.url}
+                controls
+                autoPlay
+                className="max-h-[90vh] max-w-[90vw] object-contain transition-transform"
+                style={{ transform: `scale(${inspectionMediaZoom})` }}
+              />
+            ) : (
+              <img
+                src={focusedInspectionMedia.url}
+                alt={focusedInspectionMedia.label || "Inspection media"}
+                className="max-h-[90vh] max-w-[90vw] object-contain transition-transform"
+                style={{ transform: `scale(${inspectionMediaZoom})` }}
+              />
+            )}
+          </div>
+        </div>
+      )}
       {assignmentBooking && (
         <AssignStaffModal
           booking={assignmentBooking}
