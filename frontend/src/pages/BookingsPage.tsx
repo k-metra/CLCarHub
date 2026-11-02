@@ -262,7 +262,9 @@ const feeFields: Array<[keyof BookingForm, string]> = [
 ];
 const statusTransitions: Record<string, string[]> = {
   pending: ["upcoming", "cancelled", "rejected"],
-  upcoming: ["cancelled"],
+  upcoming: ["for_handover", "for_delivery", "cancelled"],
+  for_handover: ["ongoing", "cancelled"],
+  for_delivery: ["ongoing", "cancelled"],
   ongoing: ["for_completion", "cancelled"],
   for_completion: ["complete", "cancelled"],
   complete: [],
@@ -270,6 +272,11 @@ const statusTransitions: Record<string, string[]> = {
   rejected: [],
 };
 const statusLabel = (status: string) =>
+  status === "for_handover"
+    ? "For handover"
+    : status === "for_delivery"
+      ? "For delivery"
+      :
   status === "for_completion"
     ? "For completion"
     : status.charAt(0).toUpperCase() + status.slice(1);
@@ -329,7 +336,7 @@ function latestReturnNote(booking: BookingRecord): string {
     [...(booking.statusHistory ?? booking.status_history ?? [])]
       .filter(
         (history) =>
-          ["for_completion", "complete"].includes(history.to_status) &&
+          ["for_handover", "for_delivery", "for_completion", "complete"].includes(history.to_status) &&
           history.reason &&
           !history.reason.startsWith("Automatically updated"),
       )
@@ -378,6 +385,13 @@ function vehicleImageUrl(vehicle: VehicleRecord): string | null {
 
 function returnPhotos(booking: BookingRecord): BookingReturnPhoto[] {
   return booking.returnPhotos ?? booking.return_photos ?? [];
+}
+
+function inspectionPhotos(
+  booking: BookingRecord,
+  stage: "handover" | "return",
+): BookingReturnPhoto[] {
+  return returnPhotos(booking).filter((photo) => (photo.stage ?? "return") === stage);
 }
 
 function vehicleLabel(vehicle: VehicleRecord): string {
@@ -714,9 +728,16 @@ export default function BookingsPage() {
   const [editing, setEditing] = useState<number | null>(null);
   const [returnProcessing, setReturnProcessing] = useState<{
     booking: BookingRecord;
+    stage: "handover" | "return";
     form: {
       actual_return_at: string;
       status_reason: string;
+      handover_easytrip: string;
+      handover_autosweep: string;
+      handover_fuel_bars: string;
+      return_easytrip: string;
+      return_autosweep: string;
+      return_fuel_bars: string;
       fuel_charge: string;
       rfid_charge: string;
       damage_fees: string;
@@ -906,11 +927,18 @@ export default function BookingsPage() {
     const note = latestReturnNote(booking);
     setReturnProcessing({
       booking,
+      stage: "return",
       form: {
         actual_return_at: booking.actual_return_at
           ? dateTimeLocalValue(booking.actual_return_at)
           : dateTimeLocalValue(booking.return_at),
         status_reason: note.startsWith("Automatically updated") ? "" : note,
+        handover_easytrip: booking.handover_easytrip ?? "",
+        handover_autosweep: booking.handover_autosweep ?? "",
+        handover_fuel_bars: booking.handover_fuel_bars == null ? "" : String(booking.handover_fuel_bars),
+        return_easytrip: booking.return_easytrip ?? "",
+        return_autosweep: booking.return_autosweep ?? "",
+        return_fuel_bars: booking.return_fuel_bars == null ? "" : String(booking.return_fuel_bars),
         fuel_charge: booking.fuel_charge ?? "",
         rfid_charge: booking.rfid_charge ?? "",
         damage_fees: booking.damage_fees ?? "",
@@ -918,6 +946,30 @@ export default function BookingsPage() {
         extension_fees: booking.extension_fees ?? "",
         additional_charges: booking.additional_charges ?? "",
         settlement_fund_id: funds[0] ? String(funds[0].id) : "",
+      },
+      photos: [],
+    });
+  }, []);
+  const openHandoverProcessing = useCallback((booking: BookingRecord) => {
+    setReturnProcessing({
+      booking,
+      stage: "handover",
+      form: {
+        actual_return_at: dateTimeLocalValue(booking.pickup_at),
+        status_reason: "",
+        handover_easytrip: booking.handover_easytrip ?? "",
+        handover_autosweep: booking.handover_autosweep ?? "",
+        handover_fuel_bars: booking.handover_fuel_bars == null ? "" : String(booking.handover_fuel_bars),
+        return_easytrip: "",
+        return_autosweep: "",
+        return_fuel_bars: "",
+        fuel_charge: "",
+        rfid_charge: "",
+        damage_fees: "",
+        car_wash_fees: "",
+        extension_fees: "",
+        additional_charges: "",
+        settlement_fund_id: "",
       },
       photos: [],
     });
@@ -995,17 +1047,38 @@ export default function BookingsPage() {
     const { booking, form: returnForm } = returnProcessing;
     if (!returnForm.actual_return_at || !returnForm.status_reason.trim()) {
       showToast(
-        "Enter the actual return time and inspection notes before saving.",
+        `Enter the ${returnProcessing.stage === "handover" ? "handover" : "return"} time and inspection notes before saving.`,
         "error",
       );
       return;
     }
+    if (
+      returnProcessing.stage === "handover" &&
+      (!returnForm.handover_easytrip.trim() ||
+        !returnForm.handover_autosweep.trim() ||
+        returnForm.handover_fuel_bars === "")
+    ) {
+      showToast("Record both RFID balances and the fuel bars before handover.", "error");
+      return;
+    }
+    if (
+      returnProcessing.stage === "return" &&
+      (!returnForm.return_easytrip.trim() ||
+        !returnForm.return_autosweep.trim() ||
+        returnForm.return_fuel_bars === "")
+    ) {
+      showToast("Record both RFID balances and the returned fuel bars before completing.", "error");
+      return;
+    }
     setReturnProcessingSaving(true);
-    const status = complete
-      ? "complete"
-      : booking.status === "ongoing"
-        ? "for_completion"
-        : booking.status;
+    const status =
+      returnProcessing.stage === "handover"
+        ? returnProcessing.booking.status === "complete"
+          ? "complete"
+          : "ongoing"
+        : returnProcessing.booking.status === "complete" || complete
+          ? "complete"
+          : "for_completion";
     try {
       if (returnProcessing.photos.length) {
         const photoPayload = new FormData();
@@ -1014,6 +1087,7 @@ export default function BookingsPage() {
           if (photo.label.trim())
             photoPayload.append(`photos[${index}][label]`, photo.label.trim());
         });
+        photoPayload.append("stage", returnProcessing.stage);
         const photoResult = await api.post<BookingRecord>(
           `/bookings/${booking.id}/return-photos`,
           photoPayload,
@@ -1034,13 +1108,29 @@ export default function BookingsPage() {
         `/bookings/${booking.id}`,
         {
           status,
-          actual_return_at: returnForm.actual_return_at,
+          ...(returnProcessing.stage === "return"
+            ? { actual_return_at: returnForm.actual_return_at }
+            : {}),
           status_reason: returnForm.status_reason.trim(),
+          ...(returnProcessing.stage === "handover"
+            ? {
+                handover_easytrip: returnForm.handover_easytrip.trim(),
+                handover_autosweep: returnForm.handover_autosweep.trim(),
+                handover_fuel_bars: Number(returnForm.handover_fuel_bars),
+              }
+            : {
+                return_easytrip: returnForm.return_easytrip.trim(),
+                return_autosweep: returnForm.return_autosweep.trim(),
+                return_fuel_bars: Number(returnForm.return_fuel_bars),
+              }),
           settlement_fund_id:
-            complete && returnForm.settlement_fund_id
+            returnProcessing.stage === "return" &&
+            complete &&
+            returnForm.settlement_fund_id
               ? Number(returnForm.settlement_fund_id)
               : null,
-          ...Object.fromEntries(
+          ...(returnProcessing.stage === "return"
+            ? Object.fromEntries(
             (
               [
                 "fuel_charge",
@@ -1054,7 +1144,8 @@ export default function BookingsPage() {
               key,
               returnForm[key] ? Number(returnForm[key]) : 0,
             ]),
-          ),
+          )
+              : {}),
         },
       );
       setReturnProcessing(null);
@@ -1064,7 +1155,11 @@ export default function BookingsPage() {
         returnPhotos: returnPhotos(response.data),
       });
       showToast(
-        complete ? "Rental completed successfully." : "Return details saved.",
+        returnProcessing.stage === "handover"
+          ? "Handover recorded and rental started."
+          : complete
+            ? "Rental completed successfully."
+            : "Return details saved.",
         "success",
       );
     } catch (error) {
@@ -1934,14 +2029,19 @@ export default function BookingsPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-widest text-[#ff641f]">
-                  Return processing
+                  {returnProcessing.stage === "handover"
+                    ? returnProcessing.booking.status === "for_delivery"
+                      ? "Delivery handover"
+                      : "Vehicle handover"
+                    : "Return processing"}
                 </p>
                 <h2 className="mt-1 text-2xl font-semibold">
                   {returnProcessing.booking.reference}
                 </h2>
                 <p className="mt-1 text-sm text-[#777]">
-                  Record the inspection and actual handoff time before
-                  completing the rental.
+                  {returnProcessing.stage === "handover"
+                    ? "Record the vehicle condition and readings before releasing the unit."
+                    : "Record the inspection and actual return time before completing the rental."}
                 </p>
               </div>
               <button
@@ -1955,7 +2055,9 @@ export default function BookingsPage() {
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <label className="text-xs text-[#777]">
-                Actual return date & time
+                {returnProcessing.stage === "handover"
+                  ? "Handover date & time"
+                  : "Actual return date & time"}
                 <DateTimePicker
                   required
                   mode="datetime"
@@ -1973,7 +2075,9 @@ export default function BookingsPage() {
                   className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm"
                 />
                 <span className="mt-1 block text-[11px] text-[#888]">
-                  This time is used to calculate extension fees.
+                  {returnProcessing.stage === "return"
+                    ? "This time is used to calculate extension fees."
+                    : "This records when the unit was released to the renter or delivery recipient."}
                 </span>
               </label>
               {!editing && (
@@ -1990,7 +2094,8 @@ export default function BookingsPage() {
                     ? " — saving keeps it for completion."
                     : ""}
                 </p>
-                {returnProcessing.booking.status === "for_completion" && (
+                {returnProcessing.stage === "return" &&
+                  returnProcessing.booking.status === "for_completion" && (
                   <label className="mt-3 block text-xs">
                     Fund for automatic base-balance settlement
                     <select
@@ -2021,7 +2126,89 @@ export default function BookingsPage() {
                 )}
               </div>
             </div>
+            {returnProcessing.stage === "handover" ? (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {([
+                  ["handover_easytrip", "Easytrip balance"],
+                  ["handover_autosweep", "Autosweep balance"],
+                ] as const).map(([key, label]) => (
+                  <label className="text-xs text-[#777]" key={key}>
+                    {label}
+                    <input
+                      required
+                      className="mt-1 w-full border border-black/10 px-3 py-2 text-sm"
+                      value={returnProcessing.form[key]}
+                      onChange={(event) =>
+                        setReturnProcessing((current) =>
+                          current
+                            ? { ...current, form: { ...current.form, [key]: event.target.value } }
+                            : current,
+                        )
+                      }
+                    />
+                  </label>
+                ))}
+                <label className="text-xs text-[#777]">
+                  Fuel bars at handover
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="1"
+                    className="mt-1 w-full border border-black/10 px-3 py-2 text-sm"
+                    value={returnProcessing.form.handover_fuel_bars}
+                    onChange={(event) =>
+                      setReturnProcessing((current) =>
+                        current
+                          ? { ...current, form: { ...current.form, handover_fuel_bars: event.target.value } }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+              </div>
+            ) : (
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {([
+                ["return_easytrip", "Easytrip balance at return"],
+                ["return_autosweep", "Autosweep balance at return"],
+              ] as const).map(([key, label]) => (
+                <label className="text-xs text-[#777]" key={key}>
+                  {label}
+                  <input
+                    required
+                    className="mt-1 w-full border border-black/10 px-3 py-2 text-sm"
+                    value={returnProcessing.form[key]}
+                    onChange={(event) =>
+                      setReturnProcessing((current) =>
+                        current
+                          ? { ...current, form: { ...current.form, [key]: event.target.value } }
+                          : current,
+                      )
+                    }
+                  />
+                </label>
+              ))}
+              <label className="text-xs text-[#777]">
+                Fuel bars at return
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  max="20"
+                  step="1"
+                  className="mt-1 w-full border border-black/10 px-3 py-2 text-sm"
+                  value={returnProcessing.form.return_fuel_bars}
+                  onChange={(event) =>
+                    setReturnProcessing((current) =>
+                      current
+                        ? { ...current, form: { ...current.form, return_fuel_bars: event.target.value } }
+                        : current,
+                    )
+                  }
+                />
+              </label>
               {(
                 [
                   "fuel_charge",
@@ -2045,13 +2232,7 @@ export default function BookingsPage() {
                     onChange={(event) =>
                       setReturnProcessing((current) =>
                         current
-                          ? {
-                              ...current,
-                              form: {
-                                ...current.form,
-                                [key]: event.target.value,
-                              },
-                            }
+                          ? { ...current, form: { ...current.form, [key]: event.target.value } }
                           : current,
                       )
                     }
@@ -2059,10 +2240,15 @@ export default function BookingsPage() {
                 </label>
               ))}
             </div>
+            )}
             <section className="mt-5 border-t border-black/10 pt-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-semibold">Return photos or videos</h3>
+                  <h3 className="font-semibold">
+                    {returnProcessing.stage === "handover"
+                      ? "Handover photos or videos"
+                      : "Return photos or videos"}
+                  </h3>
                   <p className="mt-1 text-xs text-[#777]">
                     Attach up to 30 photos or videos. Each file must be 1 GB or
                     smaller.
@@ -2137,7 +2323,7 @@ export default function BookingsPage() {
                       {photo.mediaType === "video" ? (
                         <video src={photo.preview} controls className="aspect-square w-full object-cover" />
                       ) : (
-                        <img src={photo.preview} alt="New return inspection" className="aspect-square w-full object-cover" />
+                        <img src={photo.preview} alt={`New ${returnProcessing.stage === "handover" ? "handover" : "return"} inspection`} className="aspect-square w-full object-cover" />
                       )}
                       <div className="p-2">
                         <input
@@ -2207,7 +2393,7 @@ export default function BookingsPage() {
                       : current,
                   )
                 }
-                placeholder="Describe the returned vehicle condition, inspection findings, and any charges."
+                placeholder={`Describe the ${returnProcessing.stage === "handover" ? "handover" : "returned"} vehicle condition, inspection findings, and any charges.`}
               />
             </label>
             <div className="mt-6 flex justify-end gap-3">
@@ -2223,9 +2409,14 @@ export default function BookingsPage() {
                 disabled={returnProcessingSaving}
                 className="border border-[#ff641f] px-4 py-2 text-sm font-semibold text-[#d94f12] disabled:opacity-50"
               >
-                {returnProcessingSaving ? "Saving..." : "Save return details"}
+                {returnProcessingSaving
+                  ? "Saving..."
+                  : returnProcessing.stage === "handover"
+                    ? "Save handover"
+                    : "Save return details"}
               </button>
-              {returnProcessing.booking.status === "for_completion" && (
+              {returnProcessing.stage === "return" &&
+                returnProcessing.booking.status === "for_completion" && (
                 <button
                   type="button"
                   disabled={returnProcessingSaving}
@@ -2697,6 +2888,34 @@ export default function BookingsPage() {
                         Reject booking
                       </button>
                     )}
+                    {["for_handover", "for_delivery", "ongoing", "complete"].includes(selectedBooking.status) && (
+                      <button
+                        className="block w-full px-3 py-2 text-left text-sm font-semibold text-[#d94f12] hover:bg-orange-50"
+                        onClick={() => {
+                          openHandoverProcessing(selectedBooking);
+                          setShowActions(false);
+                        }}
+                      >
+                        {selectedBooking.status === "for_delivery"
+                          ? "Process delivery"
+                          : selectedBooking.status === "ongoing" || selectedBooking.status === "complete"
+                            ? "Edit handover"
+                            : "Process handover"}
+                      </button>
+                    )}
+                    {["ongoing", "for_completion", "complete"].includes(selectedBooking.status) && (
+                      <button
+                        className="block w-full px-3 py-2 text-left text-sm font-semibold text-[#d94f12] hover:bg-orange-50"
+                        onClick={() => {
+                          openReturnProcessing(selectedBooking);
+                          setShowActions(false);
+                        }}
+                      >
+                        {selectedBooking.status === "complete"
+                          ? "Edit return details"
+                          : "Return processing"}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2715,6 +2934,41 @@ export default function BookingsPage() {
                 }
               />
             )}
+            <section className="mt-8 border border-black/10 bg-white p-6">
+              <p className="text-xs uppercase tracking-widest text-[#ff641f]">Handover record</p>
+              <h2 className="mt-1 text-xl font-semibold">
+                {selectedBooking.payment_method === "cash_on_delivery" ? "Delivery handover" : "Vehicle handover"}
+              </h2>
+              <p className="mt-1 text-sm text-[#777]">
+                These readings are copied to the contract and establish the rental starting condition.
+              </p>
+              <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                {[
+                  ["Easytrip balance", selectedBooking.handover_easytrip],
+                  ["Autosweep balance", selectedBooking.handover_autosweep],
+                  ["Fuel bars", selectedBooking.handover_fuel_bars],
+                ].map(([label, value]) => (
+                  <div key={label as string}>
+                    <p className="text-xs text-[#888]">{label as string}</p>
+                    <p className="mt-1 font-semibold">
+                      {value === null || value === undefined || value === "" ? "Not recorded" : String(value)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              {inspectionPhotos(selectedBooking, "handover").length > 0 && (
+                <div className="mt-5 border-t border-black/10 pt-5">
+                  <p className="text-xs text-[#888]">Handover media</p>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {inspectionPhotos(selectedBooking, "handover").map((photo) =>
+                      photo.media_type === "video"
+                        ? <video key={photo.id} src={photo.url} controls className="aspect-square w-full rounded object-cover" />
+                        : <img key={photo.id} src={photo.url} alt={photo.label || "Handover inspection"} className="aspect-square w-full rounded object-cover" />,
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
             <div className="mt-8 border border-black/10 bg-white">
               <div className="flex flex-wrap border-b border-black/10">
                 <button
@@ -2804,6 +3058,10 @@ export default function BookingsPage() {
                       <p className="mt-4 text-sm text-[#777]">Destination city / municipality</p>
                       <p className="mt-1 font-semibold">
                         {selectedBooking.destination_city || "—"}
+                      </p>
+                      <p className="mt-4 text-sm text-[#777]">Remarks</p>
+                      <p className="mt-1 whitespace-pre-wrap font-semibold">
+                        {selectedBooking.notes || "—"}
                       </p>
                       {selectedBooking.payment_method !== "cash_on_delivery" && (
                         <>
@@ -3069,7 +3327,7 @@ export default function BookingsPage() {
                           "No inspection notes recorded."}
                       </p>
                     </div>
-                    {(selectedBooking.returnPhotos?.length ?? 0) > 0 && (
+                    {inspectionPhotos(selectedBooking, "return").length > 0 && (
                       <div className="mt-5 border border-black/10 bg-[#f8f7f5] p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
@@ -3077,8 +3335,8 @@ export default function BookingsPage() {
                               Return media
                             </p>
                             <p className="mt-1 text-sm text-[#777]">
-                              {selectedBooking.returnPhotos?.length} media file
-                              {selectedBooking.returnPhotos?.length === 1
+                              {inspectionPhotos(selectedBooking, "return").length} media file
+                              {inspectionPhotos(selectedBooking, "return").length === 1
                                 ? ""
                                 : "s"}{" "}
                               attached
@@ -3086,7 +3344,7 @@ export default function BookingsPage() {
                           </div>
                         </div>
                         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                          {selectedBooking.returnPhotos?.map((photo) => (
+                          {inspectionPhotos(selectedBooking, "return").map((photo) => (
                             <a
                               className="group overflow-hidden rounded border border-black/10 bg-white"
                               href={photo.url}
@@ -4381,6 +4639,8 @@ export default function BookingsPage() {
             >
               <option value="">All bookings</option>
               <option value="pending">Pending</option>
+              <option value="for_handover">For handover</option>
+              <option value="for_delivery">For delivery</option>
               <option value="for_completion">For completion</option>
               <option value="upcoming">Upcoming</option>
               <option value="ongoing">Ongoing</option>
@@ -4530,12 +4790,31 @@ export default function BookingsPage() {
                                     },
                                   ]
                                 : []),
-                              ...(["ongoing", "for_completion"].includes(
+                              ...(["for_handover", "for_delivery", "ongoing", "complete"].includes(
                                 booking.status,
                               )
                                 ? [
                                     {
-                                      label: "Return processing",
+                                      label:
+                                        booking.status === "for_delivery"
+                                          ? "Process delivery"
+                                          : booking.status === "ongoing" || booking.status === "complete"
+                                            ? "Edit handover"
+                                          : "Process handover",
+                                      onClick: () =>
+                                        openHandoverProcessing(booking),
+                                    },
+                                  ]
+                                : []),
+                              ...(["ongoing", "for_completion", "complete"].includes(
+                                booking.status,
+                              )
+                                ? [
+                                    {
+                                        label:
+                                          booking.status === "complete"
+                                            ? "Edit return details"
+                                            : "Return processing",
                                       onClick: () =>
                                         openReturnProcessing(booking),
                                     },
