@@ -658,12 +658,17 @@ class CustomerBookingRequestTest extends TestCase
         Sanctum::actingAs($user);
         $this->patchJson("/api/bookings/{$booking->id}", [
             'status' => Booking::ONGOING,
+            'status_reason' => 'Handover completed with no issues.',
             'handover_easytrip' => '100',
             'handover_autosweep' => '200',
             'handover_fuel_bars' => 5,
         ])->assertOk()
             ->assertJsonPath('status', Booking::ONGOING)
             ->assertJsonPath('handover_fuel_bars', 5);
+        $this->assertSame(
+            'Handover completed with no issues.',
+            $booking->fresh('statusHistory')->statusHistory->last()->reason,
+        );
 
         $this->patchJson("/api/bookings/{$booking->id}", [
             'status' => Booking::FOR_COMPLETION,
