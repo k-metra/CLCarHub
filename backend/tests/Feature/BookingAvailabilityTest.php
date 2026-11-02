@@ -268,6 +268,36 @@ class BookingAvailabilityTest extends TestCase
         $this->assertSame($itm->id, $booking->fresh()->assigned_to_user_id);
     }
 
+    public function test_self_assignment_does_not_send_staff_assignment_sms(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $owner = User::where('role', 'owner')->firstOrFail();
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000005',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+        $owner->update(['phone' => '09171234567']);
+
+        config()->set('services.iprogsms.url', 'https://sms.test/send');
+        config()->set('services.iprogsms.api_token', 'test-token');
+        Http::fake();
+        Sanctum::actingAs($owner);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'assigned_to_user_id' => $owner->id,
+        ])->assertOk();
+
+        Http::assertNothingSent();
+        $this->assertSame($owner->id, $booking->fresh()->assigned_to_user_id);
+    }
+
     public function test_staff_can_claim_an_unassigned_booking_once(): void
     {
         [$vehicle, $customer] = $this->authenticate();
