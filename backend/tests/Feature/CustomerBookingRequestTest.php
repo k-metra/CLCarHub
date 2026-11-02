@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Booking;
+use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\FleetSetting;
 use App\Models\IpBlock;
@@ -625,5 +626,59 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('rental_amount', '3200.00')
             ->assertJsonPath('extension_fees', '0.00')
             ->assertJsonPath('total_amount', '3200.00');
+    }
+
+    public function test_booking_handover_status_and_inspection_readings_sync_to_contract(): void
+    {
+        $user = User::factory()->create(['role' => 'owner']);
+        $customer = Customer::create(['name' => 'Customer', 'phone' => '09170000000']);
+        $vehicle = Vehicle::create([
+            'brand' => 'Toyota', 'model' => 'Vios', 'type' => 'sedan', 'plate_number' => 'ADM-793',
+            'daily_rate' => 3200, 'status' => 'available',
+        ]);
+        $booking = Booking::create([
+            'reference' => 'CLCH-2030-000002',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => now()->subHour(),
+            'return_at' => now()->addDay(),
+            'payment_method' => 'cash_on_pickup',
+            'status' => Booking::UPCOMING,
+            'rental_amount' => 3200,
+            'total_amount' => 3200,
+        ]);
+        $contract = Contract::create([
+            'booking_id' => $booking->id,
+            'status' => 'draft',
+            'options' => [],
+        ]);
+        Booking::synchronizeAutomaticStatuses();
+        $this->assertSame(Booking::FOR_HANDOVER, $booking->fresh()->status);
+
+        Sanctum::actingAs($user);
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'status' => Booking::ONGOING,
+            'handover_easytrip' => '100',
+            'handover_autosweep' => '200',
+            'handover_fuel_bars' => 5,
+        ])->assertOk()
+            ->assertJsonPath('status', Booking::ONGOING)
+            ->assertJsonPath('handover_fuel_bars', 5);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'status' => Booking::FOR_COMPLETION,
+            'actual_return_at' => now()->toDateTimeString(),
+        ])->assertOk();
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'status' => Booking::COMPLETE,
+            'return_easytrip' => '80',
+            'return_autosweep' => '150',
+            'return_fuel_bars' => 3,
+        ])->assertOk()
+            ->assertJsonPath('fuel_charge', '1000.00');
+
+        $this->assertSame('100', $contract->fresh()->options['easytrip_before']);
+        $this->assertSame('150', $contract->fresh()->options['autosweep_after']);
+        $this->assertSame('3', $contract->fresh()->options['fuel_after']);
     }
 }
