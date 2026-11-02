@@ -6,6 +6,7 @@ import api from "../lib/api";
 import { addonChargeLabel } from "../lib/addons";
 import { citiesByProvince, luzonProvinces } from "../lib/philippineLocations";
 import type { AddonRecord, FleetSettings, Paginated, VehicleRecord } from "../types";
+import { PaymentStatusScreen } from "./CustomerAccountPage";
 
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 const apiOrigin = (import.meta.env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
@@ -44,7 +45,7 @@ export default function HostMarketplacePage() {
   const [saving, setSaving] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [paymentConfirmation, setPaymentConfirmation] = useState<{ bookingId: string; status: "success" | "cancelled"; reference?: string } | null>(null);
+  const [paymentConfirmation, setPaymentConfirmation] = useState<{ booking: import("../types").BookingRecord; status: "success" | "cancelled" } | null>(null);
   const [addons, setAddons] = useState<AddonRecord[]>([]);
   const [selectedAddonIds, setSelectedAddonIds] = useState<number[]>([]);
   const [fleetSettings, setFleetSettings] = useState<FleetSettings | null>(null);
@@ -92,9 +93,9 @@ export default function HostMarketplacePage() {
     const payment = searchParams.get("payment");
     const bookingId = searchParams.get("booking");
     if (!bookingId || !payment || !["success", "cancelled"].includes(payment)) return;
-    api.get<{ reference?: string }>(`/customer/booking-requests/${bookingId}`)
-      .then(response => setPaymentConfirmation({ bookingId, status: payment as "success" | "cancelled", reference: response.data.reference }))
-      .catch(() => setPaymentConfirmation({ bookingId, status: payment as "success" | "cancelled" }));
+    api.get<import("../types").BookingRecord>(`/customer/booking-requests/${bookingId}`)
+      .then(response => setPaymentConfirmation({ booking: response.data, status: payment as "success" | "cancelled" }))
+      .catch(() => undefined);
   }, [searchParams]);
 
   const rentalMinutes = pickupAt && returnAt ? Math.ceil((new Date(returnAt).getTime() - new Date(pickupAt).getTime()) / 60000) : 0;
@@ -160,14 +161,17 @@ export default function HostMarketplacePage() {
 
   return (
     <HostShell title="Rent a vehicle">
+      {paymentConfirmation && (
+        <PaymentStatusScreen
+          booking={paymentConfirmation.booking}
+          bookingId={paymentConfirmation.booking.id}
+          status={paymentConfirmation.status}
+          detailsPath={`/host/rentals?booking=${paymentConfirmation.booking.id}`}
+          homePath="/host"
+        />
+      )}
+      {!paymentConfirmation && (
       <div className="mt-8">
-        {paymentConfirmation && <section className={`mb-8 border p-6 ${paymentConfirmation.status === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-          <p className="text-xs font-bold uppercase tracking-widest">{paymentConfirmation.status === "success" ? "Payment received" : "Payment cancelled"}</p>
-          <h2 className="mt-2 text-2xl font-semibold">{paymentConfirmation.status === "success" ? "Your booking request is confirmed" : "Your booking request is still pending"}</h2>
-          <p className="mt-2 text-sm">{paymentConfirmation.status === "success" ? "Your payment was received and your request has been sent to CLCarHub for review." : "No payment was recorded. You can review the request and try payment again from your bookings."}</p>
-          {paymentConfirmation.reference && <p className="mt-3 text-sm font-semibold">Booking reference: {paymentConfirmation.reference}</p>}
-          <Link to={`/host/rentals?booking=${paymentConfirmation.bookingId}`} className="mt-5 inline-block bg-[#ff641f] px-5 py-3 text-sm font-bold text-white">View booking →</Link>
-        </section>}
         <p className="text-[10px] font-bold uppercase tracking-[2.7px] text-[#ff641f]">MARKETPLACE</p>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -219,6 +223,7 @@ export default function HostMarketplacePage() {
           ))}
         </div>}
       </div>
+      )}
     </HostShell>
   );
 }
