@@ -11,7 +11,7 @@ class ContractController extends Controller
 {
     public function index(Request $request)
     {
-        return Contract::with(['booking.customer', 'booking.vehicle.images', 'creator'])
+        return Contract::with(['booking.customer', 'booking.vehicle.images', 'booking.assignedTo', 'creator'])
             ->when($request->search, fn ($query, $search) => $query->whereHas('booking', fn ($booking) => $booking
                 ->where('reference', 'like', "%{$search}%")
                 ->orWhereHas('customer', fn ($customer) => $customer->where('name', 'like', "%{$search}%"))
@@ -28,6 +28,7 @@ class ContractController extends Controller
             'status' => ['required', 'in:draft,generated,signed,completed,cancelled'],
             'special_terms' => ['nullable', 'string'],
             'signature_data' => ['nullable', 'string', 'max:700000', 'regex:/^data:image\/png;base64,[A-Za-z0-9+\/]+=*$/'],
+            'staff_signature_data' => ['nullable', 'string', 'max:700000', 'regex:/^data:image\/png;base64,[A-Za-z0-9+\/]+=*$/'],
             'options' => ['nullable', 'array'],
             'options.strict_destination' => ['sometimes', 'boolean'],
             'options.release_of_liability' => ['sometimes', 'boolean'],
@@ -44,12 +45,12 @@ class ContractController extends Controller
         $data['options'] = array_merge($data['options'] ?? [], $this->bookingReadingOptions($booking));
         $contract = Contract::create([...$data, 'created_by' => $request->user()?->id]);
 
-        return response()->json($contract->load(['booking.customer', 'booking.vehicle.images', 'booking.payments', 'creator']), 201);
+        return response()->json($contract->load(['booking.customer', 'booking.vehicle.images', 'booking.assignedTo', 'booking.payments', 'creator']), 201);
     }
 
     public function show(Contract $contract)
     {
-        return $contract->load(['booking.customer', 'booking.vehicle.images', 'booking.payments', 'creator']);
+        return $contract->load(['booking.customer', 'booking.vehicle.images', 'booking.assignedTo', 'booking.payments', 'creator']);
     }
 
     public function update(Request $request, Contract $contract)
@@ -58,6 +59,7 @@ class ContractController extends Controller
             'status' => ['sometimes', 'in:draft,generated,signed,completed,cancelled'],
             'special_terms' => ['nullable', 'string'],
             'signature_data' => ['nullable', 'string', 'max:700000', 'regex:/^data:image\/png;base64,[A-Za-z0-9+\/]+=*$/'],
+            'staff_signature_data' => ['nullable', 'string', 'max:700000', 'regex:/^data:image\/png;base64,[A-Za-z0-9+\/]+=*$/'],
             'options' => ['nullable', 'array'],
             'options.strict_destination' => ['sometimes', 'boolean'],
             'options.release_of_liability' => ['sometimes', 'boolean'],
@@ -81,7 +83,7 @@ class ContractController extends Controller
         }
         $contract->update($data);
 
-        return $contract->fresh(['booking.customer', 'booking.vehicle.images', 'booking.payments', 'creator']);
+        return $contract->fresh(['booking.customer', 'booking.vehicle.images', 'booking.assignedTo', 'booking.payments', 'creator']);
     }
 
     public function destroy(Contract $contract)
