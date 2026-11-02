@@ -13,7 +13,7 @@ class BookingReturnPhoto extends Model
 
     protected function casts(): array
     {
-        return ['media_type' => 'string'];
+        return ['media_type' => 'string', 'stage' => 'string'];
     }
 
     public function booking(): BelongsTo
