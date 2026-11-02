@@ -49,7 +49,7 @@ function formatDate(value: string): string {
 function statusClass(status: string): string {
   if (["complete", "for_completion"].includes(status)) return "bg-emerald-100 text-emerald-700";
   if (["cancelled", "rejected"].includes(status)) return "bg-red-100 text-red-700";
-  if (status === "ongoing") return "bg-amber-100 text-amber-700";
+  if (["ongoing", "for_handover", "for_delivery"].includes(status)) return "bg-amber-100 text-amber-700";
   return "bg-blue-100 text-blue-700";
 }
 
@@ -81,7 +81,7 @@ export default function HostBookingsPage() {
     <HostShell title="Bookings for your units">
       <section className="mt-8 border border-black/10 bg-white p-6">
         <p className="text-sm text-[#777]">Booking references, schedules, unit details, and statuses are shown here. Customer and payment information is not shared in the host portal.</p>
-        <div className="mt-6 flex flex-wrap gap-3"><input className="min-w-60 flex-1 border border-black/15 p-3 text-sm" placeholder="Search booking, vehicle, make, model, or plate" value={search} onChange={event => setSearch(event.target.value)} /><select className="border border-black/15 bg-white p-3 text-sm" value={status} onChange={event => setStatus(event.target.value)}><option value="all">All statuses</option><option value="pending">Pending</option><option value="upcoming">Upcoming</option><option value="ongoing">Ongoing</option><option value="for_completion">For completion</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option><option value="rejected">Rejected</option></select></div>
+        <div className="mt-6 flex flex-wrap gap-3"><input className="min-w-60 flex-1 border border-black/15 p-3 text-sm" placeholder="Search booking, vehicle, make, model, or plate" value={search} onChange={event => setSearch(event.target.value)} /><select className="border border-black/15 bg-white p-3 text-sm" value={status} onChange={event => setStatus(event.target.value)}><option value="all">All statuses</option><option value="pending">Pending</option><option value="upcoming">Upcoming</option><option value="for_handover">For handover</option><option value="for_delivery">For delivery</option><option value="ongoing">Ongoing</option><option value="for_completion">For completion</option><option value="complete">Complete</option><option value="cancelled">Cancelled</option><option value="rejected">Rejected</option></select></div>
         {loading && <p className="mt-6 text-sm text-[#777]">Loading bookings...</p>}
         {error && <p className="mt-6 text-sm text-red-600">{error}</p>}
         {!loading && !error && bookings.length === 0 && <p className="mt-6 text-sm text-[#777]">No bookings have been assigned to your units.</p>}
