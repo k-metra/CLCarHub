@@ -252,7 +252,7 @@ class BookingController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $now = now();
         $query = Booking::query()->visibleToAdmin($request->boolean('include_archived'))
-            ->with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'creator', 'assignedTo'])
+            ->with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'creator', 'assignedTo', 'returnPhotos'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('reference', 'like', "%{$search}%")
@@ -412,11 +412,34 @@ class BookingController extends Controller
 
     public function storeReturnPhotos(Request $request, Booking $booking)
     {
+        $uploadErrors = collect($request->allFiles()['photos'] ?? [])
+            ->flatMap(fn ($photo): array => is_array($photo) ? array_values($photo) : [$photo])
+            ->filter(fn ($file): bool => $file instanceof UploadedFile && ! $file->isValid())
+            ->map(fn (UploadedFile $file): string => sprintf(
+                '%s (PHP upload error %d; upload_max_filesize=%s; post_max_size=%s)',
+                $file->getClientOriginalName(),
+                $file->getError(),
+                ini_get('upload_max_filesize'),
+                ini_get('post_max_size'),
+            ))
+            ->values();
+
+        if ($uploadErrors->isNotEmpty()) {
+            return response()->json([
+                'message' => 'One or more inspection files were rejected before Laravel could receive them.',
+                'errors' => ['photos' => $uploadErrors->all()],
+            ], 422);
+        }
+
         $data = $request->validate([
             'photos' => ['required', 'array', 'min:1'],
             'photos.*.file' => ['required', 'file', 'mimetypes:image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm', 'max:1048576'],
             'photos.*.label' => ['nullable', 'string', 'max:120'],
             'stage' => ['sometimes', 'in:handover,return'],
+        ], [
+            'photos.required' => 'Select at least one handover or return photo/video to upload.',
+            'photos.*.file.max' => 'Each inspection photo or video must be 1 GB or smaller.',
+            'photos.*.file.mimetypes' => 'Inspection media must be JPG, PNG, WEBP, HEIC, MP4, MOV, or WEBM.',
         ]);
         $stage = $data['stage'] ?? 'return';
         abort_if($booking->returnPhotos()->where('stage', $stage)->count() + count($data['photos']) > 30, 422, 'A booking can have up to 30 media files for this inspection.');
