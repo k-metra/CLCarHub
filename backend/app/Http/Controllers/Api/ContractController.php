@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\Booking;
 use Illuminate\Http\Request;
 
 class ContractController extends Controller
@@ -39,6 +40,8 @@ class ContractController extends Controller
             'options.fuel_before' => ['sometimes', 'nullable', 'string', 'max:255'],
             'options.fuel_after' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
+        $booking = Booking::findOrFail($data['booking_id']);
+        $data['options'] = array_merge($data['options'] ?? [], $this->bookingReadingOptions($booking));
         $contract = Contract::create([...$data, 'created_by' => $request->user()?->id]);
 
         return response()->json($contract->load(['booking.customer', 'booking.vehicle.images', 'booking.payments', 'creator']), 201);
@@ -73,6 +76,9 @@ class ContractController extends Controller
         if (($data['status'] ?? null) === 'signed' && ! $contract->signed_at) {
             $data['signed_at'] = now();
         }
+        if (array_key_exists('options', $data)) {
+            $data['options'] = array_merge($data['options'] ?? [], $this->bookingReadingOptions($contract->booking));
+        }
         $contract->update($data);
 
         return $contract->fresh(['booking.customer', 'booking.vehicle.images', 'booking.payments', 'creator']);
@@ -83,5 +89,17 @@ class ContractController extends Controller
         $contract->delete();
 
         return response()->noContent();
+    }
+
+    private function bookingReadingOptions(Booking $booking): array
+    {
+        return collect([
+            'easytrip_before' => $booking->handover_easytrip,
+            'autosweep_before' => $booking->handover_autosweep,
+            'fuel_before' => $booking->handover_fuel_bars,
+            'easytrip_after' => $booking->return_easytrip,
+            'autosweep_after' => $booking->return_autosweep,
+            'fuel_after' => $booking->return_fuel_bars,
+        ])->filter(fn ($value): bool => $value !== null)->map(fn ($value): string => (string) $value)->all();
     }
 }
