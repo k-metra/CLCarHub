@@ -707,9 +707,7 @@ class BookingController extends Controller
         if (($booking->security_deposit_type ?? 'cash') !== 'asset') {
             $booking->security_deposit_asset = null;
         }
-        if ($booking->return_fuel_bars !== null && $booking->handover_fuel_bars !== null) {
-            $booking->fuel_charge = max(0, $booking->handover_fuel_bars - $booking->return_fuel_bars) * 500;
-        }
+        $this->recalculateInspectionCharges($booking);
         $booking->save();
         $this->syncContractReadings($booking);
         $this->recalculateTotal($booking);
@@ -944,6 +942,31 @@ class BookingController extends Controller
             Booking::CANCELLED => [],
             Booking::REJECTED => [],
         ];
+    }
+
+    private function recalculateInspectionCharges(Booking $booking): void
+    {
+        if ($booking->return_fuel_bars !== null && $booking->handover_fuel_bars !== null) {
+            $booking->fuel_charge = max(0, $booking->handover_fuel_bars - $booking->return_fuel_bars) * 500;
+        }
+
+        $rfidCharge = 0;
+        $hasCompleteRfidPair = false;
+        foreach ([
+            [$booking->handover_easytrip, $booking->return_easytrip],
+            [$booking->handover_autosweep, $booking->return_autosweep],
+        ] as [$before, $after]) {
+            if (! is_numeric($before) || ! is_numeric($after)) {
+                continue;
+            }
+
+            $hasCompleteRfidPair = true;
+            $rfidCharge += max(0, (float) $before - (float) $after);
+        }
+
+        if ($hasCompleteRfidPair) {
+            $booking->rfid_charge = $rfidCharge;
+        }
     }
 
     private function syncPayments(Booking $booking, array $payments): void
