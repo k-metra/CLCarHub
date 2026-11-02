@@ -48,6 +48,30 @@ class BookingController extends Controller
             ->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
     }
 
+    private function syncContractReadings(Booking $booking): void
+    {
+        $contract = $booking->relationLoaded('contract') ? $booking->contract : $booking->contract()->first();
+        if (! $contract) {
+            return;
+        }
+
+        $options = $contract->options ?? [];
+        $readings = [
+            'easytrip_before' => $booking->handover_easytrip,
+            'autosweep_before' => $booking->handover_autosweep,
+            'fuel_before' => $booking->handover_fuel_bars,
+            'easytrip_after' => $booking->return_easytrip,
+            'autosweep_after' => $booking->return_autosweep,
+            'fuel_after' => $booking->return_fuel_bars,
+        ];
+        foreach ($readings as $key => $value) {
+            if ($value !== null) {
+                $options[$key] = (string) $value;
+            }
+        }
+        $contract->update(['options' => $options]);
+    }
+
     public function customerShow(Request $request, Booking $booking)
     {
         $customer = $this->authenticatedCustomer($request);
@@ -239,6 +263,8 @@ class BookingController extends Controller
             ->when($request->filter, function ($query, $filter) use ($now) {
                 match ($filter) {
                     'upcoming' => $query->where('status', Booking::UPCOMING),
+                    'for_handover' => $query->where('status', Booking::FOR_HANDOVER),
+                    'for_delivery' => $query->where('status', Booking::FOR_DELIVERY),
                     'ongoing' => $query->where('status', Booking::ONGOING),
                     'for_completion' => $query->where('status', Booking::FOR_COMPLETION),
                     'complete' => $query->where('status', Booking::COMPLETE),
@@ -261,13 +287,14 @@ class BookingController extends Controller
         return $query
             ->orderByRaw("CASE
                 WHEN status = 'pending' THEN 0
-                WHEN status = 'for_completion' THEN 1
-                WHEN status = 'upcoming' THEN 2
-                WHEN status = 'ongoing' THEN 3
-                WHEN status = 'complete' THEN 4
-                WHEN status = 'rejected' THEN 5
-                WHEN status = 'cancelled' THEN 6
-                ELSE 6
+                WHEN status IN ('for_handover', 'for_delivery') THEN 1
+                WHEN status = 'for_completion' THEN 2
+                WHEN status = 'upcoming' THEN 3
+                WHEN status = 'ongoing' THEN 4
+                WHEN status = 'complete' THEN 5
+                WHEN status = 'rejected' THEN 6
+                WHEN status = 'cancelled' THEN 7
+                ELSE 7
             END")
             ->orderBy('pickup_at', 'asc')
             ->orderBy('id', 'asc')
@@ -389,15 +416,17 @@ class BookingController extends Controller
             'photos' => ['required', 'array', 'min:1'],
             'photos.*.file' => ['required', 'file', 'mimetypes:image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm', 'max:1048576'],
             'photos.*.label' => ['nullable', 'string', 'max:120'],
+            'stage' => ['sometimes', 'in:handover,return'],
         ]);
-        abort_if($booking->returnPhotos()->count() + count($data['photos']) > 30, 422, 'A booking can have up to 30 return media files.');
+        $stage = $data['stage'] ?? 'return';
+        abort_if($booking->returnPhotos()->where('stage', $stage)->count() + count($data['photos']) > 30, 422, 'A booking can have up to 30 media files for this inspection.');
 
         foreach ($data['photos'] as $photo) {
             /** @var UploadedFile $file */
             $file = $photo['file'];
             $path = $file->store('booking-returns', 'public');
             abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The return media could not be saved. Check storage permissions and disk configuration.');
-            $booking->returnPhotos()->create(['path' => $path, 'media_type' => str_starts_with((string) $file->getMimeType(), 'video/') ? 'video' : 'image', 'label' => filled($photo['label'] ?? null) ? trim($photo['label']) : null]);
+            $booking->returnPhotos()->create(['stage' => $stage, 'path' => $path, 'media_type' => str_starts_with((string) $file->getMimeType(), 'video/') ? 'video' : 'image', 'label' => filled($photo['label'] ?? null) ? trim($photo['label']) : null]);
         }
 
         return $booking->fresh('returnPhotos');
@@ -678,14 +707,22 @@ class BookingController extends Controller
         if (($booking->security_deposit_type ?? 'cash') !== 'asset') {
             $booking->security_deposit_asset = null;
         }
+        if ($booking->return_fuel_bars !== null && $booking->handover_fuel_bars !== null) {
+            $booking->fuel_charge = max(0, $booking->handover_fuel_bars - $booking->return_fuel_bars) * 500;
+        }
         $booking->save();
+        $this->syncContractReadings($booking);
         $this->recalculateTotal($booking);
         if ($payments !== null) $this->syncPayments($booking, $payments);
         if ($booking->status === Booking::COMPLETE) {
             $this->settleBaseBalance($booking, $settlementFundId, $request->user()?->id);
             $this->createPartnerEarning($booking);
         }
-        if ($assignmentChanged && $booking->assigned_to_user_id) {
+        if (
+            $assignmentChanged
+            && $booking->assigned_to_user_id
+            && (int) $request->user()->id !== (int) $booking->assigned_to_user_id
+        ) {
             $booking->load(['assignedTo', 'vehicle']);
             app(StaffAssignmentSmsService::class)->send($booking, $booking->assignedTo);
         }
@@ -753,7 +790,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'discount_code' => ['nullable', 'string', 'max:80'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'destination_province' => ['nullable', 'string', 'max:100', Rule::in(self::LUZON_PROVINCES)], 'destination_city' => ['nullable', 'string', 'max:100'], 'destination_zone' => ['nullable', 'in:laguna,outside_laguna'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],                 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_override' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'custom_delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'discount_percent_override' => ['nullable', 'numeric', 'between:0,100'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'status' => ['sometimes', 'in:pending,upcoming,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'discount_code' => ['nullable', 'string', 'max:80'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'destination_province' => ['nullable', 'string', 'max:100', Rule::in(self::LUZON_PROVINCES)], 'destination_city' => ['nullable', 'string', 'max:100'], 'destination_zone' => ['nullable', 'in:laguna,outside_laguna'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],                 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_override' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'custom_delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'discount_percent_override' => ['nullable', 'numeric', 'between:0,100'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'handover_easytrip' => ['nullable', 'string', 'max:255'], 'handover_autosweep' => ['nullable', 'string', 'max:255'], 'handover_fuel_bars' => ['nullable', 'integer', 'min:0', 'max:20'], 'return_easytrip' => ['nullable', 'string', 'max:255'], 'return_autosweep' => ['nullable', 'string', 'max:255'], 'return_fuel_bars' => ['nullable', 'integer', 'min:0', 'max:20'], 'status' => ['sometimes', 'in:pending,upcoming,for_handover,for_delivery,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function isEarlierBookingStatus(string $requestedStatus, string $currentStatus): bool
@@ -761,9 +798,11 @@ class BookingController extends Controller
         $statusOrder = [
             Booking::PENDING => 0,
             Booking::UPCOMING => 1,
-            Booking::ONGOING => 2,
-            Booking::FOR_COMPLETION => 3,
-            Booking::COMPLETE => 4,
+            Booking::FOR_HANDOVER => 2,
+            Booking::FOR_DELIVERY => 2,
+            Booking::ONGOING => 3,
+            Booking::FOR_COMPLETION => 4,
+            Booking::COMPLETE => 5,
         ];
 
         return isset($statusOrder[$requestedStatus], $statusOrder[$currentStatus])
@@ -896,7 +935,9 @@ class BookingController extends Controller
     {
         return [
             Booking::PENDING => [Booking::UPCOMING, Booking::CANCELLED, Booking::REJECTED],
-            Booking::UPCOMING => [Booking::CANCELLED],
+            Booking::UPCOMING => [Booking::FOR_HANDOVER, Booking::FOR_DELIVERY, Booking::CANCELLED],
+            Booking::FOR_HANDOVER => [Booking::ONGOING, Booking::CANCELLED],
+            Booking::FOR_DELIVERY => [Booking::ONGOING, Booking::CANCELLED],
             Booking::ONGOING => [Booking::FOR_COMPLETION, Booking::CANCELLED],
             Booking::FOR_COMPLETION => [Booking::COMPLETE, Booking::CANCELLED],
             Booking::COMPLETE => [],
