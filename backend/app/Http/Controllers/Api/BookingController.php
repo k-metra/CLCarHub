@@ -566,7 +566,7 @@ class BookingController extends Controller
             ...collect($booking->addons ?? [])->map(fn (array $addon) => [$addon['name'].((int) ($addon['quantity'] ?? 1) > 1 ? ' × '.(int) $addon['quantity'] : '').' ('.$addon['billing_label'].')', (float) $addon['total']])->all(),
             ['Additional charges', max(0, (float) $booking->additional_charges - collect($booking->addons ?? [])->sum(fn (array $addon) => (float) $addon['total']))],
             ['Delivery fee ('.$money($deliveryRate).'/km × '.number_format($deliveryDistance, 2).' km)', (float) $booking->delivery_fee],
-            ['Return pickup fee ('.$money($deliveryRate).'/km × '.number_format($returnDistance, 2).' km × 2)', (float) $booking->return_pickup_fee],
+            ['Return pickup fee ('.$money($deliveryRate).'/km × '.number_format($returnDistance, 2).' km)', (float) $booking->return_pickup_fee],
             ['Fuel charge', (float) $booking->fuel_charge],
             ['RFID charge', (float) $booking->rfid_charge],
             ['Damage fees', (float) $booking->damage_fees],
@@ -1147,7 +1147,7 @@ class BookingController extends Controller
             ? (float) $data['custom_delivery_fee']
             : ($deliveryDistance === null ? 0 : round($deliveryDistance * $rate, 2));
 
-        return ['delivery_distance_km' => $deliveryDistance, 'delivery_rate_per_km' => $rate, 'delivery_fee' => $deliveryFee, 'delivery_latitude' => $hasDelivery ? (float) $data['delivery_latitude'] : null, 'delivery_longitude' => $hasDelivery ? (float) $data['delivery_longitude'] : null, 'return_distance_km' => $returnDistance, 'return_pickup_fee' => $returnDistance === null ? 0 : round($returnDistance * 2 * $rate, 2)];
+        return ['delivery_distance_km' => $deliveryDistance, 'delivery_rate_per_km' => $rate, 'delivery_fee' => $deliveryFee, 'delivery_latitude' => $hasDelivery ? (float) $data['delivery_latitude'] : null, 'delivery_longitude' => $hasDelivery ? (float) $data['delivery_longitude'] : null, 'return_distance_km' => $returnDistance,         'return_pickup_fee' => $returnDistance === null ? 0 : round($returnDistance * $rate, 2)];
     }
 
     private function hasCoordinates(array $data, string $latitudeKey, string $longitudeKey): bool
