@@ -195,6 +195,54 @@ class BookingAvailabilityTest extends TestCase
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
     }
 
+    public function test_booking_index_can_filter_operations_by_departure_or_return_date(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+
+        for ($index = 1; $index <= 101; $index++) {
+            Booking::create([
+                'reference' => 'OLD-'.$index,
+                'customer_id' => $customer->id,
+                'vehicle_id' => $vehicle->id,
+                'pickup_at' => '2030-01-01 10:00',
+                'return_at' => '2030-01-02 10:00',
+                'status' => 'complete',
+                'payment_status' => 'paid',
+                'rental_amount' => 2000,
+                'total_amount' => 2000,
+            ]);
+        }
+
+        Booking::create([
+            'reference' => 'NOV-04-RELEASE',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-11-04 10:00',
+            'return_at' => '2030-11-05 10:00',
+            'status' => 'upcoming',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+        Booking::create([
+            'reference' => 'NOV-04-RETURN',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-11-03 10:00',
+            'return_at' => '2030-11-04 10:00',
+            'status' => 'ongoing',
+            'payment_status' => 'unpaid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        $this->getJson('/api/bookings?per_page=100&sort=oldest&operations_date=2030-11-04')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['reference' => 'NOV-04-RELEASE'])
+            ->assertJsonFragment(['reference' => 'NOV-04-RETURN']);
+    }
+
     public function test_balance_is_derived_from_total_amount_and_payments(): void
     {
         [$vehicle, $customer] = $this->authenticate();
