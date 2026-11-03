@@ -274,7 +274,13 @@ class BookingController extends Controller
                     default => null,
                 };
             })
-            ->when($request->vehicle_id, fn ($query, $vehicleId) => $query->where('vehicle_id', $vehicleId));
+            ->when($request->vehicle_id, fn ($query, $vehicleId) => $query->where('vehicle_id', $vehicleId))
+            ->when($request->filled('operations_date'), function ($query) use ($request) {
+                $query->where(function ($query) use ($request) {
+                    $query->whereDate('pickup_at', $request->input('operations_date'))
+                        ->orWhereDate('return_at', $request->input('operations_date'));
+                });
+            });
 
         $sort = $request->input('sort', 'priority');
         if (in_array($sort, ['latest', 'oldest'], true)) {
