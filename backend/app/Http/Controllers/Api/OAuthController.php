@@ -107,7 +107,7 @@ class OAuthController extends Controller
                     'user_id' => $user->id,
                     'provider_email' => $profile->getEmail(),
                     'provider_avatar_url' => $profile->getAvatar(),
-                    'provider_profile_url' => $this->profileUrl($provider, $profile->getRaw(), $profile->getId()),
+                    'provider_profile_url' => $this->profileUrl($profile->getRaw()),
                 ],
             );
             AuditLogger::record('account', 'social_account_linked', "Linked {$provider} login: {$user->name}", $user, null, $request);
@@ -201,7 +201,7 @@ class OAuthController extends Controller
                     'provider_user_id' => $profile->getId(),
                     'provider_email' => $profile->getEmail(),
                     'provider_avatar_url' => $profile->getAvatar(),
-                    'provider_profile_url' => $this->profileUrl($provider, $profile->getRaw(), $profile->getId()),
+                    'provider_profile_url' => $this->profileUrl($profile->getRaw()),
                 ]);
 
                 return $user;
@@ -315,7 +315,7 @@ class OAuthController extends Controller
                 'provider_user_id' => $pending['provider_user_id'],
                 'provider_email' => null,
                 'provider_avatar_url' => $pending['provider_avatar_url'],
-                'provider_profile_url' => $this->profileUrl($pending['provider'], [], $pending['provider_user_id']),
+                'provider_profile_url' => $this->profileUrl([]),
             ]);
             return $user;
         });
@@ -329,15 +329,13 @@ class OAuthController extends Controller
         abort_unless(in_array($provider, self::PROVIDERS, true), 404);
     }
 
-    private function profileUrl(string $provider, array $raw, string $providerUserId): ?string
+    private function profileUrl(array $raw): ?string
     {
         if (isset($raw['link']) && is_string($raw['link']) && filter_var($raw['link'], FILTER_VALIDATE_URL)) {
             return $raw['link'];
         }
 
-        return $provider === 'facebook' && $providerUserId !== ''
-            ? 'https://www.facebook.com/'.$providerUserId
-            : null;
+        return null;
     }
 
     private function callbackCacheKey(Request $request, string $provider): ?string
