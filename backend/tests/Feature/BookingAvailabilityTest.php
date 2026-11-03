@@ -261,6 +261,33 @@ class BookingAvailabilityTest extends TestCase
         $this->assertSame(1500.0, Booking::firstOrFail()->balance);
     }
 
+    public function test_legacy_completed_booking_can_receive_handover_readings(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $booking = Booking::create([
+            'reference' => 'LEGACY-HANDOVER',
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+            'status' => 'complete',
+            'payment_status' => 'paid',
+            'rental_amount' => 2000,
+            'total_amount' => 2000,
+        ]);
+
+        $this->patchJson("/api/bookings/{$booking->id}", [
+            'handover_easytrip' => '100',
+            'handover_autosweep' => '200',
+            'handover_fuel_bars' => 8,
+            'status' => 'complete',
+        ])->assertOk()
+            ->assertJsonPath('handover_easytrip', '100')
+            ->assertJsonPath('handover_autosweep', '200')
+            ->assertJsonPath('handover_fuel_bars', 8)
+            ->assertJsonPath('status', 'complete');
+    }
+
     public function test_staff_can_update_payments_without_reassigning_an_existing_booking(): void
     {
         [$vehicle, $customer] = $this->authenticate();
@@ -390,8 +417,8 @@ class BookingAvailabilityTest extends TestCase
             'delivery_rate_per_km' => 50,
             'delivery_fee' => 1149,
             'return_distance_km' => 10,
-            'return_pickup_fee' => 1000,
-            'total_amount' => 9139,
+            'return_pickup_fee' => 500,
+            'total_amount' => 8639,
         ]);
         $booking->payments()->create(['amount' => 500, 'paid_at' => '2030-01-01', 'notes' => 'Deposit']);
 
@@ -401,10 +428,10 @@ class BookingAvailabilityTest extends TestCase
             ->assertSee('INV-CLCH-2030-000123')
             ->assertSee('Rental fees (₱2,000.00 regular rate; ₱2,000.00 effective rate × 2 days)')
             ->assertSee('Delivery fee (₱50.00/km × 22.98 km)')
-            ->assertSee('Return pickup fee (₱50.00/km × 10.00 km × 2)')
-            ->assertSee('₱9,139.00')
+            ->assertSee('Return pickup fee (₱50.00/km × 10.00 km)')
+            ->assertSee('₱8,639.00')
             ->assertSee('₱500.00')
-            ->assertSee('₱8,639.00');
+            ->assertSee('₱8,139.00');
     }
 
     public function test_status_transitions_follow_the_booking_lifecycle(): void
