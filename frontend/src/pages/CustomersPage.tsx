@@ -15,6 +15,7 @@ type Customer = {
   last_name?: string | null;
   email?: string | null;
   phone?: string | null;
+  phone_verified_at?: string | null;
   address?: string | null;
   date_of_birth?: string | null;
   referral_source?: "facebook" | "tiktok" | "google_search" | "word_of_mouth" | "" | null;
@@ -27,7 +28,7 @@ type Customer = {
   outstanding_balance?: number;
   attachments?: CustomerAttachment[];
   bookings?: BookingRecord[];
-  user?: { name?: string | null; first_name?: string | null; last_name?: string | null; last_login_ip?: string | null; social_accounts?: Array<{ id: number; provider: string; provider_user_id: string; provider_email?: string | null; provider_profile_url?: string | null }> };
+  user?: { name?: string | null; first_name?: string | null; last_name?: string | null; email_verified_at?: string | null; last_login_ip?: string | null; social_accounts?: Array<{ id: number; provider: string; provider_user_id: string; provider_email?: string | null; provider_profile_url?: string | null }> };
   ip_block_scopes?: string[];
   archived_at?: string | null;
   loyalty?: { completed_bookings: number; bookings_toward_next_reward: number; bookings_remaining: number; available_rewards: number; reward_description: string };
@@ -628,7 +629,18 @@ export default function CustomersPage() {
                 <div>
                   <p className="text-xs uppercase tracking-widest text-[#ff641f]">Customer profile</p>
                   <h2 className="mt-2 text-2xl font-semibold">{profile.name}</h2>
-                  <p className="mt-1 text-sm text-[#777]">{profile.email || "No email"} · {profile.phone || "No phone"}</p>
+                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                    <div className="rounded border border-black/10 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-widest text-[#888]">Email</p>
+                      <p className="mt-1 break-all font-medium">{profile.email || "Not provided"}</p>
+                      {profile.email && <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${profile.user?.email_verified_at ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{profile.user?.email_verified_at ? "Verified" : "Unverified"}</span>}
+                    </div>
+                    <div className="rounded border border-black/10 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-widest text-[#888]">Phone</p>
+                      <p className="mt-1 font-medium">{profile.phone || "Not provided"}</p>
+                      {profile.phone && <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${profile.phone_verified_at ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{profile.phone_verified_at ? "Verified" : "Unverified"}</span>}
+                    </div>
+                  </div>
                   <p className="mt-1 text-xs text-[#777]">Last login IP: {profile.user?.last_login_ip || "Not recorded"}{profile.ip_block_scopes?.length ? ` · Blocked: ${profile.ip_block_scopes.join(", ")}` : ""}</p>
                 </div>
                 <button type="button" className="text-2xl text-[#777]" onClick={() => setProfile(null)}>×</button>
