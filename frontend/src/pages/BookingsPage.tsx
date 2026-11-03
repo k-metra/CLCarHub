@@ -577,6 +577,18 @@ function CustomerProfileTab({
         <h2 className="mt-1 text-xl font-semibold">
           {customer.name || account.name}
         </h2>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded border border-black/10 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-widest text-[#888]">Email</p>
+            <p className="mt-1 break-all font-medium">{customer.email ?? account.email ?? "Not provided"}</p>
+            {(customer.email ?? account.email) && <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${customer.user?.email_verified_at ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{customer.user?.email_verified_at ? "Verified" : "Unverified"}</span>}
+          </div>
+          <div className="rounded border border-black/10 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-widest text-[#888]">Phone</p>
+            <p className="mt-1 font-medium">{customer.phone || "Not provided"}</p>
+            {customer.phone && <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${customer.phone_verified_at ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{customer.phone_verified_at ? "Verified" : "Unverified"}</span>}
+          </div>
+        </div>
         <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {field("First name", account.first_name ?? customer.first_name)}
           {field("Middle name", account.middle_name ?? customer.middle_name)}
@@ -590,8 +602,6 @@ function CustomerProfileTab({
               : null,
           )}
           {field("Username", account.username ?? customer.username)}
-          {field("Email", customer.email ?? account.email)}
-          {field("Phone", customer.phone)}
           {field("Address", customer.address)}
           {field("License number", customer.license_number)}
           {field(
@@ -2272,11 +2282,11 @@ export default function BookingsPage() {
                   /30
                 </span>
               </div>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <label className="flex min-h-14 cursor-pointer items-center justify-center rounded bg-[#ff641f] px-4 py-3 text-center text-sm font-bold text-white">
                   <input
                     type="file"
-                    accept="image/*,video/*"
+                    accept="image/*"
                     capture="environment"
                     className="sr-only"
                     onChange={(event) => {
@@ -2284,7 +2294,20 @@ export default function BookingsPage() {
                       event.currentTarget.value = "";
                     }}
                   />
-                  Capture photo or video
+                  Capture photo
+                </label>
+                <label className="flex min-h-14 cursor-pointer items-center justify-center rounded bg-[#d94f12] px-4 py-3 text-center text-sm font-bold text-white">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={(event) => {
+                      addReturnPhotos(event.target.files);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  Record video
                 </label>
                 <label className="flex min-h-14 cursor-pointer items-center justify-center rounded border-2 border-dashed border-[#ff641f] bg-orange-50 px-4 py-3 text-center text-sm font-semibold text-[#d94f12]">
                   <input
