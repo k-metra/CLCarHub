@@ -5,7 +5,7 @@ import { Skeleton, useToast } from "../components/Ui";
 import api from "../lib/api";
 import type { BookingRecord, Paginated, VehicleRecord } from "../types";
 
-const activeStatuses = ["pending", "upcoming", "ongoing"];
+const activeStatuses = ["pending", "upcoming", "for_handover", "for_delivery", "ongoing", "for_completion"];
 const receivableStatuses = ["upcoming", "ongoing", "complete"];
 const pageSize = 5;
 const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 });
@@ -95,6 +95,7 @@ export default function RentalOperationsPage() {
   const today = localDateValue();
   const [selectedDate, setSelectedDate] = useState(today);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [operationsBookings, setOperationsBookings] = useState<BookingRecord[]>([]);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -102,18 +103,20 @@ export default function RentalOperationsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [bookingResult, vehicleResult] = await Promise.all([
+      const [bookingResult, operationsResult, vehicleResult] = await Promise.all([
         api.get<Paginated<BookingRecord>>("/bookings?per_page=100&sort=oldest"),
+        api.get<Paginated<BookingRecord>>(`/bookings?per_page=100&sort=oldest&operations_date=${encodeURIComponent(selectedDate)}`),
         api.get<Paginated<VehicleRecord>>("/vehicles?per_page=100"),
       ]);
       setBookings(bookingResult.data.data);
+      setOperationsBookings(operationsResult.data.data);
       setVehicles(vehicleResult.data.data.filter(vehicle => vehicle.status !== "archived"));
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Unable to load rental operations", "error");
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [selectedDate, showToast]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadData(); }, 0);
@@ -125,8 +128,9 @@ export default function RentalOperationsPage() {
   };
 
   const operationalBookings = useMemo(() => bookings.filter(booking => activeStatuses.includes(booking.status)), [bookings]);
-  const releases = useMemo(() => operationalBookings.filter(booking => sameDay(booking.pickup_at, selectedDate)), [operationalBookings, selectedDate]);
-  const returns = useMemo(() => operationalBookings.filter(booking => sameDay(booking.return_at, selectedDate)), [operationalBookings, selectedDate]);
+  const operationalDayBookings = useMemo(() => operationsBookings.filter(booking => activeStatuses.includes(booking.status)), [operationsBookings]);
+  const releases = useMemo(() => operationalDayBookings.filter(booking => sameDay(booking.pickup_at, selectedDate)), [operationalDayBookings, selectedDate]);
+  const returns = useMemo(() => operationalDayBookings.filter(booking => sameDay(booking.return_at, selectedDate)), [operationalDayBookings, selectedDate]);
   const receivables = useMemo(() => bookings.filter(booking => receivableStatuses.includes(booking.status) && Number(booking.balance ?? 0) > 0), [bookings]);
   const outstandingTotal = receivables.reduce((sum, booking) => sum + Number(booking.balance ?? 0), 0);
   const currentBookings = useMemo(() => operationalBookings.filter(booking => {
