@@ -139,7 +139,7 @@ class CustomerController extends Controller
 
     public function index(Request $request)
     {
-        $customers = Customer::with(['user:id,last_login_ip', 'user.socialAccounts:id,user_id,provider,provider_user_id,provider_email,provider_profile_url', 'attachments', 'bookings' => fn ($query) => $query
+        $customers = Customer::with(['user:id,name,first_name,last_name,last_login_ip', 'user.socialAccounts:id,user_id,provider,provider_user_id,provider_email,provider_profile_url', 'attachments', 'bookings' => fn ($query) => $query
             ->whereNotIn('status', ['cancelled', 'rejected'])
             ->with('payments')])
             ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'rejected'])])
@@ -200,19 +200,13 @@ class CustomerController extends Controller
     public function show(Customer $customer, CustomerLoyaltyService $loyalty)
     {
         $customer->load([
-            'user:id,last_login_ip',
+            'user:id,name,first_name,last_name,last_login_ip',
             'user.socialAccounts:id,user_id,provider,provider_user_id,provider_email,provider_profile_url',
             'bookings' => fn ($query) => $query->when(! request()->boolean('include_archived') && $customer->archived_at, fn ($query) => $query->whereRaw('1 = 0'))->latest('pickup_at'),
             'bookings.vehicle',
             'bookings.payments',
             'attachments',
         ])->setAttribute('ip_block_scopes', IpBlock::where('ip_address', $customer->user?->last_login_ip)->pluck('scope')->values());
-
-        $customer->user?->socialAccounts->each(function ($account): void {
-            if (! $account->provider_profile_url && $account->provider === 'facebook') {
-                $account->setAttribute('provider_profile_url', 'https://www.facebook.com/'.$account->provider_user_id);
-            }
-        });
 
         return $customer->setAttribute('loyalty', $loyalty->summary($customer));
     }
