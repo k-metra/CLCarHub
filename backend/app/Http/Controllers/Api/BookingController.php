@@ -399,7 +399,7 @@ class BookingController extends Controller
         abort_unless(request()->boolean('include_archived') || ! $booking->customer?->archived_at, 404);
         $booking->load([
             'customer.attachments',
-            'customer.user:id,name,first_name,middle_name,last_name,date_of_birth,username,email',
+            'customer.user:id,name,first_name,middle_name,last_name,date_of_birth,username,email,email_verified_at',
             'contract',
             'vehicle.images',
             'creator',
