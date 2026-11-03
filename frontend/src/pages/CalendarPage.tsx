@@ -149,10 +149,14 @@ function BookingCard({ booking, compact = false }: { booking: BookingRecord; com
   const image = imageUrl(booking)
   const tooltip = `${vehicleName(booking)} | ${bookingDate(booking.pickup_at)} - ${bookingDate(booking.return_at)}`
 
-  if (!image) return null
-
   return <Link className="inline-block rounded focus:outline-none focus:ring-2 focus:ring-[#ff641f]" to={`/admin/bookings?edit=${booking.id}`} title={tooltip} aria-label={`Edit booking: ${tooltip}`}>
-    <img className={compact ? "h-7 w-10 rounded object-contain md:h-10 md:w-14" : "h-10 w-14 rounded object-contain"} src={image} alt={tooltip} />
+    {image ? (
+      <img className={compact ? "h-7 w-10 rounded object-contain md:h-10 md:w-14" : "h-10 w-14 rounded object-contain"} src={image} alt={tooltip} />
+    ) : (
+      <span className={`flex items-center justify-center rounded bg-orange-50 px-1 text-center text-[9px] font-semibold leading-tight text-[#d94f12] ${compact ? "h-7 w-10 md:h-10 md:w-14" : "h-10 w-14"}`}>
+        {vehicleName(booking)}
+      </span>
+    )}
   </Link>
 }
 
