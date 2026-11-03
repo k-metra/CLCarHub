@@ -449,7 +449,7 @@ export default function CustomerAccountPage() {
   const reservationFee = Number(fleetSettings.reservation_fee); const existingAttachmentCount = (category: AttachmentCategory) => customer?.attachments?.filter(item => item.category === category).length ?? 0; const requirementComplete = (category: AttachmentCategory) => existingAttachmentCount(category) + files[category].length >= 1;
   const deliveryRate = Number(selectedVehicle?.delivery_rate_per_km ?? fleetSettings.default_delivery_rate_per_km);
   const deliveryFee = deliveryDistance === null ? 0 : Math.round(deliveryDistance * deliveryRate * 100) / 100;
-  const returnPickupFee = deliveryDistance === null || !returnPosition ? 0 : Math.round(deliveryDistance * deliveryRate * 2 * 100) / 100;
+  const returnPickupFee = deliveryDistance === null || !returnPosition ? 0 : Math.round(deliveryDistance * deliveryRate * 100) / 100;
   const rentalAmount = Math.max(0, structuredRentalAmount - discountCodeAmount);
   const bookingTotal = rentalAmount + addonTotal + deliveryFee + returnPickupFee + Number(selectedVehicle?.security_deposit_fee ?? 0) + (fleetSettings.reservation_fee_deductible ? 0 : reservationFee);
 

@@ -525,9 +525,9 @@ class CustomerBookingRequestTest extends TestCase
             ->assertJsonPath('delivery_rate_per_km', '50.00')
             ->assertJsonPath('delivery_fee', '500.00')
             ->assertJsonPath('return_distance_km', '10.00')
-            ->assertJsonPath('return_pickup_fee', '1000.00')
+            ->assertJsonPath('return_pickup_fee', '500.00')
             ->assertJsonPath('rental_amount', '4000.00')
-            ->assertJsonPath('total_amount', '5500.00');
+            ->assertJsonPath('total_amount', '5000.00');
     }
 
     public function test_labeled_pinned_locations_still_calculate_delivery_fees(): void
@@ -562,8 +562,8 @@ class CustomerBookingRequestTest extends TestCase
             'return_longitude' => 121.2,
         ])->assertCreated()
             ->assertJsonPath('delivery_fee', '500.00')
-            ->assertJsonPath('return_pickup_fee', '1000.00')
-            ->assertJsonPath('total_amount', '5500.00');
+            ->assertJsonPath('return_pickup_fee', '500.00')
+            ->assertJsonPath('total_amount', '5000.00');
     }
 
     public function test_admin_booking_uses_custom_rental_rate_and_fleet_delivery_rate_fallback(): void

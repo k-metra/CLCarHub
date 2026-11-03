@@ -1085,9 +1085,9 @@ export default function BookingsPage() {
     setReturnProcessingSaving(true);
     const status =
       returnProcessing.stage === "handover"
-        ? returnProcessing.booking.status === "complete"
-          ? "complete"
-          : "ongoing"
+        ? ["for_handover", "for_delivery"].includes(returnProcessing.booking.status)
+          ? "ongoing"
+          : returnProcessing.booking.status
         : returnProcessing.booking.status === "complete" || complete
           ? "complete"
           : "for_completion";
@@ -1922,7 +1922,7 @@ export default function BookingsPage() {
           return_pickup_fee:
             returnDistance === null
               ? ""
-              : String(Math.round(returnDistance * 2 * rate * 100) / 100),
+              : String(Math.round(returnDistance * rate * 100) / 100),
         }));
       })
       .catch((error) => {
@@ -2899,7 +2899,7 @@ export default function BookingsPage() {
                         Reject booking
                       </button>
                     )}
-                    {["for_handover", "for_delivery", "ongoing", "complete"].includes(selectedBooking.status) && (
+                    {!["cancelled", "rejected"].includes(selectedBooking.status) && (
                       <button
                         className="block w-full px-3 py-2 text-left text-sm font-semibold text-[#d94f12] hover:bg-orange-50"
                         onClick={() => {
@@ -2909,9 +2909,9 @@ export default function BookingsPage() {
                       >
                         {selectedBooking.status === "for_delivery"
                           ? "Process delivery"
-                          : selectedBooking.status === "ongoing" || selectedBooking.status === "complete"
+                          : ["ongoing", "complete"].includes(selectedBooking.status)
                             ? "Edit handover"
-                            : "Process handover"}
+                            : "Add handover"}
                       </button>
                     )}
                     {["ongoing", "for_completion", "complete"].includes(selectedBooking.status) && (
@@ -3117,7 +3117,7 @@ export default function BookingsPage() {
                       </p>
                       <p className="mt-2 text-sm font-semibold">
                         {Number(selectedBooking.return_pickup_fee ?? 0) > 0
-                          ? `Return pickup fee (${Number(selectedBooking.return_distance_km ?? 0).toFixed(2)} km × 2): ₱${Number(selectedBooking.return_pickup_fee).toLocaleString()}`
+                          ? `Return pickup fee (${Number(selectedBooking.return_distance_km ?? 0).toFixed(2)} km): ₱${Number(selectedBooking.return_pickup_fee).toLocaleString()}`
                           : ""}
                       </p>
                     </div>
@@ -4815,17 +4815,15 @@ export default function BookingsPage() {
                                     },
                                   ]
                                 : []),
-                              ...(["for_handover", "for_delivery", "ongoing", "complete"].includes(
-                                booking.status,
-                              )
+                              ...(!["cancelled", "rejected"].includes(booking.status)
                                 ? [
                                     {
                                       label:
                                         booking.status === "for_delivery"
                                           ? "Process delivery"
-                                          : booking.status === "ongoing" || booking.status === "complete"
+                                          : ["ongoing", "complete"].includes(booking.status)
                                             ? "Edit handover"
-                                          : "Process handover",
+                                            : "Add handover",
                                       onClick: () =>
                                         openHandoverProcessing(booking),
                                     },
