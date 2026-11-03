@@ -139,7 +139,7 @@ class CustomerController extends Controller
 
     public function index(Request $request)
     {
-        $customers = Customer::with(['user:id,name,first_name,last_name,last_login_ip', 'user.socialAccounts:id,user_id,provider,provider_user_id,provider_email,provider_profile_url', 'attachments', 'bookings' => fn ($query) => $query
+        $customers = Customer::with(['user:id,name,first_name,last_name,email,email_verified_at,last_login_ip', 'user.socialAccounts:id,user_id,provider,provider_user_id,provider_email,provider_profile_url', 'attachments', 'bookings' => fn ($query) => $query
             ->whereNotIn('status', ['cancelled', 'rejected'])
             ->with('payments')])
             ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'rejected'])])
@@ -200,7 +200,7 @@ class CustomerController extends Controller
     public function show(Customer $customer, CustomerLoyaltyService $loyalty)
     {
         $customer->load([
-            'user:id,name,first_name,last_name,last_login_ip',
+            'user:id,name,first_name,last_name,email,email_verified_at,last_login_ip',
             'user.socialAccounts:id,user_id,provider,provider_user_id,provider_email,provider_profile_url',
             'bookings' => fn ($query) => $query->when(! request()->boolean('include_archived') && $customer->archived_at, fn ($query) => $query->whereRaw('1 = 0'))->latest('pickup_at'),
             'bookings.vehicle',
