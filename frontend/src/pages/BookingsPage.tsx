@@ -802,6 +802,9 @@ export default function BookingsPage() {
   const [refundBooking, setRefundBooking] = useState<BookingRecord | null>(null);
   const [refundForm, setRefundForm] = useState({ amount: "", method: "cash", reason: "", fund_id: "" });
   const [refundSaving, setRefundSaving] = useState(false);
+  const [extensionBooking, setExtensionBooking] = useState<BookingRecord | null>(null);
+  const [extensionReturnAt, setExtensionReturnAt] = useState("");
+  const [extensionSaving, setExtensionSaving] = useState(false);
   const [outstandingRefunds, setOutstandingRefunds] = useState<Array<{ booking: BookingRecord; outstanding_amount: number; rfid_refund_credit: number }>>([]);
   const [settlingBooking, setSettlingBooking] = useState(false);
   const [settlementFundId, setSettlementFundId] = useState("");
@@ -1593,6 +1596,27 @@ export default function BookingsPage() {
       showToast(error instanceof Error ? error.message : "Unable to record refund.", "error");
     } finally {
       setRefundSaving(false);
+    }
+  };
+  const saveExtension = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!extensionBooking || !extensionReturnAt || extensionSaving) return;
+    setExtensionSaving(true);
+    try {
+      const result = await api.patch<BookingRecord>(`/bookings/${extensionBooking.id}`, {
+        return_at: extensionReturnAt,
+      });
+      setExtensionBooking(null);
+      setSelectedBooking(result.data);
+      await loadBookings();
+      showToast("Booking extended and extension rate applied.", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Unable to extend booking.",
+        "error",
+      );
+    } finally {
+      setExtensionSaving(false);
     }
   };
   const openSettlementConfirmation = () => {
@@ -2645,6 +2669,59 @@ export default function BookingsPage() {
           </form>
         </div>
       )}
+      {extensionBooking && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <form
+            className="theme-surface w-full max-w-md bg-white p-6 shadow-2xl"
+            onSubmit={saveExtension}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Extend booking</h2>
+              <button
+                type="button"
+                className="text-2xl text-[#777]"
+                onClick={() => setExtensionBooking(null)}
+              >
+                ×
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-[#777]">
+              {extensionBooking.reference} · Current return:{" "}
+              {new Date(extensionBooking.return_at).toLocaleString()}
+            </p>
+            <label className="mt-5 block text-sm">
+              New return date and time
+              <input
+                required
+                type="datetime-local"
+                min={dateTimeLocalValue(extensionBooking.return_at)}
+                className="mt-2 w-full border border-black/10 px-3 py-3"
+                value={extensionReturnAt}
+                onChange={(event) => setExtensionReturnAt(event.target.value)}
+              />
+            </label>
+            <p className="mt-3 text-xs leading-5 text-[#777]">
+              The booking will be recalculated using the vehicle&apos;s configured
+              hourly extension rate or full-day extension rate.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="border border-black/10 px-4 py-2 text-sm"
+                onClick={() => setExtensionBooking(null)}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={extensionSaving}
+                className="bg-[#ff641f] px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {extensionSaving ? "Applying..." : "Apply extension"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {selectedBooking &&
         confirmingSecurityDepositReturn &&
         !selectedBooking.security_deposit_returned_at && (
@@ -3017,6 +3094,18 @@ export default function BookingsPage() {
                         }}
                       >
                         Undo completion
+                      </button>
+                    )}
+                    {["ongoing", "for_completion"].includes(selectedBooking.status) && (
+                      <button
+                        className="block w-full px-3 py-2 text-left text-sm font-semibold text-[#d94f12] hover:bg-orange-50"
+                        onClick={() => {
+                          setExtensionBooking(selectedBooking);
+                          setExtensionReturnAt(dateTimeLocalValue(selectedBooking.return_at));
+                          setShowActions(false);
+                        }}
+                      >
+                        Extend booking
                       </button>
                     )}
                     {!["cancelled", "rejected"].includes(selectedBooking.status) && (
