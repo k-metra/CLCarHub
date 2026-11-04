@@ -575,6 +575,24 @@ class BookingController extends Controller
         });
     }
 
+    public function outstandingRefunds()
+    {
+        $bookings = Booking::query()
+            ->whereIn('status', [Booking::FOR_COMPLETION, Booking::COMPLETE])
+            ->with(['customer:id,name,email,phone', 'vehicle:id,name,brand,model,plate_number', 'payments', 'refunds'])
+            ->latest('return_at')
+            ->get()
+            ->filter(fn (Booking $booking): bool => (float) $booking->rfid_refund_credit > 0)
+            ->values()
+            ->map(fn (Booking $booking): array => [
+                'booking' => $booking,
+                'outstanding_amount' => max(0, (float) $booking->rfid_refund_credit - (float) $booking->refunds->where('reason', 'RFID balance credit')->sum('amount')),
+                'rfid_refund_credit' => (float) $booking->rfid_refund_credit,
+            ]);
+
+        return ['data' => $bookings, 'total' => $bookings->count()];
+    }
+
     public function invoice(Request $request, Booking $booking)
     {
         Booking::synchronizeAutomaticStatuses();
