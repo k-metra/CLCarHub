@@ -178,6 +178,48 @@ html.theme-dark .theme-surface select,
 html.theme-dark .theme-surface textarea {
   background-color: #303030;
   border-color: rgb(255 255 255 / 18%);
+}
+html.theme-dark .refund-credit-banner {
+  border-color: #8f4141;
+  background-color: #3a2022;
+  color: #ffd9d9;
+}
+html.theme-dark .refund-credit-banner p {
+  color: inherit;
+}
+html.theme-dark .refund-credit-button {
+  background-color: #dc2626;
+}
+html.theme-dark .refund-credit-button:hover {
+  background-color: #ef4444;
+}
+html.theme-dark .outstanding-refunds-panel {
+  border-color: #8f4141;
+  background-color: #3a2022;
+  color: #ffd9d9;
+}
+html.theme-dark .outstanding-refunds-panel .border-red-200 {
+  border-color: #633336;
+}
+html.theme-dark .outstanding-refunds-count {
+  background-color: #633336;
+  color: #ffd9d9;
+}
+html.theme-dark .outstanding-refund-row:hover {
+  background-color: rgb(255 255 255 / 6%);
+}
+html.theme-dark .outstanding-refund-row .text-red-800 {
+  color: #f0aaaa;
+}
+html.theme-dark .outstanding-refund-row .text-red-700 {
+  color: #ff9a9a;
+}
+html.theme-dark .refund-breakdown-panel {
+  border-color: rgb(255 255 255 / 12%);
+  background-color: #2b2b2b;
+}
+html.theme-dark .refund-breakdown-panel .text-\[\#777\] {
+  color: #aaa9a4;
   color: #f4f3f0;
 }
 html.theme-dark .theme-surface .calendar-day:hover,
