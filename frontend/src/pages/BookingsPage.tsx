@@ -802,6 +802,7 @@ export default function BookingsPage() {
   const [refundBooking, setRefundBooking] = useState<BookingRecord | null>(null);
   const [refundForm, setRefundForm] = useState({ amount: "", method: "cash", reason: "", fund_id: "" });
   const [refundSaving, setRefundSaving] = useState(false);
+  const [outstandingRefunds, setOutstandingRefunds] = useState<Array<{ booking: BookingRecord; outstanding_amount: number; rfid_refund_credit: number }>>([]);
   const [settlingBooking, setSettlingBooking] = useState(false);
   const [settlementFundId, setSettlementFundId] = useState("");
   const [returningSecurityDeposit, setReturningSecurityDeposit] =
@@ -853,6 +854,7 @@ export default function BookingsPage() {
       api.get<Paginated<VehicleRecord>>("/vehicles?per_page=100"),
       api.get<Paginated<Customer>>("/customers?per_page=100"),
       api.get<{ funds: FundRecord[] }>("/funds"),
+      api.get<{ data: Array<{ booking: BookingRecord; outstanding_amount: number; rfid_refund_credit: number }> }>("/refunds/outstanding"),
       api.get<FleetSettings>("/fleet-settings"),
       api.get<AddonRecord[]>("/addons?available_only=1"),
       api.get<{ data: Array<{ id: number; name: string; phone?: string | null; role?: string }> }>(
@@ -864,6 +866,7 @@ export default function BookingsPage() {
           vehicleResult,
           customerResult,
           fundResult,
+          refundResult,
           settingsResult,
           addonResult,
           accountResult,
@@ -871,6 +874,7 @@ export default function BookingsPage() {
           setVehicles(vehicleResult.data.data);
           setCustomers(customerResult.data.data);
           setFunds(fundResult.data.funds);
+          setOutstandingRefunds(refundResult.data.data.filter((item) => item.outstanding_amount > 0));
           setFleetSettings(settingsResult.data);
           setAddons(addonResult.data);
           setStaffAccounts(accountResult.data.data);
@@ -1567,6 +1571,22 @@ export default function BookingsPage() {
       });
       setRefundBooking(null);
       setSelectedBooking(result.data);
+      setOutstandingRefunds((current) =>
+        current
+          .map((item) =>
+            item.booking.id === result.data.id
+              ? {
+                  ...item,
+                  booking: result.data,
+                  outstanding_amount: Math.max(
+                    0,
+                    item.outstanding_amount - Number(refundForm.amount),
+                  ),
+                }
+              : item,
+          )
+          .filter((item) => item.outstanding_amount > 0),
+      );
       await loadBookings();
       showToast("Refund recorded successfully.", "success");
     } catch (error) {
@@ -2035,6 +2055,28 @@ export default function BookingsPage() {
         ? Boolean(booking.security_deposit_asset)
         : Number(booking.deposit ?? 0) > 0),
   );
+  const refundBreakdown = selectedBooking
+    ? {
+        easytrip: Math.max(
+          0,
+          Number(selectedBooking.return_easytrip ?? 0) -
+            Number(selectedBooking.handover_easytrip ?? 0),
+        ),
+        autosweep: Math.max(
+          0,
+          Number(selectedBooking.return_autosweep ?? 0) -
+            Number(selectedBooking.handover_autosweep ?? 0),
+        ),
+        rfidRecorded: (selectedBooking.refunds ?? []).filter(
+          (refund) => refund.reason === "RFID balance credit",
+        ).reduce(
+          (sum, refund) => sum + Number(refund.amount ?? 0),
+          0,
+        ),
+        generalRefundable: Number(selectedBooking.general_refundable_amount ?? 0),
+        rfidRemaining: Number(selectedBooking.rfid_refund_remaining ?? 0),
+      }
+    : null;
   return (
     <>
       <ConfirmDialog
@@ -2594,7 +2636,7 @@ export default function BookingsPage() {
               <h2 className="text-xl font-semibold">Record refund</h2>
               <button type="button" className="text-2xl text-[#777]" onClick={() => setRefundBooking(null)}>×</button>
             </div>
-            <p className="mt-2 text-sm text-[#777]">{refundBooking.reference} · Refundable: ₱{Number(refundBooking.refundable_amount ?? 0).toLocaleString()}</p>
+            <p className="mt-2 text-sm text-[#777]">{refundBooking.reference} · Maximum refund capacity: ₱{Number(refundBooking.refundable_amount ?? 0).toLocaleString()}</p>
             <label className="mt-5 block text-sm">Amount<input required min="0.01" max={refundBooking.refundable_amount ?? undefined} step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-3" value={refundForm.amount} onChange={(event) => setRefundForm((current) => ({ ...current, amount: event.target.value }))} /></label>
             <label className="mt-4 block text-sm">Refund method<select className="mt-2 w-full border border-black/10 px-3 py-3" value={refundForm.method} onChange={(event) => setRefundForm((current) => ({ ...current, method: event.target.value }))}><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="gcash">GCash</option><option value="paymongo">PayMongo</option><option value="credit">Booking credit</option></select></label>
             {refundForm.method !== "credit" && <label className="mt-4 block text-sm">Fund<select required className="mt-2 w-full border border-black/10 px-3 py-3" value={refundForm.fund_id} onChange={(event) => setRefundForm((current) => ({ ...current, fund_id: event.target.value }))}><option value="">Select fund</option>{funds.map((fund) => <option value={fund.id} key={fund.id}>{fund.name}</option>)}</select></label>}
@@ -3008,6 +3050,32 @@ export default function BookingsPage() {
                 }
               />
             )}
+            {Number(selectedBooking.rfid_refund_remaining ?? 0) > 0 && (
+              <div className="refund-credit-banner mt-8 flex flex-wrap items-center justify-between gap-3 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-900">
+                <div>
+                  <p className="font-semibold">RFID refund available</p>
+                  <p className="mt-1 text-sm">
+                    ₱{Number(selectedBooking.rfid_refund_remaining).toLocaleString()} is owed because the return balances exceeded the turnover balances.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="refund-credit-button bg-red-600 px-4 py-2 text-sm font-bold text-white"
+                  onClick={() => {
+                    setDetailTab("payments");
+                    setRefundBooking(selectedBooking);
+                    setRefundForm({
+                      amount: String(selectedBooking.rfid_refund_remaining),
+                      method: "cash",
+                      reason: "RFID balance credit",
+                      fund_id: funds[0] ? String(funds[0].id) : "",
+                    });
+                  }}
+                >
+                  Record refund
+                </button>
+              </div>
+            )}
             <section className="mt-8 border border-black/10 bg-white p-6">
               <p className="text-xs uppercase tracking-widest text-[#ff641f]">Handover record</p>
               <h2 className="mt-1 text-xl font-semibold">
@@ -3066,7 +3134,12 @@ export default function BookingsPage() {
                   className={`px-5 py-4 text-sm font-semibold ${detailTab === "payments" ? "bg-[#151515] text-white" : "text-[#777]"}`}
                   onClick={() => setDetailTab("payments")}
                 >
-                  Payments
+                  Payments & refunds
+                  {Number(selectedBooking.rfid_refund_remaining ?? 0) > 0 && (
+                    <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-[10px] text-red-700">
+                      refund
+                    </span>
+                  )}
                 </button>
                 <button
                   className={`px-5 py-4 text-sm font-semibold ${detailTab === "customer" ? "bg-[#151515] text-white" : "text-[#777]"}`}
@@ -3497,9 +3570,40 @@ export default function BookingsPage() {
                   <div className="mt-6 border border-black/10">
                     <div className="flex items-center justify-between border-b border-black/10 p-5">
                       <h2 className="font-semibold">Transaction history</h2>
-                      <div className="flex items-center gap-3"><span className="text-sm text-[#777]">{(selectedBooking.payments?.length ?? 0) + (selectedBooking.refunds?.length ?? 0)} record(s)</span><button type="button" className="bg-[#ff641f] px-3 py-2 text-xs font-bold text-white" onClick={() => { setRefundBooking(selectedBooking); setRefundForm({ amount: String(selectedBooking.rfid_refund_credit ?? ""), method: "cash", reason: Number(selectedBooking.rfid_refund_credit ?? 0) > 0 ? "RFID balance credit" : "", fund_id: funds[0] ? String(funds[0].id) : "" }); }}>Record refund</button></div>
+                      <div className="flex items-center gap-3"><span className="text-sm text-[#777]">{(selectedBooking.payments?.length ?? 0) + (selectedBooking.refunds?.length ?? 0)} record(s)</span><button type="button" className="bg-[#ff641f] px-3 py-2 text-xs font-bold text-white" onClick={() => { setRefundBooking(selectedBooking); setRefundForm({ amount: String(selectedBooking.rfid_refund_remaining ?? ""), method: "cash", reason: Number(selectedBooking.rfid_refund_remaining ?? 0) > 0 ? "RFID balance credit" : "", fund_id: funds[0] ? String(funds[0].id) : "" }); }}>Record refund</button></div>
                     </div>
-                    <div className="border-b border-black/10 bg-[#fff7f3] px-5 py-3 text-sm">Refundable amount: <strong>₱{Number(selectedBooking.refundable_amount ?? 0).toLocaleString()}</strong>{Number(selectedBooking.rfid_refund_credit ?? 0) > 0 && <span className="ml-2 text-[#d94f12]">(RFID credit ₱{Number(selectedBooking.rfid_refund_credit).toLocaleString()})</span>}</div>
+                    <div className="border-b border-black/10 bg-[#fff7f3] px-5 py-3 text-sm">Total refund capacity: <strong>₱{Number(selectedBooking.refundable_amount ?? 0).toLocaleString()}</strong></div>
+                    {refundBreakdown && (
+                      <div className="refund-breakdown-panel border-b border-black/10 px-5 py-4">
+                        <p className="text-sm font-semibold">Refund breakdown</p>
+                        <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                          <div className="flex justify-between gap-4">
+                            <span className="text-[#777]">Easytrip balance credit</span>
+                            <span className="font-semibold">₱{refundBreakdown.easytrip.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-[#777]">Autosweep balance credit</span>
+                            <span className="font-semibold">₱{refundBreakdown.autosweep.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-[#777]">Total RFID credit</span>
+                            <span className="font-semibold">₱{(refundBreakdown.easytrip + refundBreakdown.autosweep).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-[#777]">RFID refunds already recorded</span>
+                            <span className="font-semibold text-red-600">-₱{refundBreakdown.rfidRecorded.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex justify-between gap-4 border-t border-black/10 pt-3 text-sm font-bold">
+                          <span>Remaining RFID refund</span>
+                          <span className="text-[#d94f12]">₱{refundBreakdown.rfidRemaining.toLocaleString()}</span>
+                        </div>
+                        <div className="mt-2 flex justify-between gap-4 text-sm">
+                          <span className="text-[#777]">General payment refund capacity</span>
+                          <span className="font-semibold">₱{refundBreakdown.generalRefundable.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm">
                         <thead className="border-b border-black/10 text-xs uppercase text-[#888]">
@@ -3656,6 +3760,40 @@ export default function BookingsPage() {
                   booking list to review the remaining notices.
                 </p>
               )}
+            </div>
+          )}
+          {outstandingRefunds.length > 0 && (
+            <div className="outstanding-refunds-panel mt-5 overflow-hidden rounded-lg border border-red-300 bg-red-50/70 text-red-950 shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-red-200 px-4 py-4 md:px-5">
+                <div>
+                  <p className="font-semibold">Outstanding refunds</p>
+                  <p className="mt-1 text-xs text-red-800">
+                    RFID balance credits waiting to be refunded to customers.
+                  </p>
+                </div>
+                <span className="outstanding-refunds-count rounded-full bg-red-200 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-red-900">
+                  {outstandingRefunds.length} pending
+                </span>
+              </div>
+              <div className="divide-y divide-red-200">
+                {outstandingRefunds.map((item) => (
+                  <button
+                    type="button"
+                    className="outstanding-refund-row flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-white/70 md:px-5"
+                    key={item.booking.id}
+                    onClick={async () => {
+                      await openDetails(item.booking);
+                      setDetailTab("payments");
+                    }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-semibold">{item.booking.reference} · {item.booking.customer?.name ?? "Customer"}</span>
+                      <span className="mt-1 block text-xs text-red-800">Open booking payments to record the refund.</span>
+                    </span>
+                    <span className="shrink-0 font-bold text-red-700">₱{item.outstanding_amount.toLocaleString()}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {showForm && (
