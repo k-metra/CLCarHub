@@ -98,9 +98,9 @@ function CalendarMonth({ month, onChangeMonth, value, minDate, bookedDates, onSe
         const inMonth = day.getMonth() === month.getMonth();
         const beforeMinimum = Boolean(minimumDateValue && dayValue < minimumDateValue);
         const booked = bookedDates.some(range => dayValue >= datePart(range.pickup_at) && dayValue <= datePart(range.return_at));
-        const unavailable = beforeMinimum || booked;
-        return <button type="button" disabled={unavailable} title={booked ? `Booked for ${displayDate(dayValue)}` : undefined} aria-label={`${displayDate(dayValue)}${booked ? " — booked" : ""}`} key={dayValue} onClick={() => onSelectDate(day)} className={`calendar-day min-h-10 rounded py-1 text-sm ${booked ? "cursor-not-allowed font-semibold text-red-700" : beforeMinimum ? "cursor-not-allowed text-[#ddd]" : active ? "bg-[#ff641f] font-bold text-white" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>
-          <span className="flex flex-col items-center justify-center gap-0.5"><span>{day.getDate()}</span>{booked && <span className="-rotate-6 rounded-sm border border-red-500 px-0.5 text-[7px] font-black leading-3 tracking-tight">BOOKED</span>}</span>
+        const unavailable = beforeMinimum;
+        return <button type="button" disabled={unavailable} title={booked ? `Existing booking on ${displayDate(dayValue)}; choose a time that does not overlap` : undefined} aria-label={`${displayDate(dayValue)}${booked ? " — has an existing booking" : ""}`} key={dayValue} onClick={() => onSelectDate(day)} className={`calendar-day min-h-10 rounded py-1 text-sm ${beforeMinimum ? "cursor-not-allowed text-[#ddd]" : active ? "bg-[#ff641f] font-bold text-white" : booked ? "font-semibold text-amber-700 hover:bg-amber-50" : inMonth ? "hover:bg-orange-50" : "text-[#bbb]"}`}>
+          <span className="flex flex-col items-center justify-center gap-0.5"><span>{day.getDate()}</span>{booked && <span className="-rotate-6 rounded-sm border border-amber-500 px-0.5 text-[7px] font-black leading-3 tracking-tight">HAS BOOKING</span>}</span>
         </button>;
       })}
     </div>
@@ -141,11 +141,11 @@ function RangeCalendar({ month, onChangeMonth, pickupDate, returnDate, minDate, 
         const value = formatDate(day);
         const beforeMinimum = Boolean(minimumDateValue && value < minimumDateValue);
         const booked = bookedDates.some(range => value >= datePart(range.pickup_at) && value <= datePart(range.return_at));
-        const disabled = beforeMinimum || booked;
+        const disabled = beforeMinimum;
         const pickup = value === pickupDate;
         const returned = value === returnDate;
         const inRange = pickupDate && returnDate && value > pickupDate && value < returnDate;
-        return <button type="button" key={value} disabled={disabled} title={booked ? `Booked for ${displayDate(value)}` : undefined} onClick={() => onSelectDate(day)} className={`relative mx-auto flex min-h-9 w-9 items-center justify-center rounded-full text-sm ${disabled ? "cursor-not-allowed text-[#555]" : pickup || returned ? "bg-[#ff641f] font-bold text-white" : inRange ? "rounded-none bg-[#3a2419] text-[#ffb18e]" : day.getMonth() === month.getMonth() ? "text-[#f4f3f0] hover:bg-[#2a211d]" : "text-[#666]"}`} aria-label={`${displayDate(value)}${booked ? " — booked" : ""}`}><span className="flex flex-col items-center justify-center gap-0.5"><span>{day.getDate()}</span>{booked && <span className="rounded-sm border border-red-400 px-0.5 text-[6px] font-black leading-3 tracking-tight text-red-400">BOOKED</span>}</span></button>;
+        return <button type="button" key={value} disabled={disabled} title={booked ? `Existing booking on ${displayDate(value)}; choose a time that does not overlap` : undefined} onClick={() => onSelectDate(day)} className={`relative mx-auto flex min-h-9 w-9 items-center justify-center rounded-full text-sm ${disabled ? "cursor-not-allowed text-[#555]" : pickup || returned ? "bg-[#ff641f] font-bold text-white" : inRange ? "rounded-none bg-[#3a2419] text-[#ffb18e]" : booked ? "text-amber-400 hover:bg-[#2a211d]" : day.getMonth() === month.getMonth() ? "text-[#f4f3f0] hover:bg-[#2a211d]" : "text-[#666]"}`} aria-label={`${displayDate(value)}${booked ? " — has an existing booking" : ""}`}><span className="flex flex-col items-center justify-center gap-0.5"><span>{day.getDate()}</span>{booked && <span className="rounded-sm border border-amber-400 px-0.5 text-[6px] font-black leading-3 tracking-tight text-amber-400">HAS BOOKING</span>}</span></button>;
       })}
     </div>
   </section>;
@@ -200,7 +200,7 @@ export function DateRangeTimePicker({ value, onChange, minDate, bookedDates = []
   }, []);
   const selectDate = (date: Date) => {
     const next = formatDate(date);
-    if ((minimumDateValue && next < minimumDateValue) || bookedDates.some(range => next >= datePart(range.pickup_at) && next <= datePart(range.return_at))) return;
+    if (minimumDateValue && next < minimumDateValue) return;
     const nextValue = !draft.pickupDate || draft.returnDate || next < draft.pickupDate
       ? { ...draft, pickupDate: next, returnDate: "" }
       : { ...draft, returnDate: next };
@@ -349,7 +349,7 @@ export function DateTimePicker({
             <CalendarMonth month={month} onChangeMonth={next => setMonth(next)} value={value} minDate={minDate} bookedDates={bookedDates} onSelectDate={selectDate} />
             <div className="hidden md:block"><CalendarMonth month={new Date(month.getFullYear(), month.getMonth() + 1, 1)} value={value} minDate={minDate} bookedDates={bookedDates} onSelectDate={selectDate} /></div>
           </div>
-          {bookedDates.length > 0 && <p className="mt-2 text-[11px] text-red-700"><span className="mr-1 inline-block rounded-sm border border-red-500 px-0.5 text-[8px] font-black leading-3" aria-hidden="true">BOOKED</span>Booked dates cannot be selected.</p>}
+          {bookedDates.length > 0 && <p className="mt-2 text-[11px] text-amber-700"><span className="mr-1 inline-block rounded-sm border border-amber-500 px-0.5 text-[8px] font-black leading-3" aria-hidden="true">HAS BOOKING</span>Existing bookings are shown by date; choose times that do not overlap.</p>}
           {mode === "datetime" && (
             <div className="mt-4 border-t border-black/10 pt-3">
               <div className="mb-2 flex items-center justify-between gap-3">
