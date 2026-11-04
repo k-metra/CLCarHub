@@ -1023,7 +1023,7 @@ class BookingController extends Controller
             Booking::FOR_DELIVERY => [Booking::ONGOING, Booking::CANCELLED],
             Booking::ONGOING => [Booking::FOR_COMPLETION, Booking::CANCELLED],
             Booking::FOR_COMPLETION => [Booking::COMPLETE, Booking::CANCELLED],
-            Booking::COMPLETE => [],
+            Booking::COMPLETE => [Booking::FOR_COMPLETION],
             Booking::CANCELLED => [],
             Booking::REJECTED => [],
         ];
