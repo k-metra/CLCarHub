@@ -267,7 +267,7 @@ const statusTransitions: Record<string, string[]> = {
   for_delivery: ["ongoing", "cancelled"],
   ongoing: ["for_completion", "cancelled"],
   for_completion: ["complete", "cancelled"],
-  complete: [],
+  complete: ["for_completion"],
   cancelled: [],
   rejected: [],
 };
@@ -3002,6 +3002,21 @@ export default function BookingsPage() {
                         onClick={() => requestSelectedStatus("rejected")}
                       >
                         Reject booking
+                      </button>
+                    )}
+                    {selectedBooking.status === "complete" && (
+                      <button
+                        className="block w-full px-3 py-2 text-left text-sm font-semibold text-[#d94f12] hover:bg-orange-50"
+                        onClick={() => {
+                          void updateStatus(
+                            selectedBooking,
+                            "for_completion",
+                            "Completion undone by staff.",
+                          );
+                          setShowActions(false);
+                        }}
+                      >
+                        Undo completion
                       </button>
                     )}
                     {!["cancelled", "rejected"].includes(selectedBooking.status) && (
