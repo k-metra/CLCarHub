@@ -24,7 +24,13 @@ class Booking extends Model
 
     protected $guarded = ['id'];
 
-    protected $appends = ['balance', 'refundable_amount', 'status_reason'];
+    protected $appends = [
+        'balance',
+        'refundable_amount',
+        'general_refundable_amount',
+        'rfid_refund_remaining',
+        'status_reason',
+    ];
 
     protected function casts(): array
     {
@@ -103,15 +109,36 @@ class Booking extends Model
 
     public function getRefundableAmountAttribute(): float
     {
+        return round($this->general_refundable_amount + $this->rfid_refund_remaining, 2);
+    }
+
+    public function getGeneralRefundableAmountAttribute(): float
+    {
         $paid = $this->relationLoaded('payments')
             ? $this->payments->sum(fn (Payment $payment) => (float) $payment->amount)
             : $this->payments()->sum('amount');
         $refunded = $this->relationLoaded('refunds')
-            ? $this->refunds->sum(fn (BookingRefund $refund) => (float) $refund->amount)
-            : $this->refunds()->sum('amount');
-        $rfidCredit = max(0, (float) ($this->rfid_refund_credit ?? 0));
+            ? $this->refunds
+                ->reject(fn (BookingRefund $refund): bool => $refund->reason === 'RFID balance credit')
+                ->sum(fn (BookingRefund $refund) => (float) $refund->amount)
+            : $this->refunds()
+                ->where('reason', '!=', 'RFID balance credit')
+                ->sum('amount');
 
-        return max(0, round($paid + $rfidCredit - $refunded, 2));
+        return max(0, round($paid - $refunded, 2));
+    }
+
+    public function getRfidRefundRemainingAttribute(): float
+    {
+        $rfidRefunded = $this->relationLoaded('refunds')
+            ? $this->refunds
+                ->filter(fn (BookingRefund $refund): bool => $refund->reason === 'RFID balance credit')
+                ->sum(fn (BookingRefund $refund) => (float) $refund->amount)
+            : $this->refunds()
+                ->where('reason', 'RFID balance credit')
+                ->sum('amount');
+
+        return max(0, round((float) ($this->rfid_refund_credit ?? 0) - $rfidRefunded, 2));
     }
 
     public function getStatusReasonAttribute(): ?string
