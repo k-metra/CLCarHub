@@ -799,6 +799,9 @@ export default function BookingsPage() {
     fund_id: "",
   });
   const [quickPaymentSaving, setQuickPaymentSaving] = useState(false);
+  const [refundBooking, setRefundBooking] = useState<BookingRecord | null>(null);
+  const [refundForm, setRefundForm] = useState({ amount: "", method: "cash", reason: "", fund_id: "" });
+  const [refundSaving, setRefundSaving] = useState(false);
   const [settlingBooking, setSettlingBooking] = useState(false);
   const [settlementFundId, setSettlementFundId] = useState("");
   const [returningSecurityDeposit, setReturningSecurityDeposit] =
@@ -1549,6 +1552,27 @@ export default function BookingsPage() {
       );
     } finally {
       setSettlingBooking(false);
+    }
+  };
+  const saveRefund = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!refundBooking || !refundForm.amount || !refundForm.reason.trim()) return;
+    setRefundSaving(true);
+    try {
+      const result = await api.post<BookingRecord>(`/bookings/${refundBooking.id}/refund`, {
+        amount: Number(refundForm.amount),
+        method: refundForm.method,
+        reason: refundForm.reason.trim(),
+        fund_id: refundForm.method === "credit" ? undefined : (refundForm.fund_id ? Number(refundForm.fund_id) : undefined),
+      });
+      setRefundBooking(null);
+      setSelectedBooking(result.data);
+      await loadBookings();
+      showToast("Refund recorded successfully.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to record refund.", "error");
+    } finally {
+      setRefundSaving(false);
     }
   };
   const openSettlementConfirmation = () => {
@@ -2563,6 +2587,22 @@ export default function BookingsPage() {
           </form>
         </div>
       )}
+      {refundBooking && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <form className="theme-surface w-full max-w-md bg-white p-6 shadow-2xl" onSubmit={saveRefund}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Record refund</h2>
+              <button type="button" className="text-2xl text-[#777]" onClick={() => setRefundBooking(null)}>×</button>
+            </div>
+            <p className="mt-2 text-sm text-[#777]">{refundBooking.reference} · Refundable: ₱{Number(refundBooking.refundable_amount ?? 0).toLocaleString()}</p>
+            <label className="mt-5 block text-sm">Amount<input required min="0.01" max={refundBooking.refundable_amount ?? undefined} step="0.01" type="number" className="mt-2 w-full border border-black/10 px-3 py-3" value={refundForm.amount} onChange={(event) => setRefundForm((current) => ({ ...current, amount: event.target.value }))} /></label>
+            <label className="mt-4 block text-sm">Refund method<select className="mt-2 w-full border border-black/10 px-3 py-3" value={refundForm.method} onChange={(event) => setRefundForm((current) => ({ ...current, method: event.target.value }))}><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="gcash">GCash</option><option value="paymongo">PayMongo</option><option value="credit">Booking credit</option></select></label>
+            {refundForm.method !== "credit" && <label className="mt-4 block text-sm">Fund<select required className="mt-2 w-full border border-black/10 px-3 py-3" value={refundForm.fund_id} onChange={(event) => setRefundForm((current) => ({ ...current, fund_id: event.target.value }))}><option value="">Select fund</option>{funds.map((fund) => <option value={fund.id} key={fund.id}>{fund.name}</option>)}</select></label>}
+            <label className="mt-4 block text-sm">Reason<textarea required rows={3} className="mt-2 w-full border border-black/10 px-3 py-3" value={refundForm.reason} onChange={(event) => setRefundForm((current) => ({ ...current, reason: event.target.value }))} placeholder="e.g. RFID balance credit" /></label>
+            <div className="mt-6 flex justify-end gap-3"><button type="button" className="border border-black/10 px-4 py-2 text-sm" onClick={() => setRefundBooking(null)}>Cancel</button><button disabled={refundSaving} className="bg-[#ff641f] px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{refundSaving ? "Saving..." : "Record refund"}</button></div>
+          </form>
+        </div>
+      )}
       {selectedBooking &&
         confirmingSecurityDepositReturn &&
         !selectedBooking.security_deposit_returned_at && (
@@ -3457,10 +3497,9 @@ export default function BookingsPage() {
                   <div className="mt-6 border border-black/10">
                     <div className="flex items-center justify-between border-b border-black/10 p-5">
                       <h2 className="font-semibold">Transaction history</h2>
-                      <span className="text-sm text-[#777]">
-                        {selectedBooking.payments?.length ?? 0} record(s)
-                      </span>
+                      <div className="flex items-center gap-3"><span className="text-sm text-[#777]">{(selectedBooking.payments?.length ?? 0) + (selectedBooking.refunds?.length ?? 0)} record(s)</span><button type="button" className="bg-[#ff641f] px-3 py-2 text-xs font-bold text-white" onClick={() => { setRefundBooking(selectedBooking); setRefundForm({ amount: String(selectedBooking.rfid_refund_credit ?? ""), method: "cash", reason: Number(selectedBooking.rfid_refund_credit ?? 0) > 0 ? "RFID balance credit" : "", fund_id: funds[0] ? String(funds[0].id) : "" }); }}>Record refund</button></div>
                     </div>
+                    <div className="border-b border-black/10 bg-[#fff7f3] px-5 py-3 text-sm">Refundable amount: <strong>₱{Number(selectedBooking.refundable_amount ?? 0).toLocaleString()}</strong>{Number(selectedBooking.rfid_refund_credit ?? 0) > 0 && <span className="ml-2 text-[#d94f12]">(RFID credit ₱{Number(selectedBooking.rfid_refund_credit).toLocaleString()})</span>}</div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm">
                         <thead className="border-b border-black/10 text-xs uppercase text-[#888]">
@@ -3491,6 +3530,14 @@ export default function BookingsPage() {
                               <td className="p-4 text-[#777]">
                                 {payment.notes || "—"}
                               </td>
+                            </tr>
+                          ))}
+                          {selectedBooking.refunds?.map((refund) => (
+                            <tr className="border-b border-black/[.06]" key={`refund-${refund.id}`}>
+                              <td className="p-4"><span className="rounded-full border border-red-500 px-3 py-1 text-xs text-red-600">Refund · {refund.method}</span></td>
+                              <td className="p-4 font-semibold text-red-600">-₱{Number(refund.amount).toLocaleString()}</td>
+                              <td className="p-4">{new Date(refund.refunded_at).toLocaleDateString()}</td>
+                              <td className="p-4 text-[#777]">{refund.reason}</td>
                             </tr>
                           ))}
                         </tbody>
