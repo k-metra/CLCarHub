@@ -23,6 +23,7 @@ class DashboardController extends Controller
         $monthExpression = DB::connection()->getDriverName() === 'sqlite'
             ? "CAST(strftime('%m', created_at) AS INTEGER)"
             : 'MONTH(created_at)';
+        $revenueExpression = "bookings.total_amount - CASE WHEN bookings.security_deposit_type = 'cash' THEN bookings.deposit ELSE 0 END";
 
         $summary = [
             'upcoming' => $this->statusSummary($bookings, [Booking::UPCOMING], 'pickup_at', '>='),
@@ -31,7 +32,7 @@ class DashboardController extends Controller
         ];
 
         $monthlyRevenue = Booking::query()->visibleToAdmin($includeArchived)
-            ->selectRaw("{$monthExpression} as month, SUM(total_amount) as amount")
+            ->selectRaw("{$monthExpression} as month, SUM({$revenueExpression}) as amount")
             ->whereIn('status', $revenueStatuses)
             ->whereYear('created_at', $year)
             ->groupByRaw($monthExpression)
@@ -46,7 +47,7 @@ class DashboardController extends Controller
         $topVehicles = Booking::query()->visibleToAdmin($includeArchived)
             ->join('vehicles', 'vehicles.id', '=', 'bookings.vehicle_id')
             ->select('vehicles.id', 'vehicles.name', 'vehicles.brand', 'vehicles.model', 'vehicles.year')
-            ->selectRaw('SUM(bookings.total_amount) as revenue')
+            ->selectRaw("SUM({$revenueExpression}) as revenue")
             ->whereIn('bookings.status', $revenueStatuses)
             ->groupBy('vehicles.id', 'vehicles.name', 'vehicles.brand', 'vehicles.model', 'vehicles.year')
             ->orderByDesc('revenue')
@@ -60,7 +61,10 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
-        $totalRevenue = (float) Booking::visibleToAdmin($includeArchived)->whereIn('status', $revenueStatuses)->sum('total_amount');
+        $totalRevenue = (float) Booking::visibleToAdmin($includeArchived)
+            ->whereIn('status', $revenueStatuses)
+            ->selectRaw("SUM({$revenueExpression}) as revenue")
+            ->value('revenue');
         $totalExpenses = (float) Expense::sum('amount');
         $partnerPayouts = (float) PartnerPayout::where('status', 'paid')->sum('amount');
         $referralSourceCounts = Customer::query()
