@@ -24,11 +24,11 @@ class Booking extends Model
 
     protected $guarded = ['id'];
 
-    protected $appends = ['balance', 'status_reason'];
+    protected $appends = ['balance', 'refundable_amount', 'status_reason'];
 
     protected function casts(): array
     {
-        return ['loyalty_reward' => 'boolean', 'discount_code_amount' => 'decimal:2', 'pickup_at' => 'datetime', 'return_at' => 'datetime', 'actual_return_at' => 'datetime', 'security_deposit_returned_at' => 'datetime', 'addons' => 'array', 'rental_amount' => 'decimal:2', 'rental_discount' => 'decimal:2', 'rental_rate' => 'decimal:2', 'additional_charges' => 'decimal:2', 'discount' => 'decimal:2', 'discount_percent_override' => 'decimal:2', 'deposit' => 'decimal:2', 'total_amount' => 'decimal:2', 'fuel_charge' => 'decimal:2', 'rfid_charge' => 'decimal:2', 'damage_fees' => 'decimal:2', 'car_wash_fees' => 'decimal:2', 'extension_fees' => 'decimal:2', 'handover_fuel_bars' => 'integer', 'return_fuel_bars' => 'integer', 'delivery_distance_km' => 'decimal:2', 'delivery_rate_per_km' => 'decimal:2', 'delivery_rate_override' => 'decimal:2', 'delivery_fee' => 'decimal:2', 'custom_delivery_fee' => 'decimal:2', 'delivery_latitude' => 'decimal:7', 'delivery_longitude' => 'decimal:7', 'return_latitude' => 'decimal:7', 'return_longitude' => 'decimal:7', 'return_distance_km' => 'decimal:2', 'return_pickup_fee' => 'decimal:2'];
+        return ['loyalty_reward' => 'boolean', 'discount_code_amount' => 'decimal:2', 'pickup_at' => 'datetime', 'return_at' => 'datetime', 'actual_return_at' => 'datetime', 'security_deposit_returned_at' => 'datetime', 'addons' => 'array', 'rental_amount' => 'decimal:2', 'rental_discount' => 'decimal:2', 'rental_rate' => 'decimal:2', 'additional_charges' => 'decimal:2', 'discount' => 'decimal:2', 'discount_percent_override' => 'decimal:2', 'deposit' => 'decimal:2', 'total_amount' => 'decimal:2', 'fuel_charge' => 'decimal:2', 'rfid_charge' => 'decimal:2', 'rfid_refund_credit' => 'decimal:2', 'damage_fees' => 'decimal:2', 'car_wash_fees' => 'decimal:2', 'extension_fees' => 'decimal:2', 'handover_fuel_bars' => 'integer', 'return_fuel_bars' => 'integer', 'delivery_distance_km' => 'decimal:2', 'delivery_rate_per_km' => 'decimal:2', 'delivery_rate_override' => 'decimal:2', 'delivery_fee' => 'decimal:2', 'custom_delivery_fee' => 'decimal:2', 'delivery_latitude' => 'decimal:7', 'delivery_longitude' => 'decimal:7', 'return_latitude' => 'decimal:7', 'return_longitude' => 'decimal:7', 'return_distance_km' => 'decimal:2', 'return_pickup_fee' => 'decimal:2'];
     }
 
     public function customer(): BelongsTo
@@ -63,6 +63,11 @@ class Booking extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(BookingRefund::class);
+    }
+
     public function contract(): HasOne
     {
         return $this->hasOne(Contract::class);
@@ -94,6 +99,19 @@ class Booking extends Model
             : $this->payments()->sum('amount');
 
         return max(0, (float) $this->total_amount - $paid);
+    }
+
+    public function getRefundableAmountAttribute(): float
+    {
+        $paid = $this->relationLoaded('payments')
+            ? $this->payments->sum(fn (Payment $payment) => (float) $payment->amount)
+            : $this->payments()->sum('amount');
+        $refunded = $this->relationLoaded('refunds')
+            ? $this->refunds->sum(fn (BookingRefund $refund) => (float) $refund->amount)
+            : $this->refunds()->sum('amount');
+        $rfidCredit = max(0, (float) ($this->rfid_refund_credit ?? 0));
+
+        return max(0, round($paid + $rfidCredit - $refunded, 2));
     }
 
     public function getStatusReasonAttribute(): ?string
