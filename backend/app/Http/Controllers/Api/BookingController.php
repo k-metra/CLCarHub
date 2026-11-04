@@ -8,6 +8,7 @@ use App\Models\Vehicle;
 use App\Models\Addon;
 use App\Models\FundTransaction;
 use App\Models\Fund;
+use App\Models\BookingRefund;
 use App\Models\FleetSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -252,7 +253,7 @@ class BookingController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $now = now();
         $query = Booking::query()->visibleToAdmin($request->boolean('include_archived'))
-            ->with(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'creator', 'assignedTo', 'returnPhotos'])
+            ->with(['customer', 'vehicle.images', 'payments.fund', 'refunds.fund', 'statusHistory.user', 'creator', 'assignedTo', 'returnPhotos'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('reference', 'like', "%{$search}%")
@@ -404,6 +405,7 @@ class BookingController extends Controller
             'vehicle.images',
             'creator',
             'payments.fund',
+            'refunds.fund',
             'statusHistory.user',
             'returnPhotos',
         ]);
@@ -534,6 +536,42 @@ class BookingController extends Controller
             $this->createSettlementPayment($booking, $amount, (int) $data['fund_id'], $request->user()?->id, 'Booking balance settled');
 
             return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos']);
+        });
+    }
+
+    public function refund(Request $request, Booking $booking)
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'method' => ['required', 'in:cash,bank_transfer,gcash,paymongo,credit'],
+            'reason' => ['required', 'string', 'max:255'],
+            'fund_id' => ['nullable', 'required_unless:method,credit', 'exists:funds,id'],
+        ]);
+
+        return DB::transaction(function () use ($booking, $data, $request) {
+            $booking = Booking::lockForUpdate()->with(['payments', 'refunds'])->findOrFail($booking->id);
+            abort_if((float) $data['amount'] > $booking->refundable_amount, 422, 'The refund exceeds the booking refundable amount.');
+            $refund = $booking->refunds()->create([
+                'amount' => $data['amount'],
+                'method' => $data['method'],
+                'reason' => trim($data['reason']),
+                'fund_id' => $data['fund_id'] ?? null,
+                'refunded_at' => now(),
+                'created_by' => $request->user()?->id,
+            ]);
+            if ($refund->fund_id) {
+                FundTransaction::create([
+                    'fund_id' => $refund->fund_id,
+                    'type' => 'outflow',
+                    'transacted_at' => $refund->refunded_at,
+                    'amount' => $refund->amount,
+                    'description' => "Booking refund {$booking->reference}",
+                    'notes' => $refund->reason,
+                    'created_by' => $request->user()?->id,
+                ]);
+            }
+
+            return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'refunds.fund', 'statusHistory.user', 'returnPhotos']);
         });
     }
 
@@ -980,6 +1018,7 @@ class BookingController extends Controller
         }
 
         $rfidCharge = 0;
+        $rfidRefundCredit = 0;
         $hasCompleteRfidPair = false;
         foreach ([
             [$booking->handover_easytrip, $booking->return_easytrip],
@@ -990,11 +1029,15 @@ class BookingController extends Controller
             }
 
             $hasCompleteRfidPair = true;
-            $rfidCharge += max(0, (float) $before - (float) $after);
+            $beforeAmount = (float) $before;
+            $afterAmount = (float) $after;
+            $rfidCharge += max(0, $beforeAmount - $afterAmount);
+            $rfidRefundCredit += max(0, $afterAmount - $beforeAmount);
         }
 
         if ($hasCompleteRfidPair) {
             $booking->rfid_charge = $rfidCharge;
+            $booking->rfid_refund_credit = $rfidRefundCredit;
         }
     }
 
