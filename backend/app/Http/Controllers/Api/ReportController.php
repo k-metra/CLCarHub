@@ -17,7 +17,11 @@ class ReportController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $bookings = Booking::visibleToAdmin($request->boolean('include_archived'))->whereIn('status', [Booking::ONGOING, Booking::COMPLETE])->when($request->from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))->when($request->to, fn ($q, $v) => $q->whereDate('created_at', '<=', $v));
 
-        return ['total_revenue' => (float) $bookings->sum('total_amount'), 'booking_count' => $bookings->count()];
+        $totalRevenue = $bookings
+            ->selectRaw("SUM(total_amount - CASE WHEN security_deposit_type = 'cash' THEN deposit ELSE 0 END) as revenue")
+            ->value('revenue');
+
+        return ['total_revenue' => (float) $totalRevenue, 'booking_count' => $bookings->count()];
     }
 
     public function utilization(Request $request)
@@ -153,8 +157,8 @@ class ReportController extends Controller
 
         $vehicles = $bookings->groupBy('vehicle_id')->map(function ($vehicleBookings) {
             $vehicle = $vehicleBookings->first()->vehicle;
-            $bookingRevenue = (float) $vehicleBookings->sum('total_amount');
-            $collected = (float) $vehicleBookings->sum(fn ($booking) => $booking->payments->sum('amount'));
+            $bookingRevenue = (float) $vehicleBookings->sum(fn ($booking) => $this->revenueAmount($booking));
+            $collected = (float) $vehicleBookings->sum(fn ($booking) => max(0, $booking->payments->sum('amount') - $this->cashSecurityDeposit($booking)));
 
             return [
                 'vehicle' => $vehicle,
@@ -204,6 +208,18 @@ class ReportController extends Controller
             'total_collected' => (float) $vehicles->sum('collected_revenue'),
             'total_outstanding' => (float) $vehicles->sum('outstanding_revenue'),
         ];
+    }
+
+    private function revenueAmount(Booking $booking): float
+    {
+        return max(0, (float) $booking->total_amount - $this->cashSecurityDeposit($booking));
+    }
+
+    private function cashSecurityDeposit(Booking $booking): float
+    {
+        return ($booking->security_deposit_type ?? 'cash') === 'cash'
+            ? (float) $booking->deposit
+            : 0;
     }
 
     public function incomeFlow(Request $request)
