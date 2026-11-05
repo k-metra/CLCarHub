@@ -333,8 +333,10 @@ class BookingController extends Controller
             : null;
         $payments = $data['payments'] ?? [];
         unset($data['payments']);
+        $extensionPricingApplied = (bool) ($data['is_extension'] ?? false);
+        unset($data['is_extension']);
 
-        return DB::transaction(function () use ($data, $payments, $request) {
+        return DB::transaction(function () use ($data, $payments, $request, $extensionPricingApplied) {
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
             abort_unless($vehicle->hasActivePartnerContract(), 422, 'This partner vehicle is not eligible for rental until its contract is approved.');
             abort_if($vehicle->status !== 'available' || $vehicle->bookings()->whereIn('status', Booking::ACTIVE_STATUSES)->where('pickup_at', '<', $data['return_at'])->where('return_at', '>', $data['pickup_at'])->exists(), 422, 'The vehicle is not available for the selected period.');
@@ -350,7 +352,7 @@ class BookingController extends Controller
             if (blank($data['destination'] ?? null) && filled($data['destination_city'] ?? null) && filled($data['destination_province'] ?? null)) {
                 $data['destination'] = $data['destination_city'].', '.$data['destination_province'];
             }
-            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null, $data['discount_percent_override'] ?? null);
+            $rentalBreakdown = $this->rentalBreakdown($data['pickup_at'], $data['return_at'], $vehicle, $data['rental_rate'] ?? null, $data['discount_percent_override'] ?? null, $extensionPricingApplied);
             $rental = $rentalBreakdown['rental'];
             $customer = Customer::findOrFail($data['customer_id']);
             $discountCode = $this->resolveDiscountCode($data, $customer, $vehicle, $rental);
@@ -374,7 +376,7 @@ class BookingController extends Controller
             $delivery = $this->deliveryBreakdown($data, $vehicle, $fleetSettings);
             $data['additional_charges'] = (float) ($data['additional_charges'] ?? 0) + $addonBreakdown['total'];
             $total = $this->totalBeforeDiscount($rental, $reservationFee, $securityDeposit, (float) $data['additional_charges'], $fees, $extensionFees, (float) $delivery['delivery_fee'] + (float) $delivery['return_pickup_fee'], $fleetSettings) - (float) ($data['discount'] ?? 0);
-            $booking = Booking::create([...$data, ...$delivery, 'addons' => $addonBreakdown['items'], 'status' => Booking::UPCOMING, 'extension_fees' => $extensionFees, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'rental_discount' => $rentalBreakdown['discount'], 'discount_code_id' => $discountCode?->id, 'discount_code_amount' => $discountCodeAmount, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'security_deposit_type' => $securityDepositType, 'security_deposit_asset' => $securityDepositType === 'asset' ? ($data['security_deposit_asset'] ?? null) : null, 'created_by' => $request->user()?->id]);
+            $booking = Booking::create([...$data, ...$delivery, 'addons' => $addonBreakdown['items'], 'status' => Booking::UPCOMING, 'extension_fees' => $extensionFees, 'extension_pricing_applied' => $extensionPricingApplied, 'reference' => 'CLCH-'.now()->format('Y').'-'.str_pad((string) (Booking::max('id') + 1), 6, '0', STR_PAD_LEFT), 'rental_amount' => $rental, 'rental_discount' => $rentalBreakdown['discount'], 'discount_code_id' => $discountCode?->id, 'discount_code_amount' => $discountCodeAmount, 'total_amount' => max(0, $total), 'deposit' => $deposit, 'security_deposit_type' => $securityDepositType, 'security_deposit_asset' => $securityDepositType === 'asset' ? ($data['security_deposit_asset'] ?? null) : null, 'created_by' => $request->user()?->id]);
             if ($discountCode) {
                 app(DiscountCodeService::class)->redeem($discountCode, $customer, $booking, $discountCodeAmount);
             }
@@ -653,6 +655,8 @@ class BookingController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $booking->refresh();
         $data = $request->validate($this->rules(true));
+        $extensionPricingApplied = (bool) ($data['is_extension'] ?? $booking->extension_pricing_applied);
+        unset($data['is_extension']);
         $oldStatus = $booking->status;
         $scheduleFieldsProvided = array_key_exists('pickup_at', $data) || array_key_exists('return_at', $data);
         if (
@@ -779,12 +783,13 @@ class BookingController extends Controller
             $booking->statusHistory()->create(['from_status' => $oldStatus, 'to_status' => $oldStatus, 'reason' => trim($reason), 'changed_by' => $request->user()?->id]);
         }
         $booking->refresh();
-        $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->actual_return_at ?? $booking->return_at, $vehicle, $booking->rental_rate, $booking->discount_percent_override);
+        $rentalBreakdown = $this->rentalBreakdown($booking->pickup_at, $booking->actual_return_at ?? $booking->return_at, $vehicle, $booking->rental_rate, $booking->discount_percent_override, $extensionPricingApplied);
         $booking->rental_amount = $rentalBreakdown['rental'];
         $booking->rental_discount = $rentalBreakdown['discount'];
         $bookingMinutes = $booking->pickup_at->diffInMinutes($booking->actual_return_at ?? $booking->return_at);
         if ($bookingMinutes <= 24 * 60 || ! array_key_exists('extension_fees', $data)) {
             $booking->extension_fees = $rentalBreakdown['extension'];
+            $booking->extension_pricing_applied = $extensionPricingApplied;
         }
         $booking->deposit = ($booking->security_deposit_type ?? 'cash') === 'cash'
             ? (float) ($vehicle->security_deposit_fee ?? $vehicle->deposit ?? 0)
@@ -873,7 +878,7 @@ class BookingController extends Controller
     {
         $pickupRule = $updating ? ['sometimes', 'date'] : ['required', 'date'];
         $returnRule = $updating ? ['sometimes', 'date', 'after:pickup_at'] : ['required', 'date', 'after:pickup_at'];
-        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'discount_code' => ['nullable', 'string', 'max:80'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'destination_province' => ['nullable', 'string', 'max:100', Rule::in(self::LUZON_PROVINCES)], 'destination_city' => ['nullable', 'string', 'max:100'], 'destination_zone' => ['nullable', 'in:laguna,outside_laguna'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],                 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_override' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'custom_delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'discount_percent_override' => ['nullable', 'numeric', 'between:0,100'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'handover_easytrip' => ['nullable', 'string', 'max:255'], 'handover_autosweep' => ['nullable', 'string', 'max:255'], 'handover_fuel_bars' => ['nullable', 'integer', 'min:0', 'max:20'], 'return_easytrip' => ['nullable', 'string', 'max:255'], 'return_autosweep' => ['nullable', 'string', 'max:255'], 'return_fuel_bars' => ['nullable', 'integer', 'min:0', 'max:20'], 'status' => ['sometimes', 'in:pending,upcoming,for_handover,for_delivery,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
+        return ['customer_id' => [$updating ? 'sometimes' : 'required', 'exists:customers,id'], 'vehicle_id' => [$updating ? 'sometimes' : 'required', 'exists:vehicles,id'], 'is_extension' => ['sometimes', 'boolean'], 'discount_code' => ['nullable', 'string', 'max:80'], 'assigned_to_user_id' => ['nullable', 'exists:users,id'], 'pickup_at' => $pickupRule, 'return_at' => $returnRule, 'actual_return_at' => ['nullable', 'date', 'after:pickup_at'], 'rental_rate' => ['nullable', 'numeric', 'min:0'], 'addons' => ['nullable', 'array'], 'addons.*' => ['integer', 'exists:addons,id'], 'destination' => ['nullable', 'string', 'max:255'], 'destination_province' => ['nullable', 'string', 'max:100', Rule::in(self::LUZON_PROVINCES)], 'destination_city' => ['nullable', 'string', 'max:100'], 'destination_zone' => ['nullable', 'in:laguna,outside_laguna'], 'delivery_address' => ['nullable', 'string', 'max:255'], 'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],                 'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'delivery_rate_per_km' => ['nullable', 'numeric', 'min:0'], 'delivery_rate_override' => ['nullable', 'numeric', 'min:0'], 'delivery_fee' => ['nullable', 'numeric', 'min:0'], 'custom_delivery_fee' => ['nullable', 'numeric', 'min:0'], 'return_address' => ['nullable', 'string', 'max:255'], 'return_latitude' => ['nullable', 'numeric', 'between:-90,90'], 'return_longitude' => ['nullable', 'numeric', 'between:-180,180'], 'return_distance_km' => ['nullable', 'numeric', 'min:0'], 'return_pickup_fee' => ['nullable', 'numeric', 'min:0'], 'payment_method' => ['nullable', 'in:cash_on_pickup,cash_on_delivery'], 'notes' => ['nullable', 'string'], 'additional_charges' => ['nullable', 'numeric', 'min:0'], 'discount' => ['nullable', 'numeric', 'min:0'], 'discount_percent_override' => ['nullable', 'numeric', 'between:0,100'], 'deposit' => ['nullable', 'numeric', 'min:0'], 'security_deposit_type' => ['sometimes', 'in:cash,asset'], 'security_deposit_asset' => ['nullable', 'string', 'max:1000', 'required_if:security_deposit_type,asset'], 'fuel_charge' => ['nullable', 'numeric', 'min:0'], 'rfid_charge' => ['nullable', 'numeric', 'min:0'], 'damage_fees' => ['nullable', 'numeric', 'min:0'], 'car_wash_fees' => ['nullable', 'numeric', 'min:0'], 'extension_fees' => ['nullable', 'numeric', 'min:0'], 'handover_easytrip' => ['nullable', 'string', 'max:255'], 'handover_autosweep' => ['nullable', 'string', 'max:255'], 'handover_fuel_bars' => ['nullable', 'integer', 'min:0', 'max:20'], 'return_easytrip' => ['nullable', 'string', 'max:255'], 'return_autosweep' => ['nullable', 'string', 'max:255'], 'return_fuel_bars' => ['nullable', 'integer', 'min:0', 'max:20'], 'status' => ['sometimes', 'in:pending,upcoming,for_handover,for_delivery,ongoing,for_completion,complete,rejected,cancelled'], 'status_reason' => ['nullable', 'string', 'max:1000'], 'settlement_fund_id' => ['nullable', 'exists:funds,id'], 'payments' => ['nullable', 'array'], 'payments.*.amount' => ['required', 'numeric', 'min:0'], 'payments.*.fund_id' => ['nullable', 'exists:funds,id'], 'payments.*.notes' => ['nullable', 'string'], 'payments.*.paid_at' => ['required', 'date']];
     }
 
     private function isEarlierBookingStatus(string $requestedStatus, string $currentStatus): bool
@@ -1219,7 +1224,7 @@ class BookingController extends Controller
             && is_numeric($data[$longitudeKey]);
     }
 
-    private function rentalBreakdown(Carbon|string $pickupAt, Carbon|string $returnAt, Vehicle $vehicle, float|string|null $rentalRate = null, float|string|null $discountPercentOverride = null): array
+    private function rentalBreakdown(Carbon|string $pickupAt, Carbon|string $returnAt, Vehicle $vehicle, float|string|null $rentalRate = null, float|string|null $discountPercentOverride = null, bool $isExtension = false): array
     {
         $pickupAt = $pickupAt instanceof Carbon ? $pickupAt : Carbon::parse($pickupAt);
         $returnAt = $returnAt instanceof Carbon ? $returnAt : Carbon::parse($returnAt);
@@ -1256,7 +1261,11 @@ class BookingController extends Controller
             ? 0
             : ($billableMinutes === 12 * 60
                 ? $discountedHalfDayRate
-                : ($remainingHours >= $settings->full_day_extension_threshold_hours ? $discountedDailyRate : $remainingHours * $hourlyRate));
+                : ($isExtension && $remainingHours >= $settings->full_day_extension_threshold_hours
+                    ? $discountedDailyRate
+                    : ($billableMinutes > 12 * 60
+                        ? $discountedHalfDayRate + (($remainingHours - 12) * $hourlyRate)
+                        : $remainingHours * $hourlyRate)));
 
         return ['rental' => max(0, $baseRental - $discount), 'discount' => $discount, 'discount_percent' => $discountPercent, 'extension' => $extension];
     }
