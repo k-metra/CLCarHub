@@ -754,6 +754,7 @@ export default function BookingsPage() {
       car_wash_fees: string;
       extension_fees: string;
       additional_charges: string;
+      charge_carwash_fee: boolean;
       settlement_fund_id: string;
     };
     photos: ReturnPhotoDraft[];
@@ -976,6 +977,7 @@ export default function BookingsPage() {
         car_wash_fees: booking.car_wash_fees ?? "",
         extension_fees: booking.extension_fees ?? "",
         additional_charges: booking.additional_charges ?? "",
+        charge_carwash_fee: Number(booking.car_wash_fees ?? 0) > 0,
         settlement_fund_id: funds[0] ? String(funds[0].id) : "",
       },
       photos: [],
@@ -1001,6 +1003,7 @@ export default function BookingsPage() {
         car_wash_fees: "",
         extension_fees: "",
         additional_charges: "",
+        charge_carwash_fee: false,
         settlement_fund_id: "",
       },
       photos: [],
@@ -1168,7 +1171,6 @@ export default function BookingsPage() {
                 "fuel_charge",
                 "rfid_charge",
                 "damage_fees",
-                "car_wash_fees",
                 "extension_fees",
                 "additional_charges",
               ] as const
@@ -1178,6 +1180,9 @@ export default function BookingsPage() {
             ]),
           )
               : {}),
+          ...(returnProcessing.stage === "return"
+            ? { charge_carwash_fee: returnForm.charge_carwash_fee }
+            : {}),
         },
       );
       setReturnProcessing(null);
@@ -2327,7 +2332,6 @@ export default function BookingsPage() {
                   "fuel_charge",
                   "rfid_charge",
                   "damage_fees",
-                  "car_wash_fees",
                   "extension_fees",
                   "additional_charges",
                 ] as const
@@ -2352,6 +2356,26 @@ export default function BookingsPage() {
                   />
                 </label>
               ))}
+              <label className="flex items-start gap-2 text-xs text-[#555]">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-[#ff641f]"
+                  checked={returnProcessing.form.charge_carwash_fee}
+                  onChange={(event) =>
+                    setReturnProcessing((current) =>
+                      current
+                        ? { ...current, form: { ...current.form, charge_carwash_fee: event.target.checked } }
+                        : current,
+                    )
+                  }
+                />
+                <span>
+                  <strong>Charge carwash fee</strong>
+                  <span className="mt-1 block text-[11px] text-[#888]">
+                    Applies this vehicle&apos;s configured carwash fee when the unit is returned dirty.
+                  </span>
+                </span>
+              </label>
             </div>
             )}
             <section className="mt-5 border-t border-black/10 pt-5">
