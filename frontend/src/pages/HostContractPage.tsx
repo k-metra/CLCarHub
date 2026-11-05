@@ -39,6 +39,7 @@ export default function HostContractPage() {
   const { showToast } = useToast();
   const [data, setData] = useState<HostContractResponse | null>(null);
   const [fullDayExtensionThresholdHours, setFullDayExtensionThresholdHours] = useState(12);
+  const [defaultHourlyExtensionRate, setDefaultHourlyExtensionRate] = useState(200);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -49,6 +50,7 @@ export default function HostContractPage() {
       .then(([response, settings]) => {
         setData(response.data);
         setFullDayExtensionThresholdHours(settings.data.full_day_extension_threshold_hours);
+        setDefaultHourlyExtensionRate(Number(settings.data.default_hour_extension_rate ?? 200));
       })
       .catch(error => showToast(error instanceof Error ? error.message : "Unable to load contract", "error"));
   }, [bookingId, showToast]);
@@ -78,7 +80,7 @@ export default function HostContractPage() {
       <div className="flex gap-2"><button type="button" className="border border-black/15 px-4 py-2 text-sm font-semibold" onClick={() => navigate("/host/bookings")}>Back</button><button type="button" className="bg-[#151515] px-4 py-2 text-sm font-bold text-white" onClick={() => window.print()}>Print / Save as PDF</button></div>
     </div>
     <div className="mt-6 print:mt-0">
-      <ContractPreview contract={data.contract} booking={booking} specialTerms={hostDetails.special_terms ?? data.contract.special_terms ?? ""} options={options} fullDayExtensionThresholdHours={fullDayExtensionThresholdHours} />
+      <ContractPreview contract={data.contract} booking={booking} specialTerms={hostDetails.special_terms ?? data.contract.special_terms ?? ""} options={options} defaultHourlyExtensionRate={defaultHourlyExtensionRate} fullDayExtensionThresholdHours={fullDayExtensionThresholdHours} />
     </div>
     {physicalImages.length > 0 && <section className="mt-8 border border-black/10 bg-white p-6 print:hidden"><h2 className="text-lg font-semibold">Physical contract images</h2><p className="mt-1 text-sm text-[#777]">Photos and scans uploaded by CL CarHub staff.</p><div className="mt-5 flex max-w-full snap-x gap-4 overflow-x-auto pb-2">{physicalImages.map((url, index) => <a href={url} target="_blank" rel="noreferrer" key={url} className="w-40 shrink-0 snap-start"><img src={url} alt={`Physical contract page ${index + 1}`} className="aspect-square w-40 rounded border border-black/10 object-cover" /></a>)}</div></section>}
   </HostShell>;
