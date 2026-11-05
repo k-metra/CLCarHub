@@ -1605,6 +1605,7 @@ export default function BookingsPage() {
     try {
       const result = await api.patch<BookingRecord>(`/bookings/${extensionBooking.id}`, {
         return_at: extensionReturnAt,
+        is_extension: true,
       });
       setExtensionBooking(null);
       setSelectedBooking(result.data);
