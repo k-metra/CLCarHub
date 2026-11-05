@@ -18,6 +18,7 @@ export type ContractOptions = {
   fuel_after?: string;
 };
 export type Contract = { id: number; booking_id: number; status: string; special_terms?: string | null; options?: Partial<ContractOptions> | null; signed_at?: string | null; signature_data?: string | null; staff_signature_data?: string | null; booking: BookingRecord };
+type PaginatedBookings = Paginated<BookingRecord> & { current_page: number; last_page: number };
 const defaultContractOptions: ContractOptions = { strict_destination: false, release_of_liability: false, no_smoking: false, easytrip_before: "", easytrip_after: "", autosweep_before: "", autosweep_after: "", fuel_before: "", fuel_after: "" };
 const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 const dateTime = (value?: string) => value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
@@ -167,8 +168,13 @@ export default function ContractBuilderPage() {
   const visibleBookings = filteredBookings.slice((bookingPage - 1) * bookingsPerPage, bookingPage * bookingsPerPage);
   const load = useCallback(async () => {
     try {
-      const [bookingResponse, contractResponse, settingsResponse] = await Promise.all([api.get<Paginated<BookingRecord>>("/bookings?per_page=100"), api.get<Contract[]>("/contracts"), api.get<FleetSettings>("/fleet-settings")]);
-      setBookings(bookingResponse.data.data); setContracts(contractResponse.data); setFullDayExtensionThresholdHours(settingsResponse.data.full_day_extension_threshold_hours);
+      const [firstBookingResponse, contractResponse, settingsResponse] = await Promise.all([api.get<PaginatedBookings>("/bookings?per_page=100&page=1"), api.get<Contract[]>("/contracts"), api.get<FleetSettings>("/fleet-settings")]);
+      const allBookings = [...firstBookingResponse.data.data];
+      for (let page = firstBookingResponse.data.current_page + 1; page <= firstBookingResponse.data.last_page; page += 1) {
+        const response = await api.get<PaginatedBookings>(`/bookings?per_page=100&page=${page}`);
+        allBookings.push(...response.data.data);
+      }
+      setBookings(allBookings); setContracts(contractResponse.data); setFullDayExtensionThresholdHours(settingsResponse.data.full_day_extension_threshold_hours);
     } catch (error) { showToast(error instanceof Error ? error.message : "Unable to load contracts", "error"); }
   }, [showToast]);
   // Loading remote contract data is an external synchronization effect.
