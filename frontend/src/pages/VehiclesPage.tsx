@@ -64,6 +64,7 @@ type VehicleForm = {
   twelve_hour_rate: string;
   mileage_limit: string;
   hour_extension_rate: string;
+  carwash_fee: string;
   security_deposit_fee: string;
   delivery_rate_per_km: string;
   garage_location: "cabuyao" | "calamba";
@@ -111,6 +112,7 @@ const emptyForm: VehicleForm = {
   twelve_hour_rate: "",
   mileage_limit: "",
   hour_extension_rate: "",
+  carwash_fee: "350",
   security_deposit_fee: "",
   delivery_rate_per_km: "",
   garage_location: "calamba",
@@ -136,6 +138,7 @@ const fields: Array<[keyof VehicleForm, string, string]> = [
   ["twelve_hour_rate", "12-hour rental rate (optional; defaults to 50% of daily rate)", "number"],
   ["mileage_limit", "Overall mileage limit (km, optional)", "number"],
   ["hour_extension_rate", "Hourly extension rate (optional)", "number"],
+  ["carwash_fee", "Carwash fee", "number"],
   ["security_deposit_fee", "Security deposit fee (optional)", "number"],
   ["delivery_rate_per_km", "Delivery rate per kilometer (optional)", "number"],
 ];
@@ -303,6 +306,7 @@ export default function VehiclesPage() {
       twelve_hour_rate: vehicle.twelve_hour_rate ?? "",
       mileage_limit: vehicle.mileage_limit?.toString() ?? "",
       hour_extension_rate: vehicle.hour_extension_rate ?? "",
+      carwash_fee: vehicle.carwash_fee ?? "350",
       security_deposit_fee: vehicle.security_deposit_fee ?? "",
       delivery_rate_per_km: vehicle.delivery_rate_per_km ?? "",
       garage_location: vehicle.garage_location === "cabuyao" ? "cabuyao" : "calamba",
