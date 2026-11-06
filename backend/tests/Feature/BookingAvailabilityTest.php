@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\FleetSetting;
 use App\Models\Partner;
 use App\Models\PartnerVehicleContract;
 use App\Models\User;
@@ -138,6 +139,49 @@ class BookingAvailabilityTest extends TestCase
 
         $this->assertSame('2000.00', $response->json('rental_amount'));
         $this->assertSame('2000.00', $response->json('total_amount'));
+    }
+
+    public function test_twelve_hour_extension_adds_hourly_rate_after_twelve_hours(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $vehicle->update(['daily_rate' => 3000, 'twelve_hour_rate' => 1695, 'hour_extension_rate' => 200]);
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $response = $this->patchJson("/api/bookings/{$booking['id']}", [
+            'return_at' => '2030-01-12 01:00',
+            'is_extension' => true,
+            'extension_pricing_mode' => 'twelve_hour',
+        ])->assertOk();
+
+        $this->assertSame('2295.00', $response->json('extension_fees'));
+        $this->assertSame('twelve_hour', $response->json('extension_pricing_mode'));
+    }
+
+    public function test_hourly_extension_threshold_charges_the_daily_rate(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $vehicle->update(['daily_rate' => 3000, 'hour_extension_rate' => 200]);
+        FleetSetting::findOrFail(1)->update(['full_day_extension_threshold_hours' => 6]);
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $response = $this->patchJson("/api/bookings/{$booking['id']}", [
+            'return_at' => '2030-01-11 17:00',
+            'is_extension' => true,
+            'extension_pricing_mode' => 'hourly',
+        ])->assertOk();
+
+        $this->assertSame('3000.00', $response->json('extension_fees'));
+        $this->assertSame('hourly', $response->json('extension_pricing_mode'));
     }
 
     public function test_cancelled_and_rejected_bookings_do_not_block_a_vehicle(): void
