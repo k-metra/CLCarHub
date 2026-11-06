@@ -1275,7 +1275,9 @@ class BookingController extends Controller
         $days = intdiv($minutes, 24 * 60);
         $settings = FleetSetting::findOrFail(1);
         $remainingMinutes = $minutes % (24 * 60);
-        $billableMinutes = max(0, $remainingMinutes - (int) $settings->late_return_grace_period_minutes);
+        $billableMinutes = $isExtension
+            ? $remainingMinutes
+            : max(0, $remainingMinutes - (int) $settings->late_return_grace_period_minutes);
         $remainingHours = (int) ceil($billableMinutes / 60);
         $hourlyRate = (float) ($vehicle->hour_extension_rate ?? $settings->default_hour_extension_rate);
         $rentalDays = max(1, $days);
