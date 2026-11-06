@@ -805,6 +805,7 @@ export default function BookingsPage() {
   const [refundSaving, setRefundSaving] = useState(false);
   const [extensionBooking, setExtensionBooking] = useState<BookingRecord | null>(null);
   const [extensionReturnAt, setExtensionReturnAt] = useState("");
+  const [extensionPricingMode, setExtensionPricingMode] = useState<"hourly" | "twelve_hour">("hourly");
   const [extensionSaving, setExtensionSaving] = useState(false);
   const [outstandingRefunds, setOutstandingRefunds] = useState<Array<{ booking: BookingRecord; outstanding_amount: number; rfid_refund_credit: number }>>([]);
   const [settlingBooking, setSettlingBooking] = useState(false);
@@ -1611,6 +1612,7 @@ export default function BookingsPage() {
       const result = await api.patch<BookingRecord>(`/bookings/${extensionBooking.id}`, {
         return_at: extensionReturnAt,
         is_extension: true,
+        extension_pricing_mode: extensionPricingMode,
       });
       setExtensionBooking(null);
       setSelectedBooking(result.data);
@@ -2725,9 +2727,21 @@ export default function BookingsPage() {
                 onChange={(event) => setExtensionReturnAt(event.target.value)}
               />
             </label>
+            <fieldset className="mt-5">
+              <legend className="text-sm">Extension pricing</legend>
+              <div className="mt-2 space-y-2">
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="radio" name="extension_pricing_mode" value="hourly" checked={extensionPricingMode === "hourly"} onChange={() => setExtensionPricingMode("hourly")} />
+                  <span><strong>Hourly extension</strong><span className="block text-xs text-[#777]">Up to the configured threshold is charged hourly; beyond it, the full daily rate applies.</span></span>
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="radio" name="extension_pricing_mode" value="twelve_hour" checked={extensionPricingMode === "twelve_hour"} onChange={() => setExtensionPricingMode("twelve_hour")} />
+                  <span><strong>12-hour extension</strong><span className="block text-xs text-[#777]">The 12-hour rate applies, plus hourly charges for any time beyond 12 hours.</span></span>
+                </label>
+              </div>
+            </fieldset>
             <p className="mt-3 text-xs leading-5 text-[#777]">
-              The booking will be recalculated using the vehicle&apos;s configured
-              hourly extension rate or full-day extension rate.
+              The booking will be recalculated using the selected extension pricing.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button
@@ -3127,6 +3141,7 @@ export default function BookingsPage() {
                         onClick={() => {
                           setExtensionBooking(selectedBooking);
                           setExtensionReturnAt(dateTimeLocalValue(selectedBooking.return_at));
+                          setExtensionPricingMode(selectedBooking.extension_pricing_mode ?? "hourly");
                           setShowActions(false);
                         }}
                       >
