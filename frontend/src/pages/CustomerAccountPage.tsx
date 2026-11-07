@@ -313,7 +313,21 @@ export default function CustomerAccountPage() {
   useEffect(() => {
     const payment = searchParams.get("payment");
     const bookingId = searchParams.get("booking");
+    if (!bookingId || !payment || !["success", "cancelled"].includes(payment)) {
+      setPaymentConfirmation(null);
+    }
     if (!bookingId) return;
+    const listedBooking = bookings.find(booking => String(booking.id) === bookingId);
+    if (listedBooking) {
+      if (payment && ["success", "cancelled"].includes(payment)) {
+        setPaymentConfirmation({ booking: listedBooking, status: payment as "success" | "cancelled" });
+      } else {
+        setSelectedBooking(listedBooking);
+        setTab("calendar");
+      }
+      return;
+    }
+    if (loadingData) return;
     setBookingDetailLoading(true);
     api.get<BookingRecord>(`/customer/booking-requests/${bookingId}`)
       .then(response => {
@@ -326,7 +340,7 @@ export default function CustomerAccountPage() {
       })
       .catch(() => showToast(payment ? "Payment returned, but the booking details could not be loaded." : "Unable to load booking details.", "error"))
       .finally(() => setBookingDetailLoading(false));
-  }, [searchParams, showToast]);
+  }, [bookings, loadingData, searchParams, showToast]);
   const [files, setFiles] = useState<Record<AttachmentCategory, File[]>>({ license: [], secondary_id: [], ltms: [], selfie_license: [] });
   const filePreviewUrls = useMemo(() => {
     const previews: Record<AttachmentCategory, string[]> = { license: [], secondary_id: [], ltms: [], selfie_license: [] };
