@@ -67,6 +67,7 @@ export function PaymentStatusScreen({
   detailsPath: string;
   homePath: string;
 }) {
+  const { theme } = useTheme();
   const successful = status === "success";
   const vehicle = booking?.vehicle;
   const vehicleName = vehicle?.name || [vehicle?.brand, vehicle?.model].filter(Boolean).join(" ") || "Vehicle reservation";
@@ -74,7 +75,7 @@ export function PaymentStatusScreen({
   const vehicleImage = vehicleThumbnailUrl(vehicle);
 
   return (
-    <div className="dashboard-theme flex min-h-screen items-center justify-center bg-[#f5f4f1] px-4 py-10 text-[#151515] sm:px-6">
+    <div className={`dashboard-theme ${theme === "dark" ? "theme-dark" : ""} flex min-h-screen items-center justify-center bg-[#f4f3f0] px-4 py-10 text-[#151515] sm:px-6`}>
       <main className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-[0_20px_60px_rgba(21,21,21,.12)] sm:p-8">
         <div className="text-center">
           <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${successful ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
@@ -86,7 +87,7 @@ export function PaymentStatusScreen({
           <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
             {successful ? "Booking confirmed!" : "Booking is still pending"}
           </h1>
-          <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#69747b]">
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#777]">
             {successful
               ? "Your payment was received. Your booking request has been sent to CL CarHub for review."
               : "No payment was recorded. Your booking is still saved, and you can review it and try again anytime."}
@@ -99,14 +100,14 @@ export function PaymentStatusScreen({
             </div>
             <div className="min-w-0">
               <p className="truncate font-bold">{vehicleName}</p>
-              <p className="mt-1 text-xs text-[#69747b]">{vehicle?.plate_number || "Vehicle reservation"}</p>
+              <p className="mt-1 text-xs text-[#777]">{vehicle?.plate_number || "Vehicle reservation"}</p>
             </div>
           </div>
           <dl className="mt-4 space-y-3 border-t border-black/10 pt-4 text-sm">
-            {booking && <div className="flex justify-between gap-4"><dt className="text-[#69747b]">Pickup</dt><dd className="text-right font-semibold">{dateTime(booking.pickup_at)}</dd></div>}
-            {booking && <div className="flex justify-between gap-4"><dt className="text-[#69747b]">Return</dt><dd className="text-right font-semibold">{dateTime(booking.return_at)}</dd></div>}
-            {payment && <div className="flex justify-between gap-4"><dt className="text-[#69747b]">Payment</dt><dd className="font-semibold">{money.format(Number(payment.amount))}</dd></div>}
-            <div className="flex justify-between gap-4"><dt className="text-[#69747b]">Booking reference</dt><dd className="font-semibold text-[#d85b1b]">{booking?.reference || bookingId}</dd></div>
+            {booking && <div className="flex justify-between gap-4"><dt className="text-[#777]">Pickup</dt><dd className="text-right font-semibold">{dateTime(booking.pickup_at)}</dd></div>}
+            {booking && <div className="flex justify-between gap-4"><dt className="text-[#777]">Return</dt><dd className="text-right font-semibold">{dateTime(booking.return_at)}</dd></div>}
+            {payment && <div className="flex justify-between gap-4"><dt className="text-[#777]">Payment</dt><dd className="font-semibold">{money.format(Number(payment.amount))}</dd></div>}
+            <div className="flex justify-between gap-4"><dt className="text-[#777]">Booking reference</dt><dd className="font-semibold text-[#d85b1b]">{booking?.reference || bookingId}</dd></div>
           </dl>
         </section>
         <div className="mt-6 grid gap-3">
@@ -312,10 +313,19 @@ export default function CustomerAccountPage() {
   useEffect(() => {
     const payment = searchParams.get("payment");
     const bookingId = searchParams.get("booking");
-    if (!bookingId || !payment || !["success", "cancelled"].includes(payment)) return;
+    if (!bookingId) return;
+    setBookingDetailLoading(true);
     api.get<BookingRecord>(`/customer/booking-requests/${bookingId}`)
-      .then(response => setPaymentConfirmation({ booking: response.data, status: payment as "success" | "cancelled" }))
-      .catch(() => showToast("Payment returned, but the booking details could not be loaded.", "error"));
+      .then(response => {
+        if (payment && ["success", "cancelled"].includes(payment)) {
+          setPaymentConfirmation({ booking: response.data, status: payment as "success" | "cancelled" });
+        } else {
+          setSelectedBooking(response.data);
+          setTab("calendar");
+        }
+      })
+      .catch(() => showToast(payment ? "Payment returned, but the booking details could not be loaded." : "Unable to load booking details.", "error"))
+      .finally(() => setBookingDetailLoading(false));
   }, [searchParams, showToast]);
   const [files, setFiles] = useState<Record<AttachmentCategory, File[]>>({ license: [], secondary_id: [], ltms: [], selfie_license: [] });
   const filePreviewUrls = useMemo(() => {
