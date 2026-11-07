@@ -9,6 +9,7 @@ use App\Models\Addon;
 use App\Models\FundTransaction;
 use App\Models\Fund;
 use App\Models\BookingRefund;
+use App\Models\BookingExtensionHistory;
 use App\Models\FleetSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -253,7 +254,7 @@ class BookingController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $now = now();
         $query = Booking::query()->visibleToAdmin($request->boolean('include_archived'))
-            ->with(['customer', 'vehicle.images', 'payments.fund', 'refunds.fund', 'statusHistory.user', 'creator', 'assignedTo', 'returnPhotos'])
+            ->with(['customer', 'vehicle.images', 'payments.fund', 'refunds.fund', 'statusHistory.user', 'extensionHistory.creator', 'creator', 'assignedTo', 'returnPhotos'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('reference', 'like', "%{$search}%")
@@ -322,7 +323,7 @@ class BookingController extends Controller
             return $lockedBooking;
         });
 
-        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos', 'assignedTo']);
+        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'extensionHistory.creator', 'returnPhotos', 'assignedTo']);
     }
 
     public function store(Request $request)
@@ -657,11 +658,18 @@ class BookingController extends Controller
         Booking::synchronizeAutomaticStatuses();
         $booking->refresh();
         $data = $request->validate($this->rules(true));
-        $extensionPricingApplied = (bool) ($data['is_extension'] ?? $booking->extension_pricing_applied);
+        $extensionRequest = (bool) ($data['is_extension'] ?? false);
+        $extensionPricingApplied = $extensionRequest
+            ? true
+            : (bool) ($booking->extension_pricing_applied ?? false);
         $extensionPricingMode = $extensionPricingApplied ? ($data['extension_pricing_mode'] ?? $booking->extension_pricing_mode ?? 'hourly') : null;
         unset($data['is_extension']);
         unset($data['extension_pricing_mode']);
         $oldStatus = $booking->status;
+        $previousReturnAt = $booking->return_at->copy();
+        $previousExtensionFees = (float) $booking->extension_fees;
+        $previousExtensionPricingApplied = (bool) $booking->extension_pricing_applied;
+        $previousExtensionPricingMode = $booking->extension_pricing_mode;
         $scheduleFieldsProvided = array_key_exists('pickup_at', $data) || array_key_exists('return_at', $data);
         if (
             $scheduleFieldsProvided
@@ -797,7 +805,7 @@ class BookingController extends Controller
         $booking->rental_amount = $rentalBreakdown['rental'];
         $booking->rental_discount = $rentalBreakdown['discount'];
         $bookingMinutes = $booking->pickup_at->diffInMinutes($booking->actual_return_at ?? $booking->return_at);
-        if ($bookingMinutes <= 24 * 60 || ! array_key_exists('extension_fees', $data)) {
+        if ($scheduleChanged || $extensionRequest || $bookingMinutes <= 24 * 60 || ! array_key_exists('extension_fees', $data)) {
             $booking->extension_fees = $rentalBreakdown['extension'];
             $booking->extension_pricing_applied = $extensionPricingApplied;
         }
@@ -810,6 +818,18 @@ class BookingController extends Controller
         }
         $this->recalculateInspectionCharges($booking);
         $booking->save();
+        if ($extensionRequest && $booking->return_at->greaterThan($previousReturnAt)) {
+            $booking->extensionHistory()->create([
+                'previous_return_at' => $previousReturnAt,
+                'new_return_at' => $booking->return_at,
+                'previous_extension_fees' => $previousExtensionFees,
+                'new_extension_fees' => (float) $booking->extension_fees,
+                'previous_extension_pricing_applied' => $previousExtensionPricingApplied,
+                'previous_extension_pricing_mode' => $previousExtensionPricingMode,
+                'extension_pricing_mode' => $booking->extension_pricing_mode,
+                'created_by' => $request->user()?->id,
+            ]);
+        }
         $this->syncContractReadings($booking);
         $this->recalculateTotal($booking);
         if ($payments !== null) $this->syncPayments($booking, $payments);
@@ -843,7 +863,50 @@ class BookingController extends Controller
             );
         }
 
-        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'returnPhotos', 'assignedTo']);
+        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'extensionHistory.creator', 'returnPhotos', 'assignedTo']);
+    }
+
+    public function undoExtension(Request $request, Booking $booking)
+    {
+        $user = $request->user();
+        abort_unless($user && in_array($user->role, ['owner', 'co_owner', 'it_management', 'staff'], true), 403, 'Only staff and above can undo booking extensions.');
+
+        $booking = DB::transaction(function () use ($booking, $user) {
+            $lockedBooking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+            $history = $lockedBooking->extensionHistory()
+                ->whereNull('undone_at')
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+            abort_unless($history, 422, 'There are no active extensions to undo.');
+
+            $vehicle = $lockedBooking->vehicle()->firstOrFail();
+            $pricingApplied = (bool) $history->previous_extension_pricing_applied;
+            $pricingMode = $pricingApplied ? $history->previous_extension_pricing_mode : null;
+            $lockedBooking->return_at = $history->previous_return_at;
+            $rentalBreakdown = $this->rentalBreakdown(
+                $lockedBooking->pickup_at,
+                $lockedBooking->actual_return_at ?? $lockedBooking->return_at,
+                $vehicle,
+                $lockedBooking->rental_rate,
+                $lockedBooking->discount_percent_override,
+                $pricingApplied,
+                $pricingMode,
+            );
+            $lockedBooking->rental_amount = $rentalBreakdown['rental'];
+            $lockedBooking->rental_discount = $rentalBreakdown['discount'];
+            $lockedBooking->extension_fees = $rentalBreakdown['extension'];
+            $lockedBooking->extension_pricing_applied = $pricingApplied;
+            $lockedBooking->extension_pricing_mode = $pricingMode;
+            $this->recalculateInspectionCharges($lockedBooking);
+            $lockedBooking->save();
+            $this->recalculateTotal($lockedBooking);
+            $history->update(['undone_at' => now(), 'undone_by' => $user->id]);
+
+            return $lockedBooking;
+        });
+
+        return $booking->fresh(['customer', 'vehicle.images', 'payments.fund', 'statusHistory.user', 'extensionHistory.creator', 'returnPhotos', 'assignedTo']);
     }
 
     public function destroy(Booking $booking)
