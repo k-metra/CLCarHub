@@ -79,7 +79,7 @@ class BookingController extends Controller
         $customer = $this->authenticatedCustomer($request);
         abort_unless($booking->customer_id === $customer->id, 404);
 
-        return $booking->load(['vehicle.images', 'payments.fund', 'statusHistory.user']);
+        return $booking->load(['vehicle.images', 'payments.fund', 'statusHistory.user', 'extensionHistory.creator']);
     }
 
     public function customerPayment(Request $request, Booking $booking)
