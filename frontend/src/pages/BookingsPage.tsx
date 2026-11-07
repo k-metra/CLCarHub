@@ -807,6 +807,7 @@ export default function BookingsPage() {
   const [extensionReturnAt, setExtensionReturnAt] = useState("");
   const [extensionPricingMode, setExtensionPricingMode] = useState<"hourly" | "twelve_hour">("hourly");
   const [extensionSaving, setExtensionSaving] = useState(false);
+  const [extensionUndoSaving, setExtensionUndoSaving] = useState(false);
   const [outstandingRefunds, setOutstandingRefunds] = useState<Array<{ booking: BookingRecord; outstanding_amount: number; rfid_refund_credit: number }>>([]);
   const [settlingBooking, setSettlingBooking] = useState(false);
   const [settlementFundId, setSettlementFundId] = useState("");
@@ -1625,6 +1626,22 @@ export default function BookingsPage() {
       );
     } finally {
       setExtensionSaving(false);
+    }
+  };
+  const undoLatestExtension = async () => {
+    if (!selectedBooking || extensionUndoSaving) return;
+    const activeExtensions = (selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).filter((item) => !item.undone_at);
+    if (!activeExtensions.length || !window.confirm("Undo the most recent extension? Older extensions must be undone after this one.")) return;
+    setExtensionUndoSaving(true);
+    try {
+      const result = await api.post<BookingRecord>(`/bookings/${selectedBooking.id}/extensions/undo`);
+      setSelectedBooking(result.data);
+      await loadBookings();
+      showToast("Most recent extension undone.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Unable to undo extension.", "error");
+    } finally {
+      setExtensionUndoSaving(false);
     }
   };
   const openSettlementConfirmation = () => {
@@ -3513,6 +3530,34 @@ export default function BookingsPage() {
                           ).toLocaleString()}
                         </p>
                       </div>{" "}
+                      {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).length > 0 && (
+                        <div className="sm:col-span-2 rounded border border-black/10 bg-[#f8f7f5] p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs uppercase tracking-widest text-[#888]">Extension history</p>
+                              <p className="mt-1 text-xs text-[#777]">Extensions must be undone newest first.</p>
+                            </div>
+                            {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).some((item) => !item.undone_at) && (
+                              <button type="button" disabled={extensionUndoSaving} onClick={() => void undoLatestExtension()} className="border border-[#d94f12] px-3 py-2 text-xs font-semibold text-[#d94f12] disabled:opacity-50">
+                                {extensionUndoSaving ? "Undoing..." : "Undo latest extension"}
+                              </button>
+                            )}
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).map((item, index) => (
+                              <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-black/10 pt-2 text-xs">
+                                <span>
+                                  {index === 0 && !item.undone_at ? <strong className="mr-2 text-[#d94f12]">Latest</strong> : null}
+                                  {bookingDateTime(item.previous_return_at)} → {bookingDateTime(item.new_return_at)}
+                                </span>
+                                <span className={item.undone_at ? "text-[#888]" : "font-semibold"}>
+                                  {item.undone_at ? `Undone ${bookingDateTime(item.undone_at)}` : `₱${Number(item.new_extension_fees).toLocaleString()}`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <p className="text-xs text-[#888]">Security deposit held</p>
                         <p className="mt-1 font-semibold">
