@@ -412,6 +412,7 @@ class BookingController extends Controller
             'payments.fund',
             'refunds.fund',
             'statusHistory.user',
+            'extensionHistory.creator',
             'returnPhotos',
         ]);
         if ($booking->contract) {
