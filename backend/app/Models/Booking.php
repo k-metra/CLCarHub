@@ -89,6 +89,11 @@ class Booking extends Model
         return $this->hasMany(BookingStatusHistory::class)->latest();
     }
 
+    public function extensionHistory(): HasMany
+    {
+        return $this->hasMany(BookingExtensionHistory::class)->latest('id');
+    }
+
     public function loyaltyReward(): HasOne
     {
         return $this->hasOne(CustomerLoyaltyReward::class, 'redeemed_booking_id');
