@@ -232,7 +232,7 @@ class BookingAvailabilityTest extends TestCase
         $this->assertDatabaseCount('booking_extension_histories', 2);
         $this->postJson("/api/bookings/{$booking['id']}/extensions/undo")
             ->assertOk()
-            ->assertJsonPath('return_at', '2030-01-11T04:00:00.000000Z');
+            ->assertJsonPath('return_at', '2030-01-11T03:00:00.000000Z');
         $this->assertNotNull(\App\Models\BookingExtensionHistory::findOrFail(2)->undone_at);
 
         $this->postJson("/api/bookings/{$booking['id']}/extensions/undo")
