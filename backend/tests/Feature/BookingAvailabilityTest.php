@@ -184,6 +184,64 @@ class BookingAvailabilityTest extends TestCase
         $this->assertSame('hourly', $response->json('extension_pricing_mode'));
     }
 
+    public function test_schedule_edits_recalculate_extension_fees_instead_of_reusing_the_submitted_fee(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $vehicle->update(['hour_extension_rate' => 200]);
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/bookings/{$booking['id']}", [
+            'return_at' => '2030-01-11 11:00',
+            'is_extension' => true,
+        ])->assertOk()->assertJsonPath('extension_fees', '200.00');
+
+        $response = $this->patchJson("/api/bookings/{$booking['id']}", [
+            'pickup_at' => '2030-01-10 09:00',
+            'return_at' => '2030-01-11 11:00',
+            'extension_fees' => 200,
+        ])->assertOk();
+
+        $response->assertJsonPath('extension_fees', '400.00');
+    }
+
+    public function test_extensions_are_recorded_and_can_only_be_undone_in_lifo_order(): void
+    {
+        [$vehicle, $customer] = $this->authenticate();
+        $vehicle->update(['hour_extension_rate' => 200]);
+        $booking = $this->postJson('/api/bookings', [
+            'customer_id' => $customer->id,
+            'vehicle_id' => $vehicle->id,
+            'pickup_at' => '2030-01-10 10:00',
+            'return_at' => '2030-01-11 10:00',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/bookings/{$booking['id']}", [
+            'return_at' => '2030-01-11 11:00',
+            'is_extension' => true,
+        ])->assertOk();
+        $this->patchJson("/api/bookings/{$booking['id']}", [
+            'return_at' => '2030-01-11 12:00',
+            'is_extension' => true,
+        ])->assertOk();
+
+        $this->assertDatabaseCount('booking_extension_histories', 2);
+        $this->postJson("/api/bookings/{$booking['id']}/extensions/undo")
+            ->assertOk()
+            ->assertJsonPath('return_at', '2030-01-11T04:00:00.000000Z');
+        $this->assertNotNull(\App\Models\BookingExtensionHistory::findOrFail(2)->undone_at);
+
+        $this->postJson("/api/bookings/{$booking['id']}/extensions/undo")
+            ->assertOk()
+            ->assertJsonPath('return_at', '2030-01-11T02:00:00.000000Z');
+        $this->postJson("/api/bookings/{$booking['id']}/extensions/undo")
+            ->assertUnprocessable();
+    }
+
     public function test_cancelled_and_rejected_bookings_do_not_block_a_vehicle(): void
     {
         [$vehicle, $customer] = $this->authenticate();
