@@ -788,7 +788,7 @@ export default function BookingsPage() {
   const [inspectionMediaZoom, setInspectionMediaZoom] = useState(1);
   const [showActions, setShowActions] = useState(false);
   const [detailTab, setDetailTab] = useState<
-    "details" | "payments" | "customer" | "host-contract"
+    "details" | "payments" | "extensions" | "customer" | "host-contract"
   >("details");
   const [detailLoading, setDetailLoading] = useState(false);
   const [quickPaymentBooking, setQuickPaymentBooking] =
@@ -3303,6 +3303,17 @@ export default function BookingsPage() {
                   )}
                 </button>
                 <button
+                  className={`px-5 py-4 text-sm font-semibold ${detailTab === "extensions" ? "bg-[#151515] text-white" : "text-[#777]"}`}
+                  onClick={() => setDetailTab("extensions")}
+                >
+                  Extensions
+                  {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).some((item) => !item.undone_at) && (
+                    <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] text-orange-700">
+                      active
+                    </span>
+                  )}
+                </button>
+                <button
                   className={`px-5 py-4 text-sm font-semibold ${detailTab === "customer" ? "bg-[#151515] text-white" : "text-[#777]"}`}
                   onClick={() => setDetailTab("customer")}
                 >
@@ -3530,34 +3541,6 @@ export default function BookingsPage() {
                           ).toLocaleString()}
                         </p>
                       </div>{" "}
-                      {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).length > 0 && (
-                        <div className="sm:col-span-2 rounded border border-black/10 bg-[#f8f7f5] p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <p className="text-xs uppercase tracking-widest text-[#888]">Extension history</p>
-                              <p className="mt-1 text-xs text-[#777]">Extensions must be undone newest first.</p>
-                            </div>
-                            {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).some((item) => !item.undone_at) && (
-                              <button type="button" disabled={extensionUndoSaving} onClick={() => void undoLatestExtension()} className="border border-[#d94f12] px-3 py-2 text-xs font-semibold text-[#d94f12] disabled:opacity-50">
-                                {extensionUndoSaving ? "Undoing..." : "Undo latest extension"}
-                              </button>
-                            )}
-                          </div>
-                          <div className="mt-3 space-y-2">
-                            {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).map((item, index) => (
-                              <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-black/10 pt-2 text-xs">
-                                <span>
-                                  {index === 0 && !item.undone_at ? <strong className="mr-2 text-[#d94f12]">Latest</strong> : null}
-                                  {bookingDateTime(item.previous_return_at)} → {bookingDateTime(item.new_return_at)}
-                                </span>
-                                <span className={item.undone_at ? "text-[#888]" : "font-semibold"}>
-                                  {item.undone_at ? `Undone ${bookingDateTime(item.undone_at)}` : `₱${Number(item.new_extension_fees).toLocaleString()}`}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                       <div>
                         <p className="text-xs text-[#888]">Security deposit held</p>
                         <p className="mt-1 font-semibold">
@@ -3837,6 +3820,44 @@ export default function BookingsPage() {
                       </table>
                     </div>
                   </div>
+                </div>
+              ) : detailTab === "extensions" ? (
+                <div className="p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 pb-5">
+                    <div>
+                      <p className="text-xs uppercase tracking-widest text-[#ff641f]">Extension history</p>
+                      <h2 className="mt-1 text-xl font-semibold">Booking extensions</h2>
+                      <p className="mt-2 text-sm text-[#777]">Extensions are undone in last-in, first-out order.</p>
+                    </div>
+                    {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).some((item) => !item.undone_at) && (
+                      <button type="button" disabled={extensionUndoSaving} onClick={() => void undoLatestExtension()} className="border border-[#d94f12] px-4 py-2 text-sm font-semibold text-[#d94f12] disabled:opacity-50">
+                        {extensionUndoSaving ? "Undoing..." : "Undo latest extension"}
+                      </button>
+                    )}
+                  </div>
+                  {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).length === 0 ? (
+                    <p className="py-10 text-center text-sm text-[#777]">No extensions have been recorded for this booking.</p>
+                  ) : (
+                    <div className="mt-5 space-y-3">
+                      {(selectedBooking.extensionHistory ?? selectedBooking.extension_history ?? []).map((item, index) => (
+                        <article key={item.id} className="border border-black/10 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold">
+                                {index === 0 && !item.undone_at && <span className="mr-2 rounded-full bg-orange-100 px-2 py-1 text-[10px] uppercase text-orange-700">Latest</span>}
+                                {bookingDateTime(item.previous_return_at)} → {bookingDateTime(item.new_return_at)}
+                              </p>
+                              <p className="mt-1 text-xs text-[#777]">Added {bookingDateTime(item.created_at)}{item.creator?.name ? ` by ${item.creator.name}` : ""}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold">₱{Number(item.new_extension_fees).toLocaleString()}</p>
+                              <p className="mt-1 text-xs text-[#777]">{item.undone_at ? `Undone ${bookingDateTime(item.undone_at)}` : "Active extension"}</p>
+                            </div>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : detailTab === "host-contract" ? (
                 <HostContractTab key={selectedBooking.id} booking={selectedBooking} onSaved={() => void openDetailsById(selectedBooking.id)} />
