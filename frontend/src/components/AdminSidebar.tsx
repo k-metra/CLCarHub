@@ -22,6 +22,7 @@ const sections: SidebarSection[] = [
     title: "Transactions",
     items: [
       { label: "Bookings", path: "/admin/bookings", icon: "◷" },
+      { label: "POS", path: "/admin/pos", icon: "▣" },
       { label: "Rental Operations", path: "/admin/rental-operations", icon: "↗" },
       { label: "Expenses", path: "/admin/expenses", icon: "−" },
       { label: "Funds", path: "/admin/funds", icon: "$" },
