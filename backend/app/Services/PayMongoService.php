@@ -8,14 +8,14 @@ use RuntimeException;
 
 class PayMongoService
 {
-    public function createCheckoutSession(Booking $booking, float $amount): array
+    public function createCheckoutSession(Booking $booking, float $amount, ?string $returnPath = null): array
     {
         $secretKey = config('services.paymongo.secret_key');
         abort_unless(is_string($secretKey) && $secretKey !== '', 503, 'Online payments are not configured.');
 
         $frontendUrl = rtrim((string) config('services.paymongo.frontend_url', config('app.url')), '/');
         $booking->loadMissing('customer.user');
-        $returnPath = $booking->customer?->user?->role === 'host' ? '/host/rent' : '/account';
+        $returnPath ??= $booking->customer?->user?->role === 'host' ? '/host/rent' : '/account';
         $lineItems = $this->checkoutLineItems($booking, $amount);
         $response = Http::withBasicAuth($secretKey, '')
             ->acceptJson()
@@ -39,6 +39,22 @@ class PayMongoService
         abort_unless(is_string($checkoutUrl) && $checkoutUrl !== '' && is_string($sessionId), 502, 'PayMongo did not return a checkout session.');
 
         return ['id' => $sessionId, 'url' => $checkoutUrl];
+    }
+
+    public function retrieveCheckoutSession(string $sessionId): array
+    {
+        $secretKey = config('services.paymongo.secret_key');
+        abort_unless(is_string($secretKey) && $secretKey !== '', 503, 'Online payments are not configured.');
+
+        $response = Http::withBasicAuth($secretKey, '')
+            ->acceptJson()
+            ->get('https://api.paymongo.com/v2/checkout_sessions/'.$sessionId);
+
+        $response->throw();
+        $data = $response->json('data');
+        abort_unless(is_array($data), 502, 'PayMongo did not return checkout session details.');
+
+        return $data;
     }
 
     private function checkoutLineItems(Booking $booking, float $amount): array
