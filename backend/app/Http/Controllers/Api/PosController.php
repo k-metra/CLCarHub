@@ -86,7 +86,10 @@ class PosController extends Controller
         abort_if($amount > (float) $booking->balance + 0.01, 422, 'Payment cannot exceed the booking balance.');
 
         $session = $payMongo->createCheckoutSession($booking, $amount, '/admin/pos');
-        $booking->update(['paymongo_checkout_session_id' => $session['id']]);
+        $booking->update([
+            'paymongo_checkout_session_id' => $session['id'],
+            'paymongo_checkout_created_by' => $request->user()?->id,
+        ]);
 
         return response()->json(['checkout_url' => $session['url']]);
     }
@@ -137,6 +140,7 @@ class PosController extends Controller
             abort_if($amount <= 0 || $amount > $remaining + 0.01, 422, 'Invalid PayMongo payment amount.');
             $payment = $lockedBooking->payments()->create([
                 'amount' => min($amount, $remaining),
+                'created_by' => $lockedBooking->paymongo_checkout_created_by,
                 'payment_method' => 'paymongo',
                 'status' => 'paid',
                 'paid_at' => now(),
