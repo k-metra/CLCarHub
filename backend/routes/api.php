@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\FleetSettingController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\PayMongoController;
 use App\Http\Controllers\Api\AddonController;
+use App\Http\Controllers\Api\PosController;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
@@ -118,6 +119,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(EnsureRole::class.':owner,co_owner,it_management')->apiResource('accounts', AccountController::class)->only(['store', 'update', 'destroy']);
     Route::delete('/customers/{customer}/attachments/{attachment}', [CustomerController::class, 'destroyAttachment']);
     Route::post('/bookings/{booking}/settle', [BookingController::class, 'settle']);
+    Route::middleware(EnsureRole::class.':owner,co_owner,it_management,staff')->group(function () {
+        Route::get('/pos', [PosController::class, 'index']);
+        Route::post('/pos/bookings/{booking}/payments', [PosController::class, 'storePayment']);
+        Route::post('/pos/bookings/{booking}/checkout', [PosController::class, 'checkout']);
+        Route::post('/pos/bookings/{booking}/sync', [PosController::class, 'sync']);
+    });
     Route::post('/bookings/{booking}/refund', [BookingController::class, 'refund']);
     Route::get('/refunds/outstanding', [BookingController::class, 'outstandingRefunds']);
     Route::post('/bookings/security-deposits/return-all', [BookingController::class, 'returnAllSecurityDeposits']);
