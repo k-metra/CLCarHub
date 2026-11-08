@@ -63,6 +63,7 @@ class PayMongoController extends Controller
                 $amount = min($amount, $remaining);
                 $payment = $booking->payments()->create([
                     'amount' => $amount,
+                    'created_by' => $booking->paymongo_checkout_created_by,
                     'payment_method' => 'paymongo',
                     'status' => 'paid',
                     'paid_at' => now(),
