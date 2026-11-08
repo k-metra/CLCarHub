@@ -44,7 +44,7 @@ class PayMongoController extends Controller
         $amountInMinorUnits = $this->payableAmountInMinorUnits($session, $resource);
         abort_unless(is_string($sessionId) || is_string($reference), 422, 'PayMongo webhook has no checkout reference.');
 
-        DB::transaction(function () use ($sessionId, $reference, $amountInMinorUnits): void {
+        $booking = DB::transaction(function () use ($sessionId, $reference, $amountInMinorUnits): Booking {
             $booking = Booking::query()
                 ->where('paymongo_checkout_session_id', $sessionId)
                 ->orWhere('reference', $reference)
@@ -93,13 +93,23 @@ class PayMongoController extends Controller
                 'status' => Booking::UPCOMING,
                 'payment_status' => $totalPaid >= (float) $booking->total_amount ? 'paid' : 'partial',
             ]);
-            $booking->load('customer.user');
-            $email = $booking->customer?->email ?: $booking->customer?->user?->email;
-            if ($email) {
-                Notification::route('mail', $email)->notify(new BookingPaymentNotification($booking));
-            }
             Log::info('PayMongo payment recorded', ['booking_id' => $booking->id, 'payment_id' => $payment->id]);
+
+            return $booking->load('customer.user');
         });
+
+        $email = $booking->customer?->email ?: $booking->customer?->user?->email;
+        if ($email) {
+            try {
+                Notification::route('mail', $email)->notify(new BookingPaymentNotification($booking));
+            } catch (\Throwable $exception) {
+                Log::error('PayMongo payment recorded but payment notification failed.', [
+                    'booking_id' => $booking->id,
+                    'email' => $email,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
 
         return response()->json(['received' => true]);
     }
