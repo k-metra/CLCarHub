@@ -8,6 +8,7 @@ import { LoadingScreen, ToastProvider } from "./components/Ui";
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
 const BookingsPage = lazy(() => import("./pages/BookingsPage"));
+const PosPage = lazy(() => import("./pages/PosPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const HostPartnershipPage = lazy(() => import("./pages/HostPartnershipPage"));
 const VehiclesPage = lazy(() => import("./pages/VehiclesPage"));
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="/host/earnings" element={<HostEarningsPage />} />
           <Route path="/host/rent" element={<HostMarketplacePage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/pos" element={<PosPage />} />
           <Route path="/account" element={<CustomerAccountPage />} />
           <Route path="/account/faq" element={<CustomerFaqPage />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
