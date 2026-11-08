@@ -26,6 +26,7 @@ class PayMongoWebhookTest extends TestCase
         Notification::fake();
         config(['services.paymongo.webhook_secret' => 'webhook-secret']);
 
+        $staff = \App\Models\User::factory()->create(['role' => 'staff']);
         $user = \App\Models\User::factory()->create(['role' => 'customer']);
         $customer = $user->customer()->create(['name' => 'Customer', 'email' => 'customer@example.com']);
         $vehicle = Vehicle::create([
@@ -41,6 +42,7 @@ class PayMongoWebhookTest extends TestCase
             'customer_id' => $customer->id,
             'vehicle_id' => $vehicle->id,
             'paymongo_checkout_session_id' => 'cs_test_123',
+            'paymongo_checkout_created_by' => $staff->id,
             'pickup_at' => '2030-01-10 10:00',
             'return_at' => '2030-01-11 10:00',
             'status' => Booking::PENDING,
@@ -78,6 +80,7 @@ class PayMongoWebhookTest extends TestCase
             'provider' => 'paymongo',
             'provider_reference' => 'cs_test_123',
             'amount' => '1000.00',
+            'created_by' => $staff->id,
         ]);
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
@@ -87,7 +90,10 @@ class PayMongoWebhookTest extends TestCase
         $this->assertDatabaseCount('payments', 1);
         $this->assertDatabaseCount('fund_transactions', 1);
 
-        $booking->update(['paymongo_checkout_session_id' => 'cs_test_456']);
+        $booking->update([
+            'paymongo_checkout_session_id' => 'cs_test_456',
+            'paymongo_checkout_created_by' => $staff->id,
+        ]);
         $secondPayload = [
             'data' => [
                 'id' => 'evt_test_456',
@@ -121,6 +127,7 @@ class PayMongoWebhookTest extends TestCase
             'provider' => 'paymongo',
             'provider_reference' => 'cs_test_456',
             'amount' => '1000.00',
+            'created_by' => $staff->id,
         ]);
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
