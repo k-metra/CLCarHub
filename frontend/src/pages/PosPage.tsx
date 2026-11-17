@@ -9,6 +9,7 @@ type PosPayment = PaymentRecord & { booking?: BookingRecord; fund?: FundRecord }
 type PosResponse = {
   date: string;
   summary: { cash: number; online: number; total: number };
+  staff_collections: Array<{ staff_id: number | null; staff_name: string; cash: number; online: number; total: number }>;
   payments: PosPayment[];
   funds: FundRecord[];
 };
@@ -223,6 +224,33 @@ export default function PosPage() {
             </section>
           ))}
         </div>
+
+        <section className="rounded border border-black/10 bg-white p-4 sm:p-5">
+          <div>
+            <h2 className="font-semibold">Staff collections</h2>
+            <p className="mt-1 text-xs text-[#777]">Use the cash column for end-of-day cash reconciliation.</p>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[620px] text-left text-sm">
+              <thead className="border-b border-black/10 text-xs uppercase text-[#777]">
+                <tr><th className="py-3">Staff member</th><th className="text-right">Cash</th><th className="text-right">Online</th><th className="text-right">Total</th></tr>
+              </thead>
+              <tbody>
+                {loading ? [1, 2, 3].map((item) => (
+                  <tr className="border-b border-black/5" key={item}><td className="py-4"><Skeleton className="h-4 w-32" /></td><td><Skeleton className="ml-auto h-4 w-20" /></td><td><Skeleton className="ml-auto h-4 w-20" /></td><td><Skeleton className="ml-auto h-4 w-20" /></td></tr>
+                )) : data?.staff_collections.map((staff) => (
+                  <tr className="border-b border-black/5" key={staff.staff_id ?? "unassigned"}>
+                    <td className="py-3 font-medium">{staff.staff_name}</td>
+                    <td className="text-right">{money.format(staff.cash)}</td>
+                    <td className="text-right">{money.format(staff.online)}</td>
+                    <td className="text-right font-semibold">{money.format(staff.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!loading && !data?.staff_collections.length && <p className="py-6 text-center text-sm text-[#777]">No payments collected for this date.</p>}
+        </section>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <section className="min-w-0 rounded border border-black/10 bg-white p-4 sm:p-5">
