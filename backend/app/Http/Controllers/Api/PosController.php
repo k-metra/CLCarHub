@@ -23,6 +23,25 @@ class PosController extends Controller
             ->with(['booking.customer', 'booking.vehicle', 'fund', 'creator'])
             ->latest('paid_at')
             ->get();
+        $staffCollections = $payments
+            ->groupBy(fn ($payment) => $payment->creator?->id ?? 'unassigned')
+            ->map(function ($staffPayments): array {
+                $creator = $staffPayments->first()->creator;
+                $cash = (float) $staffPayments->reject(fn ($payment) => $payment->provider === 'paymongo')->sum('amount');
+                $online = (float) $staffPayments->filter(fn ($payment) => $payment->provider === 'paymongo')->sum('amount');
+
+                return [
+                    'staff_id' => $creator?->id,
+                    'staff_name' => $creator?->name
+                        ?: trim(implode(' ', array_filter([$creator?->first_name, $creator?->last_name])))
+                        ?: 'Not recorded',
+                    'cash' => $cash,
+                    'online' => $online,
+                    'total' => $cash + $online,
+                ];
+            })
+            ->sortByDesc('total')
+            ->values();
 
         return response()->json([
             'date' => $date,
@@ -32,6 +51,7 @@ class PosController extends Controller
                 'total' => (float) $payments->sum('amount'),
             ],
             'payments' => $payments,
+            'staff_collections' => $staffCollections,
             'funds' => Fund::query()->orderBy('name')->get(),
         ]);
     }
