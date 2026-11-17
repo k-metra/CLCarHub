@@ -8,7 +8,9 @@ use App\Models\Fund;
 use App\Models\FundTransaction;
 use App\Services\PayMongoService;
 use Illuminate\Http\Request;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PosController extends Controller
 {
@@ -46,8 +48,9 @@ class PosController extends Controller
         $payment = DB::transaction(function () use ($data, $booking, $request) {
             $lockedBooking = Booking::query()->with('payments')->lockForUpdate()->findOrFail($booking->id);
             abort_if(in_array($lockedBooking->status, [Booking::CANCELLED, Booking::REJECTED], true), 422, 'Cancelled or rejected bookings cannot receive payments.');
-            $balance = (float) $lockedBooking->balance;
-            abort_if((float) $data['amount'] > $balance + 0.01, 422, 'Payment cannot exceed the booking balance.');
+            $amountInCents = (int) round((float) $data['amount'] * 100);
+            $balanceInCents = (int) round((float) $lockedBooking->balance * 100);
+            abort_if($amountInCents > $balanceInCents, 422, 'Payment cannot exceed the booking balance.');
 
             $payment = $lockedBooking->payments()->create([
                 'amount' => $data['amount'],
@@ -68,7 +71,7 @@ class PosController extends Controller
                 'notes' => $payment->notes,
                 'created_by' => $request->user()?->id,
             ]);
-            $remaining = max(0, $balance - (float) $data['amount']);
+            $remaining = max(0, $balanceInCents - $amountInCents) / 100;
             $lockedBooking->update(['payment_status' => $remaining <= 0.01 ? 'paid' : 'partial']);
 
             return $payment;
@@ -83,7 +86,9 @@ class PosController extends Controller
         $booking->load('payments');
         abort_if(in_array($booking->status, [Booking::CANCELLED, Booking::REJECTED], true), 422, 'Cancelled or rejected bookings cannot receive payments.');
         $amount = round((float) $data['amount'], 2);
-        abort_if($amount > (float) $booking->balance + 0.01, 422, 'Payment cannot exceed the booking balance.');
+        $amountInCents = (int) round($amount * 100);
+        $balanceInCents = (int) round((float) $booking->balance * 100);
+        abort_if($amountInCents > $balanceInCents, 422, 'Payment cannot exceed the booking balance.');
 
         $session = $payMongo->createCheckoutSession($booking, $amount, '/admin/pos');
         $booking->update([
@@ -107,7 +112,20 @@ class PosController extends Controller
             return response()->json(['status' => 'paid', 'recorded' => true, 'payment' => $existingPayment->load('creator')]);
         }
 
-        $session = $payMongo->retrieveCheckoutSession($sessionId);
+        try {
+            $session = $payMongo->retrieveCheckoutSession($sessionId);
+        } catch (RequestException $exception) {
+            if ($exception->response?->status() !== 404) {
+                throw $exception;
+            }
+
+            Log::warning('PayMongo checkout session was not available during POS return sync.', [
+                'booking_id' => $booking->id,
+                'checkout_session_id' => $sessionId,
+            ]);
+
+            return response()->json(['status' => 'pending', 'recorded' => false]);
+        }
         $attributes = $session['attributes'] ?? [];
         $payments = data_get($attributes, 'payments.data', $attributes['payments'] ?? []);
         $payments = is_array($payments) ? $payments : [];
