@@ -37,6 +37,13 @@ function departureTime(booking: BookingRecord) {
   return new Date(booking.pickup_at).getTime();
 }
 
+function formatKeypadAmount(digits: string) {
+  const normalized = digits.replace(/\D/g, "").replace(/^0+(?=\d)/, "") || "0";
+  const cents = normalized.padStart(3, "0");
+  const whole = cents.slice(0, -2) || "0";
+  return `${whole}.${cents.slice(-2)}`;
+}
+
 export default function PosPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
@@ -81,7 +88,7 @@ export default function PosPage() {
     if (searchParams.get("payment") !== "success" || !bookingId) return;
     api.post<{ recorded: boolean }>(`/pos/bookings/${bookingId}/sync`)
       .then((response) => {
-        showToast(response.data.recorded ? "PayMongo payment recorded." : "PayMongo payment is still processing.", response.data.recorded ? "success" : "info");
+        showToast(response.data.recorded ? "PayMongo payment recorded." : "Payment received. PayMongo is still confirming it; the POS will update shortly.", response.data.recorded ? "success" : "info");
         void load();
       })
       .catch((error) => showToast(error instanceof Error ? error.message : "Unable to verify PayMongo payment", "error"));
@@ -143,17 +150,20 @@ export default function PosPage() {
 
   const selectBooking = (booking: BookingRecord) => {
     setSelected(booking);
-    setAmount(String(booking.balance ?? ""));
+    setAmount("0.00");
   };
 
   const pressKey = (key: string) => {
-    if (key === "clear") return setAmount("");
-    if (key === "backspace") return setAmount((current) => current.slice(0, -1));
-    setAmount((current) => key === "." && current.includes(".") ? current : `${current}${key}`);
+    if (key === "clear") return setAmount("0.00");
+    if (key === "backspace") {
+      return setAmount((current) => formatKeypadAmount(current.replace(/\D/g, "").slice(0, -1)));
+    }
+    if (key === ".") return;
+    setAmount((current) => formatKeypadAmount(`${current.replace(/\D/g, "")}${key}`));
   };
 
   const submitCash = async () => {
-    if (!selected || !amount || !fundId) return;
+    if (!selected || Number(amount) <= 0 || !fundId) return;
     setSaving(true);
     try {
       await api.post(`/pos/bookings/${selected.id}/payments`, {
@@ -167,7 +177,7 @@ export default function PosPage() {
   };
 
   const startOnline = async () => {
-    if (!selected || !amount) return;
+    if (!selected || Number(amount) <= 0) return;
     setSaving(true);
     try {
       const result = await api.post<{ checkout_url: string }>(
@@ -188,7 +198,7 @@ export default function PosPage() {
 
   return (
     <AdminShell title="Point of sale">
-      <div className="theme-surface mt-8 min-w-0 max-w-full space-y-6 overflow-x-hidden">
+      <div className="theme-surface mt-8 min-w-0 max-w-full space-y-6 overflow-x-hidden p-4 sm:p-5">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <p className="text-sm text-[#777]">Collect payments against existing bookings and close out the day.</p>
@@ -273,7 +283,7 @@ export default function PosPage() {
                 </div>
                 <label className="block text-xs text-[#777]">Cash fund<select className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" value={fundId} onChange={(event) => setFundId(event.target.value)}>{data?.funds.map((fund) => <option value={fund.id} key={fund.id}>{fund.name}</option>)}</select></label>
                 <textarea className="w-full border border-black/10 px-3 py-2.5 text-sm" placeholder="Payment notes (optional)" value={notes} onChange={(event) => setNotes(event.target.value)} />
-                <div className="grid gap-3 sm:grid-cols-2"><button className="bg-[#151515] px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={saving || !amount || !fundId} onClick={() => void submitCash()}>Record cash</button><button className="bg-[#ff641f] px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={saving || !amount} onClick={() => void startOnline()}>Pay online</button></div>
+                <div className="grid gap-3 sm:grid-cols-2"><button className="bg-[#151515] px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={saving || Number(amount) <= 0 || !fundId} onClick={() => void submitCash()}>Record cash</button><button className="bg-[#ff641f] px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={saving || Number(amount) <= 0} onClick={() => void startOnline()}>Pay online</button></div>
               </div>
             ) : <p className="mt-4 text-sm text-[#777]">Select a booking to collect a payment.</p>}
           </section>
