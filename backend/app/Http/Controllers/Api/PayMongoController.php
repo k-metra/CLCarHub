@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Fund;
 use App\Models\FundTransaction;
+use App\Notifications\PosPaymentInvoiceNotification;
 use App\Services\PayMongoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -99,14 +100,33 @@ class PayMongoController extends Controller
             return $booking->load('customer.user');
         });
 
-        $email = $booking->customer?->email ?: $booking->customer?->user?->email;
-        if ($email) {
+        $invoicePayment = $booking->payments()
+            ->where('provider', 'paymongo')
+            ->where('provider_reference', $sessionId)
+            ->first();
+        $invoiceEmail = $booking->paymongo_invoice_email;
+        if ($invoiceEmail && $invoicePayment) {
             try {
-                Notification::route('mail', $email)->notify(new BookingPaymentNotification($booking));
+                Notification::route('mail', $invoiceEmail)->notify(
+                    new PosPaymentInvoiceNotification($booking, (float) $invoicePayment->amount, 'PayMongo online payment'),
+                );
+            } catch (\Throwable $exception) {
+                Log::error('PayMongo payment recorded but POS invoice email failed.', [
+                    'booking_id' => $booking->id,
+                    'email' => $invoiceEmail,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        $customerEmail = $booking->customer?->email ?: $booking->customer?->user?->email;
+        if ($customerEmail && $customerEmail !== $invoiceEmail) {
+            try {
+                Notification::route('mail', $customerEmail)->notify(new BookingPaymentNotification($booking));
             } catch (\Throwable $exception) {
                 Log::error('PayMongo payment recorded but payment notification failed.', [
                     'booking_id' => $booking->id,
-                    'email' => $email,
+                    'email' => $customerEmail,
                     'error' => $exception->getMessage(),
                 ]);
             }
