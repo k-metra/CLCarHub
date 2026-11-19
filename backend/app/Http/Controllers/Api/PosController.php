@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Fund;
 use App\Models\FundTransaction;
+use App\Notifications\PosPaymentInvoiceNotification;
 use App\Services\PayMongoService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class PosController extends Controller
 {
@@ -63,6 +65,7 @@ class PosController extends Controller
             'fund_id' => ['required', 'exists:funds,id'],
             'paid_at' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'invoice_email' => ['nullable', 'email', 'max:255'],
         ]);
 
         $payment = DB::transaction(function () use ($data, $booking, $request) {
@@ -97,12 +100,30 @@ class PosController extends Controller
             return $payment;
         });
 
-        return response()->json($payment->load(['booking.customer', 'booking.vehicle', 'fund', 'creator']), 201);
+        $payment->load(['booking.customer', 'booking.vehicle', 'fund', 'creator']);
+        if ($data['invoice_email'] ?? null) {
+            try {
+                Notification::route('mail', $data['invoice_email'])->notify(
+                    new PosPaymentInvoiceNotification($payment->booking, (float) $payment->amount, 'Cash'),
+                );
+            } catch (\Throwable $exception) {
+                Log::error('Cash payment recorded but POS invoice email failed.', [
+                    'booking_id' => $booking->id,
+                    'email' => $data['invoice_email'],
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json($payment, 201);
     }
 
     public function checkout(Request $request, Booking $booking, PayMongoService $payMongo)
     {
-        $data = $request->validate(['amount' => ['required', 'numeric', 'min:0.01']]);
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'invoice_email' => ['nullable', 'email', 'max:255'],
+        ]);
         $booking->load('payments');
         abort_if(in_array($booking->status, [Booking::CANCELLED, Booking::REJECTED], true), 422, 'Cancelled or rejected bookings cannot receive payments.');
         $amount = round((float) $data['amount'], 2);
@@ -114,6 +135,7 @@ class PosController extends Controller
         $booking->update([
             'paymongo_checkout_session_id' => $session['id'],
             'paymongo_checkout_created_by' => $request->user()?->id,
+            'paymongo_invoice_email' => $data['invoice_email'] ?? null,
         ]);
 
         return response()->json(['checkout_url' => $session['url']]);
