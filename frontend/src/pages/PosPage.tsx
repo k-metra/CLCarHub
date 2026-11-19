@@ -60,6 +60,7 @@ export default function PosPage() {
   const [paymentPageSize, setPaymentPageSize] = useState(5);
   const [selected, setSelected] = useState<BookingRecord | null>(null);
   const [amount, setAmount] = useState("");
+  const [invoiceEmail, setInvoiceEmail] = useState("");
   const [fundId, setFundId] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -168,10 +169,10 @@ export default function PosPage() {
     setSaving(true);
     try {
       await api.post(`/pos/bookings/${selected.id}/payments`, {
-        amount: Number(amount), fund_id: Number(fundId), paid_at: new Date().toISOString(), notes,
+        amount: Number(amount), fund_id: Number(fundId), paid_at: new Date().toISOString(), notes, invoice_email: invoiceEmail || undefined,
       });
       showToast("Cash payment recorded.", "success");
-      setSelected(null); setAmount(""); setNotes(""); void load();
+      setSelected(null); setAmount(""); setNotes(""); setInvoiceEmail(""); void load();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Unable to record cash payment", "error");
     } finally { setSaving(false); }
@@ -182,7 +183,7 @@ export default function PosPage() {
     setSaving(true);
     try {
       const result = await api.post<{ checkout_url: string }>(
-        `/pos/bookings/${selected.id}/checkout`, { amount: Number(amount) },
+        `/pos/bookings/${selected.id}/checkout`, { amount: Number(amount), invoice_email: invoiceEmail || undefined },
       );
       window.location.assign(result.data.checkout_url);
     } catch (error) {
@@ -310,6 +311,7 @@ export default function PosPage() {
                   <button className="col-span-3 border border-red-300 py-2 text-sm font-semibold text-red-600" onClick={() => pressKey("clear")}>Clear amount</button>
                 </div>
                 <label className="block text-xs text-[#777]">Cash fund<select className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" value={fundId} onChange={(event) => setFundId(event.target.value)}>{data?.funds.map((fund) => <option value={fund.id} key={fund.id}>{fund.name}</option>)}</select></label>
+                <label className="block text-xs text-[#777]">Invoice email (optional)<input className="mt-2 w-full border border-black/10 px-3 py-2.5 text-sm" type="email" placeholder={selected.customer?.email ?? "customer@example.com"} value={invoiceEmail} onChange={(event) => setInvoiceEmail(event.target.value)} /></label>
                 <textarea className="w-full border border-black/10 px-3 py-2.5 text-sm" placeholder="Payment notes (optional)" value={notes} onChange={(event) => setNotes(event.target.value)} />
                 <div className="grid gap-3 sm:grid-cols-2"><button className="bg-[#151515] px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={saving || Number(amount) <= 0 || !fundId} onClick={() => void submitCash()}>Record cash</button><button className="bg-[#ff641f] px-4 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={saving || Number(amount) <= 0} onClick={() => void startOnline()}>Pay online</button></div>
               </div>
